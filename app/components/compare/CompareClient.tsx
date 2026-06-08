@@ -12,7 +12,7 @@ import { c, f, r } from '@/lib/tokens'
 import { ROUTES, brandSlug, phoneSlug, MAX_COMPARE } from '@/lib/config'
 import { api } from '@/lib/api'
 import Navbar from '../Navbar'
-import Footer from '../footer'
+import Footer from '../Footer'
 import { useToast } from '../Toast'
 import type { Phone } from '@/lib/types'
 
