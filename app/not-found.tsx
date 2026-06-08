@@ -16,7 +16,6 @@ export default function NotFound() {
       <main style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 24px' }}>
         <div style={{ maxWidth: 560, width: '100%', textAlign: 'center' }}>
           
-          {/* Illustration */}
           <div style={{ position: 'relative', width: 160, height: 160, margin: '0 auto 40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: f.serif, fontSize: 120, color: c.border, letterSpacing: -8, userSelect: 'none', opacity: 0.6, fontWeight: 400 }}>404</div>
             
@@ -40,7 +39,6 @@ export default function NotFound() {
             <strong>We only list phones you can actually buy</strong> — discontinued models don't live here.
           </p>
 
-          {/* Search */}
           <div style={{ position: 'relative', marginBottom: 20, maxWidth: 400, margin: '0 auto 20px' }}>
             <input 
               type="text" 
@@ -64,7 +62,6 @@ export default function NotFound() {
             </button>
           </div>
 
-          {/* Actions */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 40 }}>
             <Link href="/" style={{ padding: '11px 24px', background: c.primary, color: 'white', borderRadius: 'var(--r-full)', fontSize: 14, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
               Go Home
@@ -77,7 +74,6 @@ export default function NotFound() {
             </Link>
           </div>
 
-          {/* Popular */}
           <div style={{ marginTop: 8 }}>
             <div style={{ fontSize: 12, color: c.text3, marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Popular right now</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8 }}>
@@ -92,7 +88,6 @@ export default function NotFound() {
         </div>
       </main>
 
-      {/* Footer */}
       <footer style={{ background: c.primary, color: 'white', padding: '32px 24px' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: f.serif, fontSize: 18, color: 'white' }}>
