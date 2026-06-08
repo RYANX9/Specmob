@@ -1,5 +1,6 @@
 'use client'
 
+import { Suspense } from 'react'
 import Link from 'next/link'
 import { Smartphone } from 'lucide-react'
 import { c, f, r } from '@/lib/tokens'
@@ -8,7 +9,9 @@ import Navbar from '@/app/components/Navbar'
 export default function NotFound() {
   return (
     <div style={{ minHeight: '100vh', background: c.bg, display: 'flex', flexDirection: 'column' }}>
-      <Navbar compareCount={0} />
+      <Suspense fallback={null}>
+        <Navbar compareCount={0} />
+      </Suspense>
       
       <main style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 24px' }}>
         <div style={{ maxWidth: 560, width: '100%', textAlign: 'center' }}>
