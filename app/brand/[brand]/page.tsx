@@ -20,8 +20,6 @@ import CompareBar from '@/app/components/CompareBar'
 import FilterPanel from '@/app/components/FilterPanel'
 import PhoneCard, { PhoneCardSkeleton } from '@/app/components/PhoneCard'
 
-// ─── types ────────────────────────────────────────────────────────────────────
-
 interface BrandStats {
   brand: string
   total_phones: number
@@ -45,8 +43,7 @@ const SORT_OPTIONS: SortOption[] = [
 
 const PAGE_SIZE = 24
 const EMPTY_FILTERS: SearchFilters = {}
-
-// ─── URL helpers ──────────────────────────────────────────────────────────────
+const CURRENT_YEAR = new Date().getFullYear()
 
 function parseFiltersFromParams(sp: URLSearchParams): SearchFilters {
   return {
@@ -83,8 +80,6 @@ function buildUrl(base: string, filters: SearchFilters, page: number, sortIdx: n
   return str ? `${base}?${str}` : base
 }
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
-
 function isRecentRelease(phone: Phone): boolean {
   if (!phone.release_year) return false
   const diff = (Date.now() - new Date(phone.release_year, (phone.release_month ?? 1) - 1, phone.release_day ?? 1).getTime())
@@ -95,8 +90,6 @@ function fmt(n: number | null | undefined, prefix = '', suffix = '') {
   if (n == null) return '—'
   return `${prefix}${Math.round(n).toLocaleString()}${suffix}`
 }
-
-// ─── sub-components ───────────────────────────────────────────────────────────
 
 function BrandLogoImg({ info, name }: { info: BrandInfo | null; name: string }) {
   const [err, setErr] = useState(false)
@@ -268,8 +261,6 @@ function FilterChips({ filters, onChange }: { filters: SearchFilters; onChange: 
   )
 }
 
-// ─── main page ────────────────────────────────────────────────────────────────
-
 function BrandPageContent() {
   const params       = useParams()
   const router       = useRouter()
@@ -305,7 +296,6 @@ function BrandPageContent() {
 
   const activeFilterCount = Object.values(filters).filter(v => v !== undefined && v !== '').length
 
-  // sync URL → state when user navigates (back/forward) or external link
   useEffect(() => {
     if (ownUpdate.current) { ownUpdate.current = false; return }
     setFilters(parseFiltersFromParams(new URLSearchParams(searchParams.toString())))
@@ -313,13 +303,11 @@ function BrandPageContent() {
     setSortIdx(parseInt(searchParams.get('sort') || '0'))
   }, [searchParams.toString()])
 
-  // helper that commits new state to URL
   const commit = (f: SearchFilters, p: number, s: number) => {
     ownUpdate.current = true
     router.replace(buildUrl(basePath, f, p, s), { scroll: false })
   }
 
-  // initial: brand stats + latest 12
   useEffect(() => {
     if (!slug) return
     let cancelled = false
@@ -339,7 +327,6 @@ function BrandPageContent() {
     return () => { cancelled = true }
   }, [slug])
 
-  // paginated + filtered phone grid
   const loadPhones = useCallback(async () => {
     if (!slug) return
     setPhonesLoading(true)
@@ -364,18 +351,9 @@ function BrandPageContent() {
 
   useEffect(() => { loadPhones() }, [loadPhones])
 
-  const handleFiltersChange = (f: SearchFilters) => {
-    setFilters(f); setPage(1)
-    commit(f, 1, sortIdx)
-  }
-  const handleReset = () => {
-    setFilters(EMPTY_FILTERS); setPage(1)
-    commit(EMPTY_FILTERS, 1, sortIdx)
-  }
-  const handleSortChange = (idx: number) => {
-    setSortIdx(idx); setPage(1); setSortOpen(false)
-    commit(filters, 1, idx)
-  }
+  const handleFiltersChange = (f: SearchFilters) => { setFilters(f); setPage(1); commit(f, 1, sortIdx) }
+  const handleReset = () => { setFilters(EMPTY_FILTERS); setPage(1); commit(EMPTY_FILTERS, 1, sortIdx) }
+  const handleSortChange = (idx: number) => { setSortIdx(idx); setPage(1); setSortOpen(false); commit(filters, 1, idx) }
   const handlePageChange = (p: number) => {
     setPage(p)
     commit(filters, p, sortIdx)
@@ -393,7 +371,6 @@ function BrandPageContent() {
 
   const compareIds = comparePhones.map(p => p.id)
 
-  // loading skeleton
   if (loading) return (
     <div style={{ minHeight: '100vh', background: c.bg }}>
       <Navbar compareCount={0} />
@@ -415,7 +392,6 @@ function BrandPageContent() {
     </div>
   )
 
-  // not found
   if (notFound || !stats) return (
     <div style={{ minHeight: '100vh', background: c.bg }}>
       <Navbar compareCount={0} />
@@ -445,14 +421,12 @@ function BrandPageContent() {
 
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 24px 80px' }}>
 
-        {/* breadcrumb */}
         <nav style={{ padding: '16px 0 0', fontSize: 13, color: c.text3, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           <Link href={ROUTES.home} style={{ color: c.text2 }}>Home</Link>
           <ChevronRight size={12} />
           <span>{stats.brand}</span>
         </nav>
 
-        {/* hero */}
         <div style={{ padding: '28px 0 36px', display: 'flex', alignItems: 'flex-start', gap: 28, flexWrap: 'wrap' }}>
           <BrandLogoImg info={info} name={stats.brand} />
           <div style={{ flex: 1, minWidth: 260 }}>
@@ -481,7 +455,6 @@ function BrandPageContent() {
           </div>
         </div>
 
-        {/* stats bar */}
         <div className="brand-stats-grid" style={{ marginBottom: 40 }}>
           <StatCard label="Average Price" value={fmt(stats.price_range.avg, '$')} sub={`Across ${stats.total_phones} models`} />
           <StatCard
@@ -492,7 +465,6 @@ function BrandPageContent() {
           <StatCard label="Avg Battery" value={fmt(stats.avg_battery, '', ' mAh')} sub="Across current lineup" />
         </div>
 
-        {/* latest releases */}
         {latest.length > 0 && (
           <div style={{ marginBottom: 52 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 20 }}>
@@ -516,10 +488,8 @@ function BrandPageContent() {
           </div>
         )}
 
-        {/* filter + grid */}
         <div ref={gridRef} id="brand-grid" style={{ display: 'grid', gridTemplateColumns: 'var(--sidebar-w) 1fr', gap: 32, alignItems: 'start' }} className="brand-grid-layout">
 
-          {/* sidebar */}
           <div className="brand-filter-sidebar">
             <FilterPanel
               filters={filters}
@@ -529,15 +499,12 @@ function BrandPageContent() {
             />
           </div>
 
-          {/* main */}
           <div>
             <FilterChips filters={filters} onChange={handleFiltersChange} />
 
-            {/* sort / view bar */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, gap: 12, flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
 
-                {/* mobile filter btn */}
                 <button
                   onClick={() => setMobileFiltersOpen(true)}
                   style={{ display: 'none', alignItems: 'center', gap: 6, padding: '7px 14px', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-sm)', fontSize: 13, fontWeight: 500, color: c.text1 }}
@@ -550,7 +517,6 @@ function BrandPageContent() {
                   )}
                 </button>
 
-                {/* sort dropdown */}
                 <div style={{ position: 'relative' }}>
                   <button
                     onClick={() => setSortOpen(o => !o)}
@@ -579,7 +545,6 @@ function BrandPageContent() {
                 </span>
               </div>
 
-              {/* grid/list toggle */}
               <div style={{ display: 'flex', gap: 2, background: c.bg, border: `1px solid ${c.border}`, borderRadius: 'var(--r-sm)', padding: 3 }}>
                 {([{ icon: <LayoutGrid size={14} />, isGrid: true }, { icon: <List size={14} />, isGrid: false }] as const).map(({ icon, isGrid }) => (
                   <button key={String(isGrid)} onClick={() => setGridView(isGrid)} style={{ width: 32, height: 32, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', color: gridView === isGrid ? c.text1 : c.text3, background: gridView === isGrid ? c.surface : 'transparent', border: 'none', cursor: 'pointer', transition: 'all 0.15s', boxShadow: gridView === isGrid ? 'var(--shadow-sm)' : 'none' }}>
@@ -589,7 +554,6 @@ function BrandPageContent() {
               </div>
             </div>
 
-            {/* phone grid */}
             {phonesLoading ? (
               gridView
                 ? <div className="brand-phone-grid" style={{ marginBottom: 40 }}>{Array.from({ length: 8 }).map((_, i) => <PhoneCardSkeleton key={i} />)}</div>
@@ -604,7 +568,7 @@ function BrandPageContent() {
               </div>
             ) : gridView ? (
               <div className="brand-phone-grid" style={{ marginBottom: 40 }}>
-                {phones.map(p => <PhoneCard key={p.id} phone={p} compareIds={compareIds} onCompareToggle={handleCompareToggle} />)}
+                {phones.map(p => <PhoneCard key={p.id} phone={p} compareIds={compareIds} onCompareToggle={handleCompareToggle} compact />)}
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 40 }}>
@@ -625,7 +589,6 @@ function BrandPageContent() {
         onClear={() => setComparePhones([])}
       />
 
-      {/* mobile filter sheet */}
       {mobileFiltersOpen && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.45)' }} onClick={() => setMobileFiltersOpen(false)}>
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: c.surface, borderRadius: 'var(--r-xl) var(--r-xl) 0 0', maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', animation: 'slideUp 0.25s ease' }} onClick={e => e.stopPropagation()}>
@@ -645,20 +608,30 @@ function BrandPageContent() {
         .scrollbar-none { scrollbar-width: none; }
         .scrollbar-none::-webkit-scrollbar { display: none; }
         @media (max-width: 768px) { .scroll-arrow-btn { display: none !important; } }
-        
+
         .brand-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-        .brand-phone-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+        /* Desktop: 4 columns — smaller cards, better proportion with sidebar */
+        .brand-phone-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
         .brand-grid-layout { grid-template-columns: var(--sidebar-w) 1fr; }
 
-        @media (max-width: 1280px) { .brand-phone-grid { grid-template-columns: repeat(2, 1fr); } }
+        /* Tablet wide: sidebar collapses, 4 columns still fit */
+        @media (max-width: 1280px) {
+          .brand-phone-grid { grid-template-columns: repeat(3, 1fr); gap: 12px; }
+        }
+
+        /* Tablet narrow: sidebar gone, 3 columns */
         @media (max-width: 1023px) {
           .brand-stats-grid { grid-template-columns: repeat(2, 1fr); }
           .brand-grid-layout { grid-template-columns: 1fr !important; }
           .brand-filter-sidebar { display: none !important; }
           .brand-mobile-filter-btn { display: flex !important; }
+          .brand-phone-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; }
         }
+
+        /* Mobile: 2 columns */
         @media (max-width: 767px) {
-          .brand-phone-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+          .brand-phone-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
           .brand-stats-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
         }
       `}</style>
