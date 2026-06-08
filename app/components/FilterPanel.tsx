@@ -71,6 +71,9 @@ function RangeSelect({ value, options, onChange }: {
 
 const DIVIDER = <div style={{ height: 1, background: 'var(--border)', margin: '18px 0' }} />
 
+const CURRENT_YEAR = new Date().getFullYear()
+const YEAR_OPTIONS = Array.from({ length: 7 }, (_, i) => CURRENT_YEAR - i).map(y => ({ label: String(y), value: y }))
+
 export default function FilterPanel({ filters, onChange, onReset, showBrandFilter = true }: FilterPanelProps) {
   const [mode, setMode] = useState<'simple' | 'expert'>('simple')
   const [stats, setStats] = useState<FilterStats | null>(null)
@@ -183,7 +186,7 @@ export default function FilterPanel({ filters, onChange, onReset, showBrandFilte
         <SectionTitle>Release Year</SectionTitle>
         <RangeSelect
           value={filters.min_year}
-          options={[2025, 2024, 2023, 2022, 2021, 2020].map(y => ({ label: String(y), value: y }))}
+          options={YEAR_OPTIONS}
           onChange={v => set({ min_year: v ? Number(v) : undefined })}
         />
       </div>
