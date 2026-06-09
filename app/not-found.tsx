@@ -1,17 +1,35 @@
 'use client'
 
-import { Suspense } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Smartphone } from 'lucide-react'
 import { c, f, r } from '@/lib/tokens'
+import { ROUTES, brandSlug, phoneSlug } from '@/lib/config'
+import { api } from '@/lib/api'
 import Navbar from '@/app/components/Navbar'
+import type { Phone } from '@/lib/types'
 
-export default function NotFound() {
+function NotFoundContent() {
+  const router = useRouter()
+  const [query, setQuery] = useState('')
+  const [trending, setTrending] = useState<Phone[]>([])
+
+  useEffect(() => {
+    api.phones.trending(8)
+      .then(d => setTrending(d.phones))
+      .catch(() => {})
+  }, [])
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!query.trim()) return
+    router.push(`/?q=${encodeURIComponent(query.trim())}`)
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: c.bg, display: 'flex', flexDirection: 'column' }}>
-      <Suspense fallback={null}>
-        <Navbar compareCount={0} />
-      </Suspense>
+      <Navbar compareCount={0} />
       
       <main style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 24px' }}>
         <div style={{ maxWidth: 560, width: '100%', textAlign: 'center' }}>
@@ -39,9 +57,11 @@ export default function NotFound() {
             <strong>We only list phones you can actually buy</strong> — discontinued models don't live here.
           </p>
 
-          <div style={{ position: 'relative', marginBottom: 20, maxWidth: 400, margin: '0 auto 20px' }}>
+          <form onSubmit={handleSearch} style={{ position: 'relative', marginBottom: 20, maxWidth: 400, margin: '0 auto 20px' }}>
             <input 
-              type="text" 
+              type="text"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
               placeholder="Search for a phone..." 
               style={{
                 width: '100%',
@@ -57,33 +77,43 @@ export default function NotFound() {
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: c.text3, pointerEvents: 'none' }}>
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
-            <button style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', padding: '7px 18px', background: c.primary, color: 'white', borderRadius: 'var(--r-full)', fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none' }}>
+            <button type="submit" style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', padding: '7px 18px', background: c.primary, color: 'white', borderRadius: 'var(--r-full)', fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none' }}>
               Search
             </button>
-          </div>
+          </form>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 40 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 40, marginTop: 24 }}>
             <Link href="/" style={{ padding: '11px 24px', background: c.primary, color: 'white', borderRadius: 'var(--r-full)', fontSize: 14, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
               Go Home
             </Link>
-            <Link href="/" style={{ padding: '11px 24px', border: `1px solid ${c.border}`, color: c.text2, borderRadius: 'var(--r-full)', fontSize: 14, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <Link href="/best/camera-phones" style={{ padding: '11px 24px', border: `1px solid ${c.border}`, color: c.text2, borderRadius: 'var(--r-full)', fontSize: 14, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
               Browse Best Phones
             </Link>
-            <Link href="/pick" style={{ padding: '11px 24px', border: `1px solid var(--accent-border)`, color: c.accent, borderRadius: 'var(--r-full)', fontSize: 14, fontWeight: 500, background: 'var(--accent-light)', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <Link href="/pick" style={{ padding: '11px 24px', border: `1px solid var(--accent-border)`, color: 'var(--accent)', borderRadius: 'var(--r-full)', fontSize: 14, fontWeight: 500, background: 'var(--accent-light)', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
               Help Me Choose →
             </Link>
           </div>
 
-          <div style={{ marginTop: 8 }}>
-            <div style={{ fontSize: 12, color: c.text3, marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Popular right now</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8 }}>
-              {['Galaxy S25 Ultra', 'iPhone 16 Pro Max', 'Pixel 9 Pro', 'Galaxy A56', 'OnePlus 13'].map(phone => (
-                <Link key={phone} href="/" style={{ padding: '6px 14px', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-full)', fontSize: 13, color: c.text2, transition: 'all 0.15s' }}>
-                  {phone}
-                </Link>
-              ))}
+          {trending.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 12, color: c.text3, marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
+                Trending right now
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 8 }}>
+                {trending.map(phone => (
+                  <Link
+                    key={phone.id}
+                    href={ROUTES.phone(brandSlug(phone.brand), phoneSlug(phone))}
+                    style={{ padding: '6px 14px', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-full)', fontSize: 13, color: c.text2, transition: 'all 0.15s' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = c.primary; (e.currentTarget as HTMLElement).style.color = c.text1 }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = c.border; (e.currentTarget as HTMLElement).style.color = c.text2 }}
+                  >
+                    {phone.model_name}
+                  </Link>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
         </div>
       </main>
@@ -100,7 +130,7 @@ export default function NotFound() {
             <a href="/pick" style={{ fontSize: 13, color: '#A0A0B0', transition: 'color 0.15s' }}>Help Me Choose</a>
             <a href="/about" style={{ fontSize: 13, color: '#A0A0B0', transition: 'color 0.15s' }}>About</a>
           </div>
-          <span style={{ fontSize: 12, color: '#6A6A7A' }}>© 2025 Mobylite</span>
+          <span style={{ fontSize: 12, color: '#6A6A7A' }}>© {new Date().getFullYear()} Mobylite</span>
         </div>
       </footer>
 
@@ -111,5 +141,13 @@ export default function NotFound() {
         }
       `}</style>
     </div>
+  )
+}
+
+export default function NotFound() {
+  return (
+    <Suspense fallback={null}>
+      <NotFoundContent />
+    </Suspense>
   )
 }
