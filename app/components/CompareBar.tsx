@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { X, GitCompare } from 'lucide-react'
 import { ROUTES } from '@/lib/config'
+import { ROUTES, phoneSlug } from '@/lib/config'
 import { c } from '@/lib/tokens'
 import type { Phone } from '@/lib/types'
 
@@ -18,7 +19,7 @@ export default function CompareBar({ phones, onRemove, onClear }: CompareBarProp
   if (phones.length === 0) return null
 
   const handleCompare = () => {
-    router.push(ROUTES.compareIds(phones.map(p => p.id)))
+    router.push(ROUTES.compare(...phones.map(phoneSlug)))
   }
 
   return (
