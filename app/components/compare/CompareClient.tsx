@@ -4,9 +4,9 @@ import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
-  Search, X, Plus, ChevronDown, Star, Share2, RotateCcw,
+  Search, X, Plus, Star, Share2, RotateCcw,
   Loader2, AlertCircle, Smartphone, Camera, Battery, Zap,
-  Monitor, Trophy, BadgeDollarSign, HardHat, ArrowRight,
+  Monitor, Trophy, BadgeDollarSign, HardHat,
 } from 'lucide-react'
 import { c, f, r } from '@/lib/tokens'
 import { ROUTES, brandSlug, phoneSlug, MAX_COMPARE } from '@/lib/config'
@@ -36,8 +36,8 @@ function scoreComposite(p: Phone): number {
 
 /**
  * Returns the index of the best phone for a given metric.
- * Returns -1 if no values exist OR if it's a tie (multiple phones share the best value).
- * This ensures no winner star is shown when values are equal.
+ * Returns -1 if no values exist OR it's a tie, so no winner star is shown
+ * when values are equal.
  */
 function getBestIdx(phones: Phone[], getter: (p: Phone) => number | null, lower = false): number {
   const values = phones.map(getter)
@@ -50,66 +50,82 @@ function getBestIdx(phones: Phone[], getter: (p: Phone) => number | null, lower 
     return acc
   }, [])
 
-  // Tie → no winner
   if (bestIndices.length !== 1) return -1
   return bestIndices[0]
 }
 
-function buildCompareSlug(phones: Phone[]): string {
-  return phones.map(p => phoneSlug(p)).filter(Boolean).join('-vs-')
+/* ─── verdict config ─── */
+interface VerdictItem {
+  icon: React.ReactNode
+  label: string
+  unit: string
+  getter: (p: Phone) => number | null
+  desc: string
+  lower?: boolean
 }
 
-/* ─── verdict config ─── */
-const VERDICTS = [
-  { icon: <Camera size={16} strokeWidth={1.5} />,       label: 'Camera',      unit: ' MP',   getter: (p: Phone) => p.main_camera_mp,     desc: 'Main sensor resolution' },
-  { icon: <Battery size={16} strokeWidth={1.5} />,      label: 'Battery',     unit: ' mAh',  getter: (p: Phone) => p.battery_capacity,    desc: 'Battery capacity' },
-  { icon: <Zap size={16} strokeWidth={1.5} />,          label: 'Charging',    unit: 'W',     getter: (p: Phone) => p.fast_charging_w,     desc: 'Wired charging speed' },
-  { icon: <Zap size={16} strokeWidth={1.5} />,          label: 'Performance', unit: ' pts',  getter: (p: Phone) => p.antutu_score,        desc: 'AnTuTu benchmark' },
-  { icon: <Monitor size={16} strokeWidth={1.5} />,      label: 'Display',     unit: '"',     getter: (p: Phone) => p.screen_size,         desc: 'Screen size' },
-  { icon: <Smartphone size={16} strokeWidth={1.5} />,   label: 'Weight',      unit: 'g',     getter: (p: Phone) => p.weight_g,            desc: 'Total weight', lower: true },
-  { icon: <BadgeDollarSign size={16} strokeWidth={1.5} />, label: 'Value',    unit: '/10',   getter: (p: Phone) => p.value_score ?? scoreComposite(p), desc: 'Specs-per-dollar' },
-] as const
+const VERDICTS: VerdictItem[] = [
+  { icon: <Camera size={16} strokeWidth={1.5} />,          label: 'Camera',      unit: ' MP',  getter: p => p.main_camera_mp,                     desc: 'Main sensor resolution' },
+  { icon: <Battery size={16} strokeWidth={1.5} />,         label: 'Battery',     unit: ' mAh', getter: p => p.battery_capacity,                   desc: 'Battery capacity' },
+  { icon: <Zap size={16} strokeWidth={1.5} />,             label: 'Charging',    unit: 'W',    getter: p => p.fast_charging_w,                    desc: 'Wired charging speed' },
+  { icon: <Zap size={16} strokeWidth={1.5} />,             label: 'Performance', unit: ' pts', getter: p => p.antutu_score,                       desc: 'AnTuTu benchmark' },
+  { icon: <Monitor size={16} strokeWidth={1.5} />,         label: 'Display',     unit: '"',    getter: p => p.screen_size,                        desc: 'Screen size' },
+  { icon: <Smartphone size={16} strokeWidth={1.5} />,      label: 'Weight',      unit: 'g',    getter: p => p.weight_g,                           desc: 'Total weight', lower: true },
+  { icon: <BadgeDollarSign size={16} strokeWidth={1.5} />, label: 'Value',       unit: '/10',  getter: p => p.value_score ?? scoreComposite(p),  desc: 'Specs-per-dollar' },
+]
 
 /* ─── spec table ─── */
-const SPEC_SECTIONS = [
+interface SpecRowDef {
+  label: string
+  getValue: (p: Phone) => string
+  getRaw?: (p: Phone) => number | null
+  lower?: boolean
+}
+interface SpecSectionDef {
+  title: string
+  icon: React.ReactNode
+  rows: SpecRowDef[]
+}
+
+const SPEC_SECTIONS: SpecSectionDef[] = [
   {
     title: 'Display', icon: <Monitor size={15} strokeWidth={1.5} />,
     rows: [
-      { label: 'Screen Size',  getValue: (p: Phone) => fmt(p.screen_size, '"'),    getRaw: (p: Phone) => p.screen_size },
-      { label: 'Resolution',  getValue: (p: Phone) => p.screen_resolution || '—' },
-      { label: 'Panel Type',  getValue: (p: Phone) => (p.full_specifications as any)?.quick_specs?.displaytype || '—' },
+      { label: 'Screen Size', getValue: p => fmt(p.screen_size, '"'), getRaw: p => p.screen_size },
+      { label: 'Resolution',  getValue: p => p.screen_resolution || '—' },
+      { label: 'Panel Type',  getValue: p => (p.full_specifications as any)?.quick_specs?.displaytype || '—' },
     ],
   },
   {
     title: 'Camera', icon: <Camera size={15} strokeWidth={1.5} />,
     rows: [
-      { label: 'Main Camera',  getValue: (p: Phone) => fmt(p.main_camera_mp, ' MP'), getRaw: (p: Phone) => p.main_camera_mp },
-      { label: 'Front Camera', getValue: (p: Phone) => (p.full_specifications as any)?.quick_specs?.cam2modules || '—' },
-      { label: 'Features',     getValue: (p: Phone) => p.features?.join(', ') || '—' },
+      { label: 'Main Camera',  getValue: p => fmt(p.main_camera_mp, ' MP'), getRaw: p => p.main_camera_mp },
+      { label: 'Front Camera', getValue: p => (p.full_specifications as any)?.quick_specs?.cam2modules || '—' },
+      { label: 'Features',     getValue: p => p.features?.join(', ') || '—' },
     ],
   },
   {
     title: 'Performance', icon: <Zap size={15} strokeWidth={1.5} />,
     rows: [
-      { label: 'Chipset',    getValue: (p: Phone) => p.chipset || '—' },
-      { label: 'AnTuTu',    getValue: (p: Phone) => fmt(p.antutu_score),       getRaw: (p: Phone) => p.antutu_score },
-      { label: 'RAM',        getValue: (p: Phone) => p.ram_options?.length ? `${Math.max(...p.ram_options)} GB` : '—', getRaw: (p: Phone) => p.ram_options?.length ? Math.max(...p.ram_options) : null },
-      { label: 'Storage',   getValue: (p: Phone) => p.storage_options?.length ? `${Math.max(...p.storage_options)} GB` : '—', getRaw: (p: Phone) => p.storage_options?.length ? Math.max(...p.storage_options) : null },
+      { label: 'Chipset', getValue: p => p.chipset || '—' },
+      { label: 'AnTuTu',  getValue: p => fmt(p.antutu_score), getRaw: p => p.antutu_score },
+      { label: 'RAM',     getValue: p => p.ram_options?.length ? `${Math.max(...p.ram_options)} GB` : '—', getRaw: p => p.ram_options?.length ? Math.max(...p.ram_options) : null },
+      { label: 'Storage', getValue: p => p.storage_options?.length ? `${Math.max(...p.storage_options)} GB` : '—', getRaw: p => p.storage_options?.length ? Math.max(...p.storage_options) : null },
     ],
   },
   {
     title: 'Battery', icon: <Battery size={15} strokeWidth={1.5} />,
     rows: [
-      { label: 'Capacity',     getValue: (p: Phone) => fmt(p.battery_capacity, ' mAh'), getRaw: (p: Phone) => p.battery_capacity },
-      { label: 'Fast Charge',  getValue: (p: Phone) => fmt(p.fast_charging_w, 'W'),     getRaw: (p: Phone) => p.fast_charging_w },
+      { label: 'Capacity',    getValue: p => fmt(p.battery_capacity, ' mAh'), getRaw: p => p.battery_capacity },
+      { label: 'Fast Charge', getValue: p => fmt(p.fast_charging_w, 'W'),    getRaw: p => p.fast_charging_w },
     ],
   },
   {
     title: 'Build', icon: <HardHat size={15} strokeWidth={1.5} />,
     rows: [
-      { label: 'Weight',       getValue: (p: Phone) => fmt(p.weight_g, 'g'),       getRaw: (p: Phone) => p.weight_g,       lower: true },
-      { label: 'Thickness',   getValue: (p: Phone) => fmt(p.thickness_mm, 'mm'),   getRaw: (p: Phone) => p.thickness_mm,   lower: true },
-      { label: 'Chipset Tier', getValue: (p: Phone) => p.chipset_tier ? p.chipset_tier[0].toUpperCase() + p.chipset_tier.slice(1) : '—' },
+      { label: 'Weight',       getValue: p => fmt(p.weight_g, 'g'),     getRaw: p => p.weight_g,     lower: true },
+      { label: 'Thickness',    getValue: p => fmt(p.thickness_mm, 'mm'), getRaw: p => p.thickness_mm, lower: true },
+      { label: 'Chipset Tier', getValue: p => p.chipset_tier ? p.chipset_tier[0].toUpperCase() + p.chipset_tier.slice(1) : '—' },
     ],
   },
 ]
@@ -293,13 +309,11 @@ function AddPhoneSlot({ onSelect, excludeIds }: { onSelect: (p: Phone) => void; 
 function QuickVerdict({ phones }: { phones: Phone[] }) {
   const wins = new Map<number, number>()
   const items = VERDICTS.map(v => {
-    const bestIdx = getBestIdx(phones, v.getter, (v as any).lower)
+    const bestIdx = getBestIdx(phones, v.getter, v.lower)
     if (bestIdx >= 0) wins.set(bestIdx, (wins.get(bestIdx) || 0) + 1)
     const bestVal = bestIdx >= 0 ? v.getter(phones[bestIdx]) : null
-    // Since getBestIdx already returns -1 for ties, isTie is always false here
-    // but we keep the visual indicator for clarity
     const isTie = bestIdx === -1 && phones.some(p => v.getter(p) != null)
-    return { ...v, bestIdx, isTie }
+    return { ...v, bestIdx, bestVal, isTie }
   })
   const overallWinner = Array.from(wins.entries()).sort((a, b) => b[1] - a[1])[0]
 
@@ -309,7 +323,6 @@ function QuickVerdict({ phones }: { phones: Phone[] }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10 }} className="verdict-grid">
         {items.map(item => {
           const winner = item.bestIdx >= 0 ? phones[item.bestIdx] : null
-          const val    = winner ? item.getter(winner) : null
           return (
             <div key={item.label} style={{
               background: c.surface, border: `1px solid ${c.border}`, borderRadius: r.md, padding: '14px 16px',
@@ -322,7 +335,7 @@ function QuickVerdict({ phones }: { phones: Phone[] }) {
                 {winner ? winner.model_name : item.isTie ? '≈ Tie' : '—'}
               </div>
               <div style={{ fontSize: 12, color: c.text2, lineHeight: 1.4, marginBottom: 7 }}>
-                {item.desc}{val != null && ` (${fmt(val, item.unit)})`}
+                {item.desc}{item.bestVal != null && ` (${fmt(item.bestVal, item.unit)})`}
               </div>
               <span style={{
                 display: 'inline-flex', alignItems: 'center', gap: 3,
@@ -362,7 +375,6 @@ function QuickVerdict({ phones }: { phones: Phone[] }) {
 
 /* ─── spec table ─── */
 function SpecTable({ phones }: { phones: Phone[] }) {
-  // Narrower label column — gives more space to value cells
   const LABEL_W = 100
 
   return (
@@ -377,7 +389,6 @@ function SpecTable({ phones }: { phones: Phone[] }) {
         <table style={{
           width: '100%',
           borderCollapse: 'collapse',
-          // min-width: label col + at least 120px per phone
           minWidth: `${LABEL_W + phones.length * 120}px`,
           tableLayout: 'fixed',
         }}>
@@ -400,11 +411,10 @@ function SpecTable({ phones }: { phones: Phone[] }) {
               </tr>
 
               {section.rows.map((row, rowIdx) => {
-                const winIdx = (row as any).getRaw ? getBestIdx(phones, (row as any).getRaw, (row as any).lower) : -1
+                const winIdx = row.getRaw ? getBestIdx(phones, row.getRaw, row.lower) : -1
                 const isAlt  = rowIdx % 2 === 1
                 return (
                   <tr key={row.label} style={{ background: isAlt ? 'rgba(248,248,245,0.5)' : 'transparent' }}>
-                    {/* Narrower sticky label column */}
                     <td style={{
                       width: LABEL_W,
                       minWidth: LABEL_W,
@@ -485,8 +495,6 @@ function DetailedVerdicts({ phones }: { phones: Phone[] }) {
     <section style={{ marginBottom: 40 }}>
       <h2 style={{ fontFamily: f.serif, fontSize: 24, color: c.text1, marginBottom: 18 }}>Detailed Verdicts</h2>
       {cats.map(cat => {
-        const maxVal = Math.max(...phones.map(cat.getter).filter(Boolean) as number[], 1)
-        // Use getBestIdx so ties don't show a winner star
         const winIdx = getBestIdx(phones, cat.getter)
         return (
           <div key={cat.label} style={{
@@ -575,56 +583,71 @@ function CompareContent({ initialPhones }: CompareContentProps) {
   const [error, setError]     = useState<string | null>(null)
   const [copied, setCopied]   = useState(false)
 
-  const didInitRef       = useRef(false)
-  const userModifiedRef  = useRef(false)
-  const lastSyncedSlugRef = useRef<string>('')
+  const ownUpdate = useRef(false)
+  const spString  = searchParams.toString()
 
+  // Sync from the URL's ?ids= whenever it changes from outside this
+  // component (back/forward navigation, or a fresh ?ids= deep link).
+  // Phones resolved server-side via the slug route arrive through
+  // `initialPhones` and skip this fetch entirely.
   useEffect(() => {
-    if (initialPhones.length > 0) {
-      didInitRef.current      = true
-      lastSyncedSlugRef.current = buildCompareSlug(initialPhones)
-      return
-    }
+    if (ownUpdate.current) { ownUpdate.current = false; return }
+    if (initialPhones.length > 0) return
+
     const idsParam = searchParams.get('ids')
-    if (!idsParam) { didInitRef.current = true; return }
-    const idList = idsParam.split(',').map(Number).filter(id => !isNaN(id) && id > 0)
-    if (!idList.length) { didInitRef.current = true; return }
+    if (!idsParam) { setPhones([]); setError(null); return }
+
+    const idList = Array.from(new Set(
+      idsParam.split(',').map(Number).filter(id => Number.isFinite(id) && id > 0)
+    ))
+    if (idList.length === 0) { setPhones([]); return }
+
+    let cancelled = false
     setLoading(true)
+    setError(null)
+
     api.phones.compare(idList)
       .then(data => {
-        if (data.phones?.length) { setPhones(data.phones); lastSyncedSlugRef.current = buildCompareSlug(data.phones) }
-        else setError('Could not find the requested phones')
+        if (cancelled) return
+        if (data.phones?.length) {
+          const byId = new Map(data.phones.map(p => [p.id, p]))
+          const ordered = idList.map(id => byId.get(id)).filter((p): p is Phone => Boolean(p))
+          setPhones(ordered.length ? ordered : data.phones)
+        } else {
+          setError('Could not find the requested phones')
+          setPhones([])
+        }
       })
-      .catch(() => setError('Failed to load phones. Please try again.'))
-      .finally(() => { setLoading(false); didInitRef.current = true })
-  }, [searchParams, initialPhones.length])
+      .catch(() => {
+        if (cancelled) return
+        setError('Failed to load phones. Please try again.')
+        setPhones([])
+      })
+      .finally(() => { if (!cancelled) setLoading(false) })
 
-  useEffect(() => {
-    if (!didInitRef.current || !userModifiedRef.current) return
-    const currentSlug = buildCompareSlug(phones)
-    if (currentSlug === lastSyncedSlugRef.current) return
-    if (!phones.length) { lastSyncedSlugRef.current = ''; router.replace('/compare', { scroll: false }); return }
-    const newPath = `/compare/${currentSlug}`
-    if (window.location.pathname !== newPath) { lastSyncedSlugRef.current = currentSlug; router.replace(newPath, { scroll: false }) }
-  }, [phones, router])
+    return () => { cancelled = true }
+  }, [spString, initialPhones.length])
+
+  const navigateToIds = useCallback((updated: Phone[]) => {
+    ownUpdate.current = true
+    router.replace(updated.length ? ROUTES.compareIds(updated.map(p => p.id)) : '/compare', { scroll: false })
+  }, [router])
 
   const handleAdd = useCallback((phone: Phone) => {
     if (phones.some(p => p.id === phone.id)) { toast('Already in comparison', 'info'); return }
     if (phones.length >= MAX_COMPARE) { toast(`Max ${MAX_COMPARE} phones`, 'error'); return }
-    userModifiedRef.current = true
     const updated = [...phones, phone]
     setPhones(updated)
-    router.replace(`/compare/${buildCompareSlug(updated)}`, { scroll: false })
+    navigateToIds(updated)
     toast('Phone added', 'success')
-  }, [phones, router, toast])
+  }, [phones, navigateToIds, toast])
 
   const handleRemove = useCallback((id: number) => {
-    userModifiedRef.current = true
     const updated = phones.filter(p => p.id !== id)
     setPhones(updated)
-    router.replace(updated.length ? `/compare/${buildCompareSlug(updated)}` : '/compare', { scroll: false })
+    navigateToIds(updated)
     toast('Phone removed', 'info')
-  }, [phones, router, toast])
+  }, [phones, navigateToIds, toast])
 
   const handleShare = async () => {
     try {
@@ -635,14 +658,13 @@ function CompareContent({ initialPhones }: CompareContentProps) {
   }
 
   const handleClear = () => {
-    userModifiedRef.current = true
     setPhones([])
-    router.replace('/compare', { scroll: false })
+    navigateToIds([])
     toast('Comparison cleared', 'info')
   }
 
-  const scores   = phones.map(p => p.value_score ?? scoreComposite(p))
-  const bestIdx  = scores.length >= 1 ? scores.indexOf(Math.max(...scores)) : -1
+  const scores    = phones.map(p => p.value_score ?? scoreComposite(p))
+  const bestIdx   = phones.length >= 2 ? scores.indexOf(Math.max(...scores)) : -1
   const hasPhones = phones.length > 0
   const canCompare = phones.length >= 2
 
