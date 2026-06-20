@@ -35,7 +35,8 @@ export const MAX_COMPARE = 4
 export const PAGE_SIZE    = 24
 export const TRENDING_LIMIT = 10
 
-export function phoneSlug(phone: { model_name: string }) {
+export function phoneSlug(phone: { model_name: string; slug?: string | null }) {
+  if (phone.slug) return phone.slug
   return phone.model_name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
