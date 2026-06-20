@@ -1,5 +1,6 @@
 export interface Phone {
   id: number
+  slug: string | null
   model_name: string
   brand: string
   price_usd: number | null
