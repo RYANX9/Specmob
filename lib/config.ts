@@ -1,13 +1,14 @@
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://renderphones.onrender.com'
 
 export const ROUTES = {
-  home:     '/',
-  brand:    (brand: string) => `/brand/${brand}`,
-  phone:    (brand: string, model: string) => `/brand/${brand}/${model}`,
-  compare:  (...slugs: string[]) => `/compare/${slugs.join('-vs-')}`,
-  category: (slug: string) => `/best/${slug}`,
-  pick:     '/pick',
-  about:    '/about',
+  home:       '/',
+  brand:      (brand: string) => `/brand/${brand}`,
+  phone:      (brand: string, model: string) => `/brand/${brand}/${model}`,
+  compare:    (...slugs: string[]) => `/compare/${slugs.join('-vs-')}`,
+  compareIds: (ids: number[]) => `/compare?ids=${ids.join(',')}`,
+  category:   (slug: string) => `/best/${slug}`,
+  pick:       '/pick',
+  about:      '/about',
 } as const
 
 export const SORT_OPTIONS = [
