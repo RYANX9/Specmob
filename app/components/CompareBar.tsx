@@ -2,7 +2,6 @@
 
 import { useRouter } from 'next/navigation'
 import { X, GitCompare } from 'lucide-react'
-import { ROUTES } from '@/lib/config'
 import { ROUTES, phoneSlug } from '@/lib/config'
 import { c } from '@/lib/tokens'
 import type { Phone } from '@/lib/types'
