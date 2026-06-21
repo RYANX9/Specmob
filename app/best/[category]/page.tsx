@@ -432,7 +432,7 @@ function RankCardGold({
             marginBottom: 8,
           }}>
             <Star size={10} fill="#FF8088" color="#FF8088" />
-            Best {displayConfig.title.split(' ')[1]} Phone
+            Best {config.title.split(' ')[1]} Phone
           </div>
           <div className="rank-gold-name" style={{ fontFamily: 'var(--font-serif)', fontSize: 28, color: '#fff', letterSpacing: '-0.5px', marginBottom: 4 }}>
             {phone.model_name}
@@ -469,7 +469,7 @@ function RankCardGold({
             {score.toFixed(1)}
           </div>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
-            {displayConfig.title.split(' ').slice(1, 3).join(' ')} Score
+            {config.title.split(' ').slice(1, 3).join(' ')} Score
           </div>
           <div style={{ marginTop: 8, width: 60, height: 4, background: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden' }}>
             <div style={{ height: '100%', borderRadius: 2, background: '#C9A84C', width: `${(score / 10) * 100}%` }} />
@@ -759,7 +759,7 @@ function MethodologyBox({
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <BarChart3 size={18} color={c.text2} />
           <span style={{ fontFamily: 'var(--font-serif)', fontSize: 20, color: c.text1 }}>
-            How We Rank {displayConfig.title.split(' ').slice(1, 3).join(' ')}
+            How We Rank {config.title.split(' ').slice(1, 3).join(' ')}
           </span>
           <span style={{
             padding: '3px 10px', background: c.bg,
@@ -780,10 +780,10 @@ function MethodologyBox({
       {open && (
         <div style={{ padding: 28 }}>
           <p style={{ fontSize: 14, color: c.text2, lineHeight: 1.7, marginBottom: 24, maxWidth: 640 }}>
-            Our {displayConfig.title.split(' ').slice(1, 3).join(' ').toLowerCase()} score is computed automatically from each phone's hardware specifications. We don't factor in real-world test results — this is a pure spec-based ranking. Scores are relative: the highest-scoring phone in each run gets normalised to 10, all others are scored against it.
+            Our {config.title.split(' ').slice(1, 3).join(' ').toLowerCase()} score is computed automatically from each phone's hardware specifications. We don't factor in real-world test results — this is a pure spec-based ranking. Scores are relative: the highest-scoring phone in each run gets normalised to 10, all others are scored against it.
           </p>
           <div className="methodology-weights" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 }}>
-            {displayConfig.weights.map((w, i) => (
+            {config.weights.map((w, i) => (
               <div key={i} style={{ padding: '14px 16px', background: c.bg, borderRadius: 'var(--r-md)' }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: c.text2, marginBottom: 6 }}>{w.label}</div>
                 <div style={{ height: 4, background: c.border, borderRadius: 2, overflow: 'hidden', marginBottom: 4 }}>
