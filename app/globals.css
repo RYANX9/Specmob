@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600;700&display=swap');
-
 *,
 *::before,
 *::after {
@@ -9,7 +7,6 @@
 }
 
 :root {
-  /* Colors */
   --bg: #F8F8F5;
   --surface: #FFFFFF;
   --border: #E8E8E4;
@@ -29,24 +26,21 @@
   --blue-light: rgba(69, 123, 157, 0.06);
   --skeleton: #E8E8E4;
 
-  /* Radii */
   --r-sm: 6px;
   --r-md: 10px;
   --r-lg: 14px;
   --r-xl: 18px;
   --r-full: 999px;
 
-  /* Shadows */
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.09);
   --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.12);
 
-  /* Typography */
+  /* Fallback font stacks — next/font overrides these on <body> at runtime */
   --font-serif: 'Instrument Serif', Georgia, serif;
   --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
 
-  /* Layout */
   --nav-h: 64px;
   --sidebar-w: 268px;
   --max-w: 1440px;
@@ -54,10 +48,10 @@
 }
 
 html {
-  scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-size: 16px;
+  scroll-behavior: smooth;
 }
 
 body {
@@ -94,7 +88,24 @@ img {
   max-width: 100%;
 }
 
-/* Scrollbar */
+/* ─── Focus ──────────────────────────────────────────────────────────────────
+   Keyboard-only focus ring. Mouse/touch clicks intentionally get no ring.
+   Form elements suppress this because each component manages its own
+   focus treatment (border-color + box-shadow via inline onFocus/onBlur).
+*/
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────────────────────────*/
 ::-webkit-scrollbar {
   width: 4px;
   height: 4px;
@@ -107,7 +118,7 @@ img {
   border-radius: 2px;
 }
 
-/* Utilities */
+/* ─── Utilities ──────────────────────────────────────────────────────────────*/
 .sr-only {
   position: absolute;
   width: 1px;
@@ -125,10 +136,39 @@ img {
   display: none;
 }
 
-/* Shimmer skeleton animation */
+/* ─── Animations ─────────────────────────────────────────────────────────────*/
 @keyframes shimmer {
-  0% { background-position: -600px 0; }
-  100% { background-position: 600px 0; }
+  0%   { background-position: -600px 0; }
+  100% { background-position:  600px 0; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes pageFade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .skeleton {
@@ -143,45 +183,34 @@ img {
   border-radius: var(--r-sm);
 }
 
-/* Fade in */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
 .fade-in {
   animation: fadeIn 0.2s ease forwards;
-}
-
-/* Toast */
-@keyframes toastIn {
-  from { opacity: 0; transform: translateX(12px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
-/* Slide up (mobile sheets) */
-@keyframes slideUp {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
-}
-
-/* Modal scale in */
-@keyframes modalIn {
-  from { opacity: 0; transform: scale(0.96) translateY(8px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
-}
-
-/* Page transitions */
-@keyframes pageFade {
-  from { opacity: 0; }
-  to { opacity: 1; }
 }
 
 .page-enter {
   animation: pageFade 0.15s ease forwards;
 }
 
-/* Responsive page padding */
+/* ─── Reduced motion ─────────────────────────────────────────────────────────
+   Collapse all durations to near-zero. Animations still "run" so JS that
+   listens to animationend still fires — it just fires immediately.
+*/
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* ─── Responsive page padding ────────────────────────────────────────────────*/
 @media (max-width: 1024px) {
   :root { --page-px: 20px; }
 }
