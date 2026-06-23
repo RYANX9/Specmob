@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Smartphone, Check, Zap } from 'lucide-react'
+import { Smartphone, Check } from 'lucide-react'
 import { ROUTES, brandSlug, phoneSlug, valueScoreColor } from '@/lib/config'
 import { c, f } from '@/lib/tokens'
 import type { Phone } from '@/lib/types'
@@ -14,22 +14,29 @@ interface PhoneCardProps {
   compact?: boolean
 }
 
+function isNewRelease(phone: Phone): boolean {
+  const { release_year, release_month, release_day } = phone
+  if (!release_year) return false
+  const released = new Date(release_year, (release_month ?? 1) - 1, release_day ?? 1)
+  const now = Date.now()
+  // Released in the future (pre-announcement) or within the last 60 days
+  return released.getTime() <= now && now - released.getTime() <= 60 * 24 * 60 * 60 * 1000
+}
+
 export default function PhoneCard({ phone, compareIds, onCompareToggle, compact }: PhoneCardProps) {
   const [imgErr, setImgErr] = useState(false)
   const [hovered, setHovered] = useState(false)
   const inCompare = compareIds.includes(phone.id)
+  const isNew = isNewRelease(phone)
 
   const href = ROUTES.phone(brandSlug(phone.brand), phoneSlug(phone))
 
-  // key specs for the badge row — pick up to 3 that exist
   const badges: string[] = []
-  if (phone.main_camera_mp)                               badges.push(`${phone.main_camera_mp}MP`)
-  if (phone.battery_capacity)                             badges.push(`${(phone.battery_capacity / 1000).toFixed(1).replace('.0','')}k mAh`)
-  if (phone.ram_options?.length)                          badges.push(`${Math.max(...phone.ram_options!)}GB RAM`)
-  if (badges.length < 3 && phone.screen_size)             badges.push(`${phone.screen_size}"`)
-  if (badges.length < 3 && phone.fast_charging_w)         badges.push(`${phone.fast_charging_w}W`)
-
-  const isNew = phone.release_year === new Date().getFullYear()
+  if (phone.main_camera_mp)         badges.push(`${phone.main_camera_mp}MP`)
+  if (phone.battery_capacity)       badges.push(`${(phone.battery_capacity / 1000).toFixed(1).replace('.0', '')}k mAh`)
+  if (phone.ram_options?.length)    badges.push(`${Math.max(...phone.ram_options!)}GB RAM`)
+  if (badges.length < 3 && phone.screen_size)      badges.push(`${phone.screen_size}"`)
+  if (badges.length < 3 && phone.fast_charging_w)  badges.push(`${phone.fast_charging_w}W`)
 
   return (
     <div
@@ -46,41 +53,40 @@ export default function PhoneCard({ phone, compareIds, onCompareToggle, compact 
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* New badge */}
       {isNew && (
         <div style={{
           position: 'absolute', top: 8, right: 8, zIndex: 3,
-          background: 'var(--accent)', color: '#fff',
+          background: c.accent, color: '#fff',
           fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px',
           padding: '2px 6px', borderRadius: 'var(--r-full)',
+          pointerEvents: 'none',
         }}>
           New
         </div>
       )}
 
-      {/* Compare checkbox */}
       <button
         onClick={e => { e.preventDefault(); e.stopPropagation(); onCompareToggle(phone) }}
+        aria-pressed={inCompare}
+        aria-label={inCompare ? `Remove ${phone.model_name} from compare` : `Add ${phone.model_name} to compare`}
         style={{
           position: 'absolute', top: 8, left: 8, zIndex: 3,
           width: 20, height: 20, borderRadius: 4,
-          border: `1.5px solid ${inCompare ? 'var(--accent)' : c.border}`,
-          background: inCompare ? 'var(--accent)' : 'rgba(255,255,255,0.9)',
+          border: `1.5px solid ${inCompare ? c.accent : c.border}`,
+          background: inCompare ? c.accent : 'rgba(255,255,255,0.9)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           transition: 'all 0.15s', cursor: 'pointer',
           backdropFilter: 'blur(4px)',
         }}
-        title={inCompare ? 'Remove from compare' : 'Add to compare'}
       >
         {inCompare && <Check size={11} color="#fff" strokeWidth={2.5} />}
       </button>
 
       <Link href={href} style={{ display: 'block', textDecoration: 'none' }}>
-        {/* Image — shorter aspect ratio for compact feel */}
         <div style={{
           width: '100%',
           aspectRatio: compact ? '4/3' : '1',
-          background: 'var(--bg)',
+          background: c.bg,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           padding: compact ? 12 : 16,
           overflow: 'hidden',
@@ -88,7 +94,9 @@ export default function PhoneCard({ phone, compareIds, onCompareToggle, compact 
           {phone.main_image_url && !imgErr ? (
             <img
               src={phone.main_image_url}
-              alt={phone.model_name}
+              alt={`${phone.brand} ${phone.model_name}`}
+              loading="lazy"
+              decoding="async"
               onError={() => setImgErr(true)}
               style={{
                 width: '100%', height: '100%', objectFit: 'contain',
@@ -101,7 +109,6 @@ export default function PhoneCard({ phone, compareIds, onCompareToggle, compact 
           )}
         </div>
 
-        {/* Info */}
         <div style={{ padding: compact ? '8px 10px 10px' : '10px 12px 12px' }}>
           <div style={{
             fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px',
@@ -127,7 +134,6 @@ export default function PhoneCard({ phone, compareIds, onCompareToggle, compact 
             {phone.price_usd ? `$${phone.price_usd.toLocaleString()}` : 'Price TBA'}
           </div>
 
-          {/* Compact badge row */}
           {!compact && badges.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginBottom: 8 }}>
               {badges.slice(0, 3).map(b => (
@@ -142,7 +148,6 @@ export default function PhoneCard({ phone, compareIds, onCompareToggle, compact 
             </div>
           )}
 
-          {/* Footer */}
           {!compact && (
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -166,6 +171,13 @@ export default function PhoneCard({ phone, compareIds, onCompareToggle, compact 
   )
 }
 
+// Skeleton dimensions mirror the real card exactly so there's no layout shift on load.
+// Keep these in sync if card padding/aspect-ratio changes.
+const CARD_BODY_HEIGHT = {
+  full: 112,
+  compact: 86,
+}
+
 export function PhoneCardSkeleton({ compact }: { compact?: boolean }) {
   return (
     <div style={{
@@ -173,7 +185,7 @@ export function PhoneCardSkeleton({ compact }: { compact?: boolean }) {
       borderRadius: 'var(--r-lg)', overflow: 'hidden',
     }}>
       <div className="skeleton" style={{ width: '100%', aspectRatio: compact ? '4/3' : '1' }} />
-      <div style={{ padding: compact ? '8px 10px 10px' : '10px 12px 12px' }}>
+      <div style={{ padding: compact ? '8px 10px 10px' : '10px 12px 12px', height: compact ? CARD_BODY_HEIGHT.compact : CARD_BODY_HEIGHT.full }}>
         <div className="skeleton" style={{ height: 9, width: '35%', marginBottom: 6 }} />
         <div className="skeleton" style={{ height: 13, width: '88%', marginBottom: 3 }} />
         <div className="skeleton" style={{ height: 13, width: '65%', marginBottom: 8 }} />
