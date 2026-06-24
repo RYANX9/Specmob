@@ -562,7 +562,7 @@ function PhoneDetailContent() {
               </button>
 
               {phone.amazon_link && (
-                
+                <a
                   href={phone.amazon_link}
                   target="_blank"
                   rel="noopener noreferrer sponsored"
