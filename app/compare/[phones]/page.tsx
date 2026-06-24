@@ -1,10 +1,12 @@
+import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import CompareClient from '@/app/components/compare/CompareClient'
 import { api } from '@/lib/api'
 import type { Phone } from '@/lib/types'
 
-export const dynamic = 'force-dynamic'
-export const revalidate = 0
+// ISR — slug-to-phone mappings change only when new phones are added.
+// Revalidate every hour; fully dynamic was unnecessary and prevented caching.
+export const revalidate = 3600
 
 interface PageProps {
   params: Promise<{ phones: string }>
@@ -18,10 +20,17 @@ function toSlug(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 }
 
+function toReadable(slug: string): string {
+  return slug
+    .replace(/-/g, ' ')
+    .split(' ')
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
+}
+
 /**
- * Character-overlap similarity, penalised for length mismatch. Prevents a
- * short slug like "iphone-16" from outscoring an exact match against a
- * longer sibling name like "iphone-16-pro".
+ * Character-overlap similarity, penalised by length mismatch so a short slug
+ * cannot outscore an exact match against a longer sibling.
  */
 function similarity(target: string, candidate: string): number {
   let score = 0
@@ -36,36 +45,34 @@ async function searchCandidates(slug: string): Promise<Phone[]> {
   try {
     const res = await api.phones.search({ q: slug.replace(/-/g, ' '), page_size: 10 })
     return res.results
-  } catch (error) {
-    console.error(`Compare slug resolution failed for "${slug}":`, error)
+  } catch {
     return []
   }
 }
 
 /**
- * Resolves each slug to a distinct phone. Exact slug matches are claimed
- * first; any slugs left over fall back to best-effort fuzzy matching among
- * whatever candidates remain unclaimed.
+ * Resolves each slug to a distinct phone.
+ * Exact slug matches are claimed first; remaining slugs fall back to
+ * best-effort fuzzy matching among unclaimed candidates.
  *
- * Two slugs can never collapse onto the same phone here, which is what
- * previously made phones near the end of a comparison silently vanish
- * (e.g. "iphone-16" matching the already-claimed "iPhone 16 Pro" because
- * its slug is a substring match, then getting deduped away).
+ * Note: the same fuzzy matching logic also lives in
+ * app/brand/[brand]/[model]/page.tsx. Both should eventually be replaced
+ * by an exact server-side slug index, which the backend already supports
+ * for the /phones/compare?slugs= endpoint.
  */
 async function resolvePhones(slugParts: string[]): Promise<Phone[]> {
   const candidateLists = await Promise.all(slugParts.map(searchCandidates))
   const claimed = new Set<number>()
   const resolved: (Phone | null)[] = new Array(slugParts.length).fill(null)
 
+  // Pass 1: exact slug matches
   slugParts.forEach((slug, i) => {
     const target = slug.toLowerCase()
     const exact = candidateLists[i].find(p => !claimed.has(p.id) && toSlug(p.model_name) === target)
-    if (exact) {
-      resolved[i] = exact
-      claimed.add(exact.id)
-    }
+    if (exact) { resolved[i] = exact; claimed.add(exact.id) }
   })
 
+  // Pass 2: fuzzy matching for any unresolved slugs
   slugParts.forEach((slug, i) => {
     if (resolved[i]) return
     const target = slug.toLowerCase()
@@ -85,23 +92,53 @@ async function resolvePhones(slugParts: string[]): Promise<Phone[]> {
   return resolved.filter((p): p is Phone => p !== null)
 }
 
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { phones: phonesSlug } = await params
+  if (!phonesSlug?.trim()) return { title: 'Compare Phones' }
+
+  const slugParts = parseCompareSlug(phonesSlug)
+  if (slugParts.length === 0) return { title: 'Compare Phones' }
+
+  const readableNames = slugParts.map(toReadable)
+  const title       = `Compare: ${readableNames.join(' vs ')}`
+  const description = `Side-by-side spec comparison of ${readableNames.join(' vs ')}. Camera, battery, performance, and value scores.`
+
+  return {
+    title,
+    description,
+    openGraph: { title, description },
+    twitter: { card: 'summary', title, description },
+  }
+}
+
 export default async function CompareWithPhonesPage({ params }: PageProps) {
   const { phones: phonesSlug } = await params
 
-  if (!phonesSlug || phonesSlug.trim() === '') {
-    return <CompareClient initialPhones={[]} />
-  }
+  if (!phonesSlug?.trim()) return <CompareClient initialPhones={[]} />
 
   const slugParts = parseCompareSlug(phonesSlug)
-  if (slugParts.length === 0) {
-    return <CompareClient initialPhones={[]} />
-  }
+  if (slugParts.length === 0) return <CompareClient initialPhones={[]} />
 
   const validPhones = await resolvePhones(slugParts)
+  if (validPhones.length === 0) notFound()
 
-  if (validPhones.length === 0) {
-    notFound()
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home',    item: 'https://mobylite.vercel.app' },
+      { '@type': 'ListItem', position: 2, name: 'Compare', item: 'https://mobylite.vercel.app/compare' },
+      { '@type': 'ListItem', position: 3, name: validPhones.map(p => p.model_name).join(' vs '), item: `https://mobylite.vercel.app/compare/${phonesSlug}` },
+    ],
   }
 
-  return <CompareClient initialPhones={validPhones} />
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <CompareClient initialPhones={validPhones} />
+    </>
+  )
 }
