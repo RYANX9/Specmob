@@ -1,567 +1,220 @@
-'use client'
-
-import { useState, useEffect, useRef, useCallback } from 'react'
-import Link from 'next/link'
-import { useRouter, usePathname, useSearchParams } from 'next/navigation'
-import { Search, ChevronDown, X, Menu } from 'lucide-react'
-import { api } from '@/lib/api'
-import { ROUTES, brandSlug, phoneSlug } from '@/lib/config'
-import { c, f, z } from '@/lib/tokens'
-import type { Phone } from '@/lib/types'
-
-interface NavbarProps {
-  compareCount?: number
-  onOpenCompare?: () => void
+export interface BrandInfo {
+  name: string
+  logo: string
+  founded: string
+  hq: string
+  os: string
+  tags: string[]
+  description: string
+  highlights: string[]
+  lastReviewed: string // ISO date — update this whenever the entry is edited
 }
 
-export default function Navbar({ compareCount = 0, onOpenCompare }: NavbarProps) {
-  const router       = useRouter()
-  const pathname     = usePathname()
-  const searchParams = useSearchParams()
-  const urlQ         = searchParams.get('q') ?? ''
+const BRANDS: Record<string, BrandInfo> = {
+  samsung: {
+    name: 'Samsung',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/Samsung_Logo.svg/2560px-Samsung_Logo.svg.png',
+    founded: '1969',
+    hq: 'Seoul, South Korea',
+    os: 'Android · One UI 8.5',
+    tags: ['Android', 'One UI 8.5', 'Flagship · Mid-Range · Budget', 'South Korea', 'AMOLED displays'],
+    description:
+      "Samsung is the world's top smartphone seller by volume. The Galaxy S26 Ultra leads the 2026 flagship lineup with a 200MP f/1.4 camera, Snapdragon 8 Elite chip, and Android 16 with One UI 8.5. Samsung promises 7 years of OS and security updates across its S-series devices, and the Galaxy Z series remains the benchmark for mainstream foldable phones.",
+    highlights: ['7-year OS update promise', 'AMOLED displays across all tiers', 'Global #1 by shipments'],
+    lastReviewed: '2026-06-01',
+  },
+  apple: {
+    name: 'Apple',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg',
+    founded: '1976',
+    hq: 'Cupertino, USA',
+    os: 'iOS 26',
+    tags: ['iOS 26', 'A19 Pro chip', 'Premium', 'USA', 'ProMotion OLED'],
+    description:
+      'Apple designs the iPhone, the benchmark for smartphone performance and software quality. The iPhone 17 Pro lineup runs on the A19 Pro chip and ships with iOS 26. Every iPhone receives software updates for 6+ years, and the A-series chips consistently lead mobile benchmarks by a wide margin. The iPhone 17 Air introduced a sub-6mm profile, the thinnest production smartphone Apple has shipped.',
+    highlights: ['6+ years of iOS updates', 'Fastest mobile chips (A19 Pro)', 'Seamless ecosystem'],
+    lastReviewed: '2026-06-01',
+  },
+  google: {
+    name: 'Google',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/Google_2015_logo.svg/2560px-Google_2015_logo.svg.png',
+    founded: '1998',
+    hq: 'Mountain View, USA',
+    os: 'Android · Pixel UI',
+    tags: ['Android 16', 'Tensor G5', 'Gemini AI', 'USA', 'Pure Android'],
+    description:
+      'Google Pixel phones run the cleanest version of Android and receive updates first. The Pixel 10 series is powered by the Tensor G5 on TSMC 3nm, enabling on-device Gemini AI features including Live Translate, Call Screen, and Photo Unblur. Pixels are the only Android phones guaranteed 7 years of OS updates.',
+    highlights: ['7 years of Android updates', 'First to get Android updates', 'Best-in-class computational camera'],
+    lastReviewed: '2026-06-01',
+  },
+  xiaomi: {
+    name: 'Xiaomi',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/Xiaomi_logo_%282021-%29.svg/2560px-Xiaomi_logo_%282021-%29.svg.png',
+    founded: '2010',
+    hq: 'Beijing, China',
+    os: 'Android · HyperOS 2',
+    tags: ['Android', 'HyperOS 2', 'Flagship · Mid-Range · Budget', 'China', 'Fast Charging'],
+    description:
+      'Xiaomi delivers flagship specs at aggressive prices. The current Ultra flagship features Leica-tuned optics and class-leading fast charging, while the Redmi series dominates the budget segment globally. Xiaomi consistently pushes charging speed innovation, with select models exceeding 120W wired.',
+    highlights: ['Industry-leading fast charging', 'Leica camera partnership', 'Unbeatable specs-per-dollar'],
+    lastReviewed: '2026-01-01',
+  },
+  oneplus: {
+    name: 'OnePlus',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/OnePlus_Logo.svg/2560px-OnePlus_Logo.svg.png',
+    founded: '2013',
+    hq: 'Shenzhen, China',
+    os: 'Android · OxygenOS',
+    tags: ['Android', 'OxygenOS', 'Flagship · Mid-Range', 'China', '120Hz AMOLED'],
+    description:
+      'OnePlus built its reputation on "Never Settle" — flagship specs without the flagship wait. OxygenOS remains one of the fastest, cleanest Android skins. Current flagships feature Hasselblad-tuned cameras and Snapdragon 8 Elite performance with some of the fastest charging in the segment.',
+    highlights: ['Hasselblad camera tuning', 'OxygenOS — clean & fast', 'Alert Slider hardware switch'],
+    lastReviewed: '2026-01-01',
+  },
+  oppo: {
+    name: 'OPPO',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/OPPO_LOGO_2019.svg/2560px-OPPO_LOGO_2019.svg.png',
+    founded: '2004',
+    hq: 'Dongguan, China',
+    os: 'Android · ColorOS',
+    tags: ['Android', 'ColorOS', 'Flagship · Mid-Range', 'China', 'SuperVOOC charging'],
+    description:
+      'OPPO pioneered fast-charging technology with its SuperVOOC standard, now reaching 240W on select devices. The Find X series pushes industrial design boundaries while the Reno lineup targets camera-focused mid-range buyers. The Find N foldable series also carries Hasselblad imaging credentials.',
+    highlights: ['240W SuperVOOC charging', 'Find X flagship innovation', 'Hasselblad imaging on Find N'],
+    lastReviewed: '2026-01-01',
+  },
+  vivo: {
+    name: 'vivo',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/Vivo_logo_2019.svg/2560px-Vivo_logo_2019.svg.png',
+    founded: '2009',
+    hq: 'Dongguan, China',
+    os: 'Android · OriginOS / FuntouchOS',
+    tags: ['Android', 'FuntouchOS', 'Flagship · Mid-Range', 'China', 'Zeiss cameras'],
+    description:
+      'Vivo specialises in camera and audio technology. The X series carries Zeiss optics and multi-frame computational imaging, while the V series targets selfie enthusiasts. The iQOO sub-brand handles gaming-focused flagships with high-refresh displays and aggressive cooling.',
+    highlights: ['Zeiss camera collaboration', 'iQOO gaming sub-brand', 'Best-in-class selfie cameras'],
+    lastReviewed: '2026-01-01',
+  },
+  motorola: {
+    name: 'Motorola',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/5a/Motorola_logo_2013.svg/2560px-Motorola_logo_2013.svg.png',
+    founded: '1928',
+    hq: 'Chicago, USA',
+    os: 'Android · My UX',
+    tags: ['Android', 'My UX', 'Mid-Range · Budget', 'USA', 'Near-stock Android'],
+    description:
+      'Motorola (owned by Lenovo) offers reliable near-stock Android at mid and budget price points. The Edge series brings curved OLED displays and Snapdragon silicon to the masses, while the Moto G series remains a perennial best-seller in the budget tier. Motorola Edge devices receive 3 years of OS updates.',
+    highlights: ['Near-stock Android experience', '3 years OS updates (Edge)', 'Moto G — best budget value'],
+    lastReviewed: '2026-01-01',
+  },
+  sony: {
+    name: 'Sony',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Sony_logo.svg/2560px-Sony_logo.svg.png',
+    founded: '1946',
+    hq: 'Tokyo, Japan',
+    os: 'Android · Sony UI',
+    tags: ['Android', 'Sony UI', 'Flagship', 'Japan', '4K OLED displays', 'Pro camera'],
+    description:
+      "Sony's Xperia 1 series targets creative professionals with a 4K 120Hz OLED display, a retained 3.5mm headphone jack, and manual camera controls drawn directly from Sony's Alpha lineup. The Xperia line is the only mainstream Android with a true pro-cinema video mode and native RAW capture.",
+    highlights: ['4K 120Hz OLED display', '3.5mm headphone jack', 'Alpha-class manual camera controls'],
+    lastReviewed: '2026-01-01',
+  },
+  nothing: {
+    name: 'Nothing',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/Nothing_Technology_logo.svg/2560px-Nothing_Technology_logo.svg.png',
+    founded: '2020',
+    hq: 'London, UK',
+    os: 'Android · Nothing OS',
+    tags: ['Android', 'Nothing OS', 'Mid-Range', 'UK', 'Glyph Interface', 'Transparent design'],
+    description:
+      'Nothing disrupted the mid-range market with its iconic transparent back and Glyph LED notification system. Nothing OS is lean and fast, with a commitment to 3 years of Android updates. Current flagships target Snapdragon 8-series performance at well under flagship pricing — rare at that spec level.',
+    highlights: ['Glyph LED notification system', 'Transparent back design', 'Lean Nothing OS'],
+    lastReviewed: '2026-01-01',
+  },
+  asus: {
+    name: 'ASUS',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/ASUS_Logo.svg/2560px-ASUS_Logo.svg.png',
+    founded: '1989',
+    hq: 'Taipei, Taiwan',
+    os: 'Android · ROG UI / Zen UI',
+    tags: ['Android', 'ROG UI', 'Gaming Flagship', 'Taiwan', '165Hz display', 'AirTriggers'],
+    description:
+      'ASUS makes two distinct phone lines: the ROG Phone series — the definitive Android gaming smartphone — and the Zenfone series, a compact flagship for power users who prefer smaller form factors. ROG Phones feature AirTrigger shoulder buttons, active cooling, and the highest sustained-performance scores on any Android device.',
+    highlights: ['Best gaming phones (ROG series)', 'AirTrigger shoulder buttons', 'Compact flagship Zenfone'],
+    lastReviewed: '2026-01-01',
+  },
+  realme: {
+    name: 'realme',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/46/Realme_logo.svg/2560px-Realme_logo.svg.png',
+    founded: '2018',
+    hq: 'Shenzhen, China',
+    os: 'Android · realme UI',
+    tags: ['Android', 'realme UI', 'Mid-Range · Budget', 'China', '240W charging'],
+    description:
+      'realme targets young buyers with bold design and fast specs at low prices. The GT series competes with flagships at mid-range prices, while the C and Note series dominate the sub-budget segments. realme reached 100 million users faster than any prior smartphone brand.',
+    highlights: ['Fastest-growing smartphone brand', '240W UltraDart charging', 'GT series flagship value'],
+    lastReviewed: '2026-01-01',
+  },
+  honor: {
+    name: 'Honor',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f4/Honor_brand_logo.svg/2560px-Honor_brand_logo.svg.png',
+    founded: '2013',
+    hq: 'Shenzhen, China',
+    os: 'Android · MagicOS',
+    tags: ['Android', 'MagicOS', 'Flagship · Mid-Range', 'China', 'AI features'],
+    description:
+      'Honor (independent since 2020, formerly a Huawei sub-brand) has rapidly expanded its global portfolio with AI-driven features baked into MagicOS. The Magic series delivers competitive flagship specs with a focus on AI photography and multi-day battery endurance.',
+    highlights: ['AI-powered MagicOS', 'Independent from Huawei since 2020', 'Magic series flagship'],
+    lastReviewed: '2026-01-01',
+  },
+  huawei: {
+    name: 'Huawei',
+    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/Huawei_Logo.svg/2560px-Huawei_Logo.svg.png',
+    founded: '1987',
+    hq: 'Shenzhen, China',
+    os: 'HarmonyOS',
+    tags: ['HarmonyOS', 'Flagship · Mid-Range', 'China', 'Leica cameras', 'Kirin chips'],
+    description:
+      'Huawei pioneered computational photography through its Leica partnership and developed its own Kirin chipsets in-house. Despite US trade restrictions limiting Google services availability, Huawei continues shipping devices on HarmonyOS with its own app ecosystem. The Mate and Pura series remain technically ambitious.',
+    highlights: ['Leica camera partnership', 'HarmonyOS independent ecosystem', 'Kirin in-house chips'],
+    lastReviewed: '2026-01-01',
+  },
+}
 
-  const [query, setQuery]           = useState(urlQ)
-  const [results, setResults]       = useState<Phone[]>([])
-  const [searching, setSearching]   = useState(false)
-  const [focused, setFocused]       = useState(false)
-  const [activeIdx, setActiveIdx]   = useState(-1)
-  const [brands, setBrands]         = useState<{ brand: string; count: number }[]>([])
-  const [brandsOpen, setBrandsOpen] = useState(false)
-  const [mobileOpen, setMobileOpen] = useState(false)
-  const [scrolled, setScrolled]     = useState(false)
+export default BRANDS
 
-  const inputRef  = useRef<HTMLInputElement>(null)
-  const brandsRef = useRef<HTMLDivElement>(null)
-  const timerRef  = useRef<ReturnType<typeof setTimeout>>()
+export function getBrandInfo(slugOrName: string): BrandInfo | null {
+  // Normalise: lowercase, strip spaces/hyphens/diacritics
+  const normalise = (s: string) =>
+    s.normalize('NFD')
+     .replace(/[\u0300-\u036f]/g, '')
+     .toLowerCase()
+     .replace(/[\s\-]+/g, '')
 
-  // Module-level brand cache: avoid re-fetching on every page navigation
-  const brandsCache = useRef<{ data: { brand: string; count: number }[]; ts: number } | null>(null)
+  const key = normalise(slugOrName)
 
-  useEffect(() => { setQuery(urlQ) }, [urlQ])
+  // Direct key hit
+  if (BRANDS[key]) return BRANDS[key]
 
-  useEffect(() => {
-    const CACHE_TTL = 60 * 60 * 1000 // 1 hour
-    const now = Date.now()
-    if (brandsCache.current && now - brandsCache.current.ts < CACHE_TTL) {
-      setBrands(brandsCache.current.data.slice(0, 24))
-      return
-    }
-    api.brands.list().then(d => {
-      const sliced = d.brands.slice(0, 24)
-      brandsCache.current = { data: sliced, ts: now }
-      setBrands(sliced)
-    }).catch(() => {})
-  }, [])
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 60)
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
-
-  // Close brands dropdown on outside click
-  useEffect(() => {
-    const onMouseDown = (e: MouseEvent) => {
-      if (brandsRef.current && !brandsRef.current.contains(e.target as Node))
-        setBrandsOpen(false)
-    }
-    document.addEventListener('mousedown', onMouseDown)
-    return () => document.removeEventListener('mousedown', onMouseDown)
-  }, [])
-
-  // Close brands dropdown on Escape key
-  useEffect(() => {
-    if (!brandsOpen) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setBrandsOpen(false)
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [brandsOpen])
-
-  // Close mobile menu on route change
-  useEffect(() => {
-    setMobileOpen(false)
-    setBrandsOpen(false)
-  }, [pathname])
-
-  useEffect(() => () => clearTimeout(timerRef.current), [])
-
-  // Reset keyboard active index when results change
-  useEffect(() => { setActiveIdx(-1) }, [results])
-
-  const runSearch = useCallback((q: string) => {
-    clearTimeout(timerRef.current)
-    if (!q.trim()) { setResults([]); setSearching(false); return }
-    setSearching(true)
-    timerRef.current = setTimeout(async () => {
-      try {
-        const d = await api.phones.search({ q, page_size: 6 })
-        setResults(d.results)
-      } catch {
-        setResults([])
-      } finally {
-        setSearching(false)
-      }
-    }, 280)
-  }, [])
-
-  const handleQueryChange = (v: string) => {
-    setQuery(v)
-    runSearch(v)
-  }
-
-  const handlePhoneSelect = (phone: Phone) => {
-    setQuery('')
-    setResults([])
-    setFocused(false)
-    setActiveIdx(-1)
-    router.push(ROUTES.phone(brandSlug(phone.brand), phoneSlug(phone)))
-  }
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (activeIdx >= 0 && results[activeIdx]) {
-      handlePhoneSelect(results[activeIdx])
-      return
-    }
-    if (!query.trim()) return
-    setFocused(false)
-    setResults([])
-    router.push(`${ROUTES.home}?q=${encodeURIComponent(query.trim())}`)
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!showDropdown) return
-    switch (e.key) {
-      case 'ArrowDown':
-        e.preventDefault()
-        setActiveIdx(prev => Math.min(prev + 1, results.length - 1))
-        break
-      case 'ArrowUp':
-        e.preventDefault()
-        setActiveIdx(prev => Math.max(prev - 1, -1))
-        break
-      case 'Escape':
-        setFocused(false)
-        setActiveIdx(-1)
-        inputRef.current?.blur()
-        break
-    }
-  }
-
-  const handleClear = () => {
-    setQuery('')
-    setResults([])
-    setActiveIdx(-1)
-    setSearching(false)
-    inputRef.current?.focus()
-    if (pathname === '/') router.replace('/')
-  }
-
-  // Always navigate: open /compare directly when <2 phones,
-  // or call onOpenCompare callback (which scrolls/routes) when >=2
-  const handleCompareClick = () => {
-    if (compareCount >= 2 && onOpenCompare) {
-      onOpenCompare()
-    } else {
-      router.push('/compare')
-    }
-  }
-
-  // Show dropdown when: focused, has query, AND either has results, is searching,
-  // or query is long enough to display a "no results" state
-  const showDropdown = focused && query.length > 0 && (
-    results.length > 0 || searching || (!searching && query.length > 1)
+  // Match against normalised brand names
+  const entry = Object.entries(BRANDS).find(
+    ([k, v]) => normalise(k) === key || normalise(v.name) === key,
   )
+  return entry ? entry[1] : null
+}
 
-  return (
-    <>
-      <nav
-        role="navigation"
-        aria-label="Main navigation"
-        style={{
-          position: 'sticky', top: 0, zIndex: z.nav,
-          height: 'var(--nav-h)',
-          background: scrolled ? 'rgba(248,248,245,0.92)' : c.bg,
-          backdropFilter: scrolled ? 'blur(20px)' : 'none',
-          WebkitBackdropFilter: scrolled ? 'blur(20px)' : 'none',
-          borderBottom: `1px solid ${c.border}`,
-          transition: 'background 0.2s ease, box-shadow 0.2s ease',
-          boxShadow: scrolled ? '0 1px 0 var(--border)' : 'none',
-        }}
-      >
-        <div style={{
-          maxWidth: 'var(--max-w)', margin: '0 auto',
-          padding: '0 var(--page-px)', height: '100%',
-          display: 'flex', alignItems: 'center', gap: 24,
-        }}>
-          <Link href={ROUTES.home} style={{
-            fontFamily: f.serif, fontSize: 22, color: c.primary,
-            flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, letterSpacing: '-0.4px',
-          }}>
-            <img src="/logored.svg" alt="Mobylite" style={{ height: '1em', width: 'auto' }} />
-            Mobylite
-          </Link>
+export function getBrandInitial(name: string): string {
+  return name.trim()[0]?.toUpperCase() ?? '?'
+}
 
-          {/* Desktop search — full combobox ARIA pattern */}
-          <div
-            role="combobox"
-            aria-expanded={showDropdown}
-            aria-haspopup="listbox"
-            aria-owns="search-listbox"
-            style={{ flex: 1, maxWidth: 520, position: 'relative' }}
-            className="nav-search-wrap"
-          >
-            <form onSubmit={handleSubmit}>
-              <div style={{ position: 'relative' }}>
-                <Search size={15} style={{
-                  position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
-                  color: c.text3, pointerEvents: 'none',
-                }} aria-hidden="true" />
-                <input
-                  ref={inputRef}
-                  id="nav-search-input"
-                  role="searchbox"
-                  aria-label="Search phones"
-                  aria-autocomplete="list"
-                  aria-controls="search-listbox"
-                  aria-activedescendant={activeIdx >= 0 ? `search-option-${activeIdx}` : undefined}
-                  value={query}
-                  onChange={e => handleQueryChange(e.target.value)}
-                  onFocus={() => setFocused(true)}
-                  onBlur={() => setTimeout(() => { setFocused(false); setActiveIdx(-1) }, 150)}
-                  onKeyDown={handleKeyDown}
-                  placeholder='Search phones or try "best camera under 500"'
-                  style={{
-                    width: '100%', height: 40,
-                    padding: '0 36px 0 40px',
-                    background: c.surface,
-                    border: `1px solid ${focused ? c.primary : c.border}`,
-                    borderRadius: 'var(--r-full)',
-                    fontSize: 14, color: c.text1,
-                    transition: 'border-color 0.15s, box-shadow 0.15s',
-                    boxShadow: focused ? '0 0 0 3px rgba(26,26,46,0.07)' : 'none',
-                  }}
-                />
-                {query && (
-                  <button
-                    type="button"
-                    onClick={handleClear}
-                    aria-label="Clear search"
-                    style={{
-                      position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                      color: c.text3, display: 'flex', padding: 2, background: 'none', border: 'none', cursor: 'pointer',
-                    }}
-                  >
-                    <X size={13} />
-                  </button>
-                )}
-              </div>
-            </form>
-
-            {showDropdown && (
-              <div
-                id="search-listbox"
-                role="listbox"
-                aria-label="Search results"
-                style={{
-                  position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0,
-                  background: c.surface, border: `1px solid ${c.border}`,
-                  borderRadius: 'var(--r-lg)', boxShadow: 'var(--shadow-lg)',
-                  overflow: 'hidden', zIndex: z.dropdown, animation: 'fadeIn 0.12s ease',
-                }}
-              >
-                {searching && results.length === 0 && (
-                  <div style={{ padding: '14px 16px', fontSize: 13, color: c.text3, textAlign: 'center' }}>
-                    Searching...
-                  </div>
-                )}
-
-                {!searching && results.length === 0 && query.length > 1 && (
-                  <div style={{ padding: '14px 16px', fontSize: 13, color: c.text3, textAlign: 'center' }}>
-                    No phones found for &ldquo;{query}&rdquo;
-                  </div>
-                )}
-
-                {results.map((phone, idx) => (
-                  <button
-                    key={phone.id}
-                    id={`search-option-${idx}`}
-                    role="option"
-                    aria-selected={idx === activeIdx}
-                    type="button"
-                    onMouseDown={() => handlePhoneSelect(phone)}
-                    onMouseEnter={() => setActiveIdx(idx)}
-                    style={{
-                      width: '100%', display: 'flex', alignItems: 'center', gap: 12,
-                      padding: '10px 14px', textAlign: 'left',
-                      transition: 'background 0.1s',
-                      borderBottom: `1px solid ${c.border}`,
-                      background: idx === activeIdx ? c.bg : 'transparent',
-                      border: 'none', cursor: 'pointer',
-                    }}
-                  >
-                    <div style={{
-                      width: 40, height: 40, background: c.bg, borderRadius: 'var(--r-sm)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      flexShrink: 0, overflow: 'hidden',
-                    }}>
-                      {phone.main_image_url && (
-                        <img
-                          src={phone.main_image_url}
-                          alt=""
-                          loading="lazy"
-                          decoding="async"
-                          style={{ width: 32, height: 32, objectFit: 'contain' }}
-                        />
-                      )}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 10, color: c.text3, textTransform: 'uppercase' as const, letterSpacing: '0.4px', marginBottom: 1 }}>
-                        {phone.brand}
-                      </div>
-                      <div style={{ fontSize: 14, color: c.text1, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {phone.model_name}
-                      </div>
-                    </div>
-                    {phone.price_usd && (
-                      <div style={{ fontSize: 13, fontWeight: 600, color: c.text1, flexShrink: 0 }}>
-                        ${phone.price_usd.toLocaleString()}
-                      </div>
-                    )}
-                  </button>
-                ))}
-
-                {results.length > 0 && (
-                  <button
-                    type="button"
-                    onMouseDown={handleSubmit as any}
-                    style={{ width: '100%', padding: '10px 14px', textAlign: 'center', fontSize: 12, color: c.text3, background: c.bg, border: 'none', cursor: 'pointer', transition: 'color 0.1s' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = c.text1 }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = c.text3 }}
-                  >
-                    See all results for &ldquo;{query}&rdquo; →
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }} className="nav-links">
-            {/* Brands mega-menu */}
-            <div ref={brandsRef} style={{ position: 'relative' }}>
-              <button
-                onClick={() => setBrandsOpen(o => !o)}
-                aria-expanded={brandsOpen}
-                aria-haspopup="menu"
-                aria-controls="brands-menu"
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 4, padding: '7px 12px',
-                  fontSize: 14, fontWeight: 500, color: c.text2, borderRadius: 'var(--r-sm)',
-                  transition: 'all 0.15s', background: brandsOpen ? 'rgba(26,26,46,0.05)' : 'transparent',
-                  border: 'none', cursor: 'pointer',
-                }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = c.text1; (e.currentTarget as HTMLElement).style.background = 'rgba(26,26,46,0.04)' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = c.text2; (e.currentTarget as HTMLElement).style.background = brandsOpen ? 'rgba(26,26,46,0.05)' : 'transparent' }}
-              >
-                Brands
-                <ChevronDown size={12} style={{ transition: 'transform 0.15s', transform: brandsOpen ? 'rotate(180deg)' : 'none' }} aria-hidden="true" />
-              </button>
-
-              {brandsOpen && (
-                <div
-                  id="brands-menu"
-                  role="menu"
-                  aria-label="Browse by brand"
-                  style={{
-                    position: 'absolute', top: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)',
-                    width: 360, background: c.surface, border: `1px solid ${c.border}`,
-                    borderRadius: 'var(--r-xl)', boxShadow: 'var(--shadow-xl)', padding: 16,
-                    zIndex: z.dropdown, animation: 'fadeIn 0.12s ease',
-                  }}
-                >
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 4 }}>
-                    {brands.map(b => (
-                      <Link
-                        key={b.brand}
-                        href={ROUTES.brand(brandSlug(b.brand))}
-                        role="menuitem"
-                        onClick={() => setBrandsOpen(false)}
-                        style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                          padding: '8px 10px', borderRadius: 'var(--r-sm)', transition: 'background 0.1s',
-                          textDecoration: 'none',
-                        }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = c.bg }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-                      >
-                        <span style={{ fontSize: 13, fontWeight: 500, color: c.text1 }}>{b.brand}</span>
-                        <span style={{ fontSize: 11, color: c.text3 }}>{b.count}</span>
-                      </Link>
-                    ))}
-                  </div>
-                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${c.border}` }}>
-                    <Link
-                      href="/brand"
-                      role="menuitem"
-                      onClick={() => setBrandsOpen(false)}
-                      style={{ fontSize: 13, color: c.accent, fontWeight: 500 }}
-                    >
-                      View all brands &rarr;
-                    </Link>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <Link
-              href={ROUTES.pick}
-              style={{
-                padding: '7px 12px', fontSize: 14, fontWeight: 500, color: c.accent,
-                borderRadius: 'var(--r-sm)', transition: 'background 0.15s',
-              }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-            >
-              Help Me Choose
-            </Link>
-
-            {/* Compare button: always navigates — to /compare when <2 phones selected,
-                or triggers the onOpenCompare callback when >=2 */}
-            <button
-              onClick={handleCompareClick}
-              aria-label={
-                compareCount > 0
-                  ? `Compare (${compareCount} phone${compareCount !== 1 ? 's' : ''} selected)`
-                  : 'Compare phones'
-              }
-              style={{
-                display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px',
-                fontSize: 14, fontWeight: 500, color: c.primary,
-                border: `1px solid ${c.border}`, borderRadius: 'var(--r-full)', transition: 'all 0.15s',
-                background: 'transparent', cursor: 'pointer',
-              }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = c.primary; (e.currentTarget as HTMLElement).style.background = 'rgba(26,26,46,0.04)' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = c.border; (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-            >
-              Compare
-              {compareCount > 0 && (
-                <span style={{
-                  background: c.accent, color: '#fff', fontSize: 11, fontWeight: 700,
-                  minWidth: 18, height: 18, borderRadius: 9,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px',
-                }}>
-                  {compareCount}
-                </span>
-              )}
-            </button>
-          </div>
-
-          <button
-            onClick={() => setMobileOpen(o => !o)}
-            aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
-            aria-expanded={mobileOpen}
-            aria-controls="mobile-menu"
-            style={{ color: c.text2, display: 'none', marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
-            className="nav-mobile-btn"
-          >
-            {mobileOpen ? <X size={22} /> : <Menu size={22} />}
-          </button>
-        </div>
-      </nav>
-
-      {/* Mobile drawer */}
-      {mobileOpen && (
-        <div
-          id="mobile-menu"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Navigation menu"
-          style={{ position: 'fixed', inset: 0, top: 'var(--nav-h)', zIndex: z.drawer, background: 'rgba(0,0,0,0.4)' }}
-          onClick={() => setMobileOpen(false)}
-        >
-          <div
-            style={{
-              width: 280, height: '100%', background: c.surface,
-              padding: 20, animation: 'slideIn 0.2s ease', overflowY: 'auto',
-            }}
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Mobile search */}
-            <form
-              role="search"
-              onSubmit={e => {
-                e.preventDefault()
-                setMobileOpen(false)
-                if (query.trim()) router.push(`/?q=${encodeURIComponent(query.trim())}`)
-              }}
-              style={{ position: 'relative', marginBottom: 16 }}
-            >
-              <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: c.text3, pointerEvents: 'none' }} aria-hidden="true" />
-              <input
-                value={query}
-                onChange={e => handleQueryChange(e.target.value)}
-                placeholder="Search phones..."
-                aria-label="Search phones"
-                style={{
-                  width: '100%', height: 40, padding: '0 36px 0 38px',
-                  background: c.bg, border: `1px solid ${c.border}`,
-                  borderRadius: 'var(--r-full)', fontSize: 14, color: c.text1,
-                }}
-              />
-              {query && (
-                <button
-                  type="button"
-                  onClick={() => handleQueryChange('')}
-                  aria-label="Clear search"
-                  style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: c.text3, display: 'flex', background: 'none', border: 'none', cursor: 'pointer' }}
-                >
-                  <X size={13} />
-                </button>
-              )}
-            </form>
-
-            <Link href={ROUTES.pick} style={{ display: 'block', padding: '10px 0', fontSize: 15, fontWeight: 600, color: c.accent }}>
-              Help Me Choose
-            </Link>
-            <Link href="/compare" style={{ display: 'block', padding: '10px 0', fontSize: 15, fontWeight: 500, color: c.text1 }}>
-              Compare
-              {compareCount > 0 && (
-                <span style={{ marginLeft: 8, background: c.accent, color: '#fff', fontSize: 11, fontWeight: 700, padding: '1px 6px', borderRadius: 9 }}>
-                  {compareCount}
-                </span>
-              )}
-            </Link>
-            <div style={{ height: 1, background: c.border, margin: '12px 0' }} />
-            <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.5px', color: c.text3, marginBottom: 8 }}>
-              Brands
-            </div>
-            {brands.map(b => (
-              <Link
-                key={b.brand}
-                href={ROUTES.brand(brandSlug(b.brand))}
-                style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 14, color: c.text1, borderBottom: `1px solid ${c.border}` }}
-              >
-                <span>{b.brand}</span>
-                <span style={{ color: c.text3 }}>{b.count}</span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <style>{`
-        @keyframes slideIn {
-          from { transform: translateX(-100%); opacity: 0; }
-          to   { transform: translateX(0); opacity: 1; }
-        }
-        @media (max-width: 768px) {
-          .nav-search-wrap { display: none !important; }
-          .nav-links       { display: none !important; }
-          .nav-mobile-btn  { display: flex !important; }
-        }
-      `}</style>
-    </>
-  )
+/**
+ * Returns brands whose lastReviewed date is older than `thresholdDays`.
+ * Use this in a build check or admin view to surface stale entries.
+ */
+export function getStaleBrands(thresholdDays = 180): BrandInfo[] {
+  const cutoff = Date.now() - thresholdDays * 24 * 60 * 60 * 1000
+  return Object.values(BRANDS).filter(b => {
+    const reviewed = new Date(b.lastReviewed).getTime()
+    return reviewed < cutoff
+  })
 }
