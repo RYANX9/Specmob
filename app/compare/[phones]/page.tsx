@@ -4,8 +4,6 @@ import CompareClient from '@/app/components/compare/CompareClient'
 import { api } from '@/lib/api'
 import type { Phone } from '@/lib/types'
 
-// ISR — slug-to-phone mappings change only when new phones are added.
-// Revalidate every hour; fully dynamic was unnecessary and prevented caching.
 export const revalidate = 3600
 
 interface PageProps {
@@ -29,10 +27,29 @@ function toReadable(slug: string): string {
 }
 
 /**
- * Character-overlap similarity, penalised by length mismatch so a short slug
- * cannot outscore an exact match against a longer sibling.
+ * Improved similarity that handles the common case where the URL slug was
+ * generated from the DB `slug` field (which may be brand-prefixed, e.g.
+ * "samsung-galaxy-s24-ultra") while model_name produces a shorter candidate
+ * ("galaxy-s24-ultra").  The original character-overlap algorithm gave a
+ * negative score for that pair, dropping the phone.
+ *
+ * Priority:
+ *   1. target ends with candidate  →  near-perfect score
+ *   2. target contains candidate   →  strong score
+ *   3. original character-overlap  →  fallback
  */
 function similarity(target: string, candidate: string): number {
+  if (target === candidate) return candidate.length
+
+  if (target.endsWith(candidate)) {
+    // e.g. target="samsung-galaxy-s24-ultra", candidate="galaxy-s24-ultra"
+    return candidate.length - Math.abs(target.length - candidate.length) * 0.1
+  }
+
+  if (target.includes(candidate)) {
+    return candidate.length * 0.85
+  }
+
   let score = 0
   let ti = 0
   for (let ci = 0; ci < candidate.length && ti < target.length; ci++) {
@@ -51,24 +68,29 @@ async function searchCandidates(slug: string): Promise<Phone[]> {
 }
 
 /**
- * Resolves each slug to a distinct phone.
- * Exact slug matches are claimed first; remaining slugs fall back to
- * best-effort fuzzy matching among unclaimed candidates.
+ * Resolves each URL slug to a distinct Phone.
  *
- * Note: the same fuzzy matching logic also lives in
- * app/brand/[brand]/[model]/page.tsx. Both should eventually be replaced
- * by an exact server-side slug index, which the backend already supports
- * for the /phones/compare?slugs= endpoint.
+ * Pass 1 — exact match: checks both toSlug(model_name) and the DB slug field.
+ *   The DB slug is what phoneSlug() uses when present, so the URL slug may not
+ *   match the computed model_name slug at all.
+ *
+ * Pass 2 — fuzzy match: uses the improved similarity function with a lower
+ *   threshold so brand-prefixed slugs are not silently dropped.
  */
 async function resolvePhones(slugParts: string[]): Promise<Phone[]> {
   const candidateLists = await Promise.all(slugParts.map(searchCandidates))
   const claimed = new Set<number>()
   const resolved: (Phone | null)[] = new Array(slugParts.length).fill(null)
 
-  // Pass 1: exact slug matches
+  // Pass 1: exact match against computed slug OR the DB slug field
   slugParts.forEach((slug, i) => {
     const target = slug.toLowerCase()
-    const exact = candidateLists[i].find(p => !claimed.has(p.id) && toSlug(p.model_name) === target)
+    const exact = candidateLists[i].find(p => {
+      if (claimed.has(p.id)) return false
+      if (toSlug(p.model_name) === target) return true
+      if (p.slug != null && p.slug.toLowerCase() === target) return true
+      return false
+    })
     if (exact) { resolved[i] = exact; claimed.add(exact.id) }
   })
 
@@ -83,7 +105,8 @@ async function resolvePhones(slugParts: string[]): Promise<Phone[]> {
       const s = similarity(target, toSlug(p.model_name))
       if (s > bestScore) { bestScore = s; best = p }
     }
-    if (best && bestScore > target.length * 0.4) {
+    // Threshold lowered from 0.4 to 0.3 to tolerate brand-prefix length delta
+    if (best && bestScore > target.length * 0.3) {
       resolved[i] = best
       claimed.add(best.id)
     }
