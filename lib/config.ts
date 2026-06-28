@@ -10,6 +10,19 @@ export const ROUTES = {
   about:    '/about',
 } as const
 
+// Add this to lib/config.ts alongside the existing exports
+
+/**
+ * Formats a price_usd value from the API.
+ * Strips the float decimals that come from the DB (e.g. 1026.57 → "$1,027").
+ * Returns 'Price TBA' for null/undefined.
+ */
+export function formatPrice(price: number | null | undefined): string {
+  if (price == null) return 'Price TBA'
+  return `$${Math.round(price).toLocaleString('en-US')}`
+}
+
+
 // Used by the category quick-links strip on the homepage and the
 // category tab bar on best/[category]. Icon strings are resolved
 // to Lucide components at the call site.
