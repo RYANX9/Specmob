@@ -103,7 +103,7 @@ export default function FilterPanel({ filters, onChange, onReset, showBrandFilte
 
   // Restore persisted mode on mount (after hydration)
   useEffect(() => {
-    const saved = localStorage.getItem('mobylite-filter-mode') as 'simple' | 'expert' | null
+    const saved = localStorage.getItem('Specmob-filter-mode') as 'simple' | 'expert' | null
     if (saved === 'expert') setMode('expert')
   }, [])
 
@@ -131,7 +131,7 @@ export default function FilterPanel({ filters, onChange, onReset, showBrandFilte
 
   const handleModeChange = (m: 'simple' | 'expert') => {
     setMode(m)
-    localStorage.setItem('mobylite-filter-mode', m)
+    localStorage.setItem('Specmob-filter-mode', m)
   }
 
   const handlePriceChange = (key: 'min_price' | 'max_price', raw: string) => {
