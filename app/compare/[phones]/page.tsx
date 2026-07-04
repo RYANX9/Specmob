@@ -149,9 +149,9 @@ export default async function CompareWithPhonesPage({ params }: PageProps) {
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
     itemListElement: [
-      { '@type': 'ListItem', position: 1, name: 'Home',    item: 'https://mobylite.vercel.app' },
-      { '@type': 'ListItem', position: 2, name: 'Compare', item: 'https://mobylite.vercel.app/compare' },
-      { '@type': 'ListItem', position: 3, name: validPhones.map(p => p.model_name).join(' vs '), item: `https://mobylite.vercel.app/compare/${phonesSlug}` },
+      { '@type': 'ListItem', position: 1, name: 'Home',    item: 'https://Specmob.vercel.app' },
+      { '@type': 'ListItem', position: 2, name: 'Compare', item: 'https://Specmob.vercel.app/compare' },
+      { '@type': 'ListItem', position: 3, name: validPhones.map(p => p.model_name).join(' vs '), item: `https://Specmob.vercel.app/compare/${phonesSlug}` },
     ],
   }
 
