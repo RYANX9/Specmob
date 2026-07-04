@@ -29,7 +29,7 @@ const COLS = [
   {
     title: 'Company',
     links: [
-      { label: 'About Mobylite', href: '/about' },
+      { label: 'About Specmob', href: '/about' },
       { label: 'How We Score',   href: '/about#scoring' },
       { label: 'Data Sources',   href: '/about#data' },
       { label: 'Contact',        href: '/about#contact' },
@@ -46,8 +46,8 @@ export default function Footer() {
         <div className="footer-inner-grid" style={{ marginBottom: 40 }}>
           <div className="footer-brand-col">
             <div style={{ fontFamily: f.serif, fontSize: 22, color: '#fff', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <img src="/logored.svg" alt="Mobylite" style={{ height: '1em', width: 'auto' }} />
-              Mobylite
+              <img src="/logored.svg" alt="Specmob" style={{ height: '1em', width: 'auto' }} />
+              Specmob
             </div>
             <p style={{ fontSize: 14, lineHeight: 1.65, maxWidth: 260, color: '#8A8A9A' }}>
               Find and compare phones that are actually available to buy.
@@ -87,7 +87,7 @@ export default function Footer() {
           gap: 10,
         }}>
           <span style={{ fontSize: 12, color: '#6A6A7A' }}>
-            © {new Date().getFullYear()} Mobylite. Spec data sourced from public manufacturer listings and GSMArena.
+            © {new Date().getFullYear()} Specmob. Spec data sourced from public manufacturer listings and GSMArena.
             All trademarks belong to their respective owners.
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
