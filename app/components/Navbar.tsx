@@ -200,8 +200,8 @@ export default function Navbar({ compareCount = 0, onOpenCompare }: NavbarProps)
             fontFamily: f.serif, fontSize: 22, color: c.primary,
             flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, letterSpacing: '-0.4px',
           }}>
-            <img src="/logored.svg" alt="Mobylite" style={{ height: '1em', width: 'auto' }} />
-            Mobylite
+            <img src="/logored.svg" alt="Specmob" style={{ height: '1em', width: 'auto' }} />
+            Specmob
           </Link>
 
           {/* Desktop search — full combobox ARIA pattern */}
