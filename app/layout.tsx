@@ -18,8 +18,8 @@ const instrumentSerif = Instrument_Serif({
   display: 'swap',
 })
 
-const SITE_URL = 'https://mobylite.vercel.app'
-const SITE_NAME = 'Mobylite'
+const SITE_URL = 'https://Specmob .vercel.app'
+const SITE_NAME = 'Specmob'
 const SITE_DESCRIPTION =
   'No clutter. No discontinued junk. Find and compare phones you can actually buy today.'
 const SOCIAL_DESCRIPTION = 'Compare phones side-by-side with honest specs and verdicts.'
