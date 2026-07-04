@@ -318,7 +318,7 @@ function buildProductJsonLd(phone: Phone, brand: string, model: string): object 
         price: phone.price_usd,
         priceCurrency: 'USD',
         availability: 'https://schema.org/InStock',
-        url: `https://mobylite.vercel.app/brand/${brandSlug(phone.brand)}/${phoneSlug(phone)}`,
+        url: `https://Specmob.vercel.app/brand/${brandSlug(phone.brand)}/${phoneSlug(phone)}`,
       },
     }),
     ...(phone.main_image_url && { image: phone.main_image_url }),
@@ -330,9 +330,9 @@ function buildBreadcrumbJsonLd(phone: Phone): object {
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
     itemListElement: [
-      { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://mobylite.vercel.app' },
-      { '@type': 'ListItem', position: 2, name: phone.brand, item: `https://mobylite.vercel.app/brand/${brandSlug(phone.brand)}` },
-      { '@type': 'ListItem', position: 3, name: phone.model_name, item: `https://mobylite.vercel.app/brand/${brandSlug(phone.brand)}/${phoneSlug(phone)}` },
+      { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://Specmob.vercel.app' },
+      { '@type': 'ListItem', position: 2, name: phone.brand, item: `https://Specmob.vercel.app/brand/${brandSlug(phone.brand)}` },
+      { '@type': 'ListItem', position: 3, name: phone.model_name, item: `https://Specmob.vercel.app/brand/${brandSlug(phone.brand)}/${phoneSlug(phone)}` },
     ],
   }
 }
