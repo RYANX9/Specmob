@@ -18,7 +18,7 @@ const instrumentSerif = Instrument_Serif({
   display: 'swap',
 })
 
-const SITE_URL = 'https://Specmob .vercel.app'
+const SITE_URL = 'https://Specmob.vercel.app'
 const SITE_NAME = 'Specmob'
 const SITE_DESCRIPTION =
   'No clutter. No discontinued junk. Find and compare phones you can actually buy today.'
