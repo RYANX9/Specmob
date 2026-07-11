@@ -358,7 +358,7 @@ function RankCardGold({ phone, score, rank, config, slug, onCompare, isCompared 
             {phone.battery_capacity && <span style={{ padding: '4px 10px', borderRadius: 'var(--r-full)', fontSize: 12, fontWeight: 500, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)' }}>{phone.battery_capacity.toLocaleString()}mAh</span>}
             {phone.chipset && <span style={{ padding: '4px 10px', borderRadius: 'var(--r-full)', fontSize: 12, fontWeight: 500, background: 'rgba(230,57,70,0.2)', color: '#FF8088' }}>{phone.chipset}</span>}
             {phone.fast_charging_w && <span style={{ padding: '4px 10px', borderRadius: 'var(--r-full)', fontSize: 12, fontWeight: 500, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)' }}>{phone.fast_charging_w}W charging</span>}
-            {aiScored && <span style={{ padding: '4px 10px', borderRadius: 'var(--r-full)', fontSize: 12, fontWeight: 600, background: 'rgba(201,168,76,0.25)', color: MEDAL_COLORS.gold }}>AI Scored</span>}
+            {aiScored && <span style={{ padding: '4px 10px', borderRadius: 'var(--r-full)', fontSize: 12, fontWeight: 600, background: 'rgba(201,168,76,0.25)', color: MEDAL_COLORS.gold }}>Our Scored</span>}
           </div>
         </div>
 
@@ -549,7 +549,7 @@ function MethodologyBox({ config, open, onToggle }: {
       {open && (
         <div style={{ padding: 28 }}>
           <p style={{ fontSize: 14, color: c.text2, lineHeight: 1.7, marginBottom: 24, maxWidth: 640 }}>
-            Our {categoryLabel.toLowerCase()} score is computed automatically from each phone's hardware specifications, with an AI review layer for scored models. Scores are relative: the highest-scoring phone in each run is normalised to 10, all others are scored against it.
+            Our {categoryLabel.toLowerCase()} score is computed automatically from each phone's hardware specifications, with a review layer for scored models. Scores are relative: the highest-scoring phone in each run is normalised to 10, all others are scored against it.
           </p>
           <div className="methodology-weights" style={{ display: 'grid', gap: 12, marginBottom: 24 }}>
             {config.weights.map((w, i) => (
@@ -564,7 +564,7 @@ function MethodologyBox({ config, open, onToggle }: {
           </div>
           <div style={{ padding: '12px 16px', background: 'var(--blue-light)', border: '1px solid rgba(69,123,157,0.12)', borderRadius: 'var(--r-sm)', fontSize: 13, color: c.text2, lineHeight: 1.6, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
             <Info size={16} style={{ flexShrink: 0, color: 'var(--blue)', marginTop: 1 }} />
-            <span><strong>Important:</strong> This ranking reflects hardware specs plus AI review for scored models. Real-world performance — especially for camera quality — doesn't always align with spec scores. No brand sponsors these rankings.</span>
+            <span><strong>Important:</strong> This ranking reflects hardware specs plus our review for scored models. Real-world performance — especially for camera quality — doesn't always align with spec scores. No brand sponsors these rankings.</span>
           </div>
         </div>
       )}
