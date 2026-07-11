@@ -23,11 +23,28 @@ function isNewRelease(phone: Phone): boolean {
   return released.getTime() <= now && now - released.getTime() <= 60 * 24 * 60 * 60 * 1000
 }
 
+const TIER_STYLE: Record<string, { label: string; color: string; bg: string }> = {
+  ultra_flagship: { label: 'Ultra Flagship', color: '#C9A84C', bg: 'rgba(201,168,76,0.12)' },
+  flagship:       { label: 'Flagship',       color: 'var(--accent)', bg: 'var(--accent-light)' },
+  mid_range:      { label: 'Mid-Range',      color: 'var(--blue)', bg: 'var(--blue-light)' },
+  mid:            { label: 'Mid-Range',      color: 'var(--blue)', bg: 'var(--blue-light)' },
+  entry_level:    { label: 'Entry-Level',    color: 'var(--text-2)', bg: 'rgba(74,74,74,0.06)' },
+  entry:          { label: 'Entry-Level',    color: 'var(--text-2)', bg: 'rgba(74,74,74,0.06)' },
+  budget:         { label: 'Budget',         color: 'var(--text-2)', bg: 'rgba(74,74,74,0.06)' },
+}
+
+function tierDisplay(phone: Phone): { label: string; color: string; bg: string } | null {
+  const raw = phone.smart_score?.tier || phone.chipset_tier
+  if (!raw || raw === 'unknown') return null
+  return TIER_STYLE[raw] ?? { label: raw.replace(/_/g, ' '), color: 'var(--text-2)', bg: 'rgba(74,74,74,0.06)' }
+}
+
 export default function PhoneCard({ phone, compareIds, onCompareToggle, compact }: PhoneCardProps) {
   const [imgErr, setImgErr] = useState(false)
   const [hovered, setHovered] = useState(false)
   const inCompare = compareIds.includes(phone.id)
   const isNew = isNewRelease(phone)
+  const tier = tierDisplay(phone)
 
   const href = ROUTES.phone(brandSlug(phone.brand), phoneSlug(phone))
 
@@ -110,11 +127,21 @@ export default function PhoneCard({ phone, compareIds, onCompareToggle, compact 
         </div>
 
         <div style={{ padding: compact ? '8px 10px 10px' : '10px 12px 12px' }}>
-          <div style={{
-            fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px',
-            color: c.text3, marginBottom: 2,
-          }}>
-            {phone.brand}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginBottom: 2 }}>
+            <div style={{
+              fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px',
+              color: c.text3,
+            }}>
+              {phone.brand}
+            </div>
+            {!compact && tier && (
+              <span style={{
+                fontSize: 9, fontWeight: 700, color: tier.color, background: tier.bg,
+                padding: '2px 6px', borderRadius: 'var(--r-full)', whiteSpace: 'nowrap',
+              }}>
+                {tier.label}
+              </span>
+            )}
           </div>
           <div style={{
             fontFamily: f.serif,
@@ -131,7 +158,7 @@ export default function PhoneCard({ phone, compareIds, onCompareToggle, compact 
             color: phone.price_usd ? c.text1 : c.text3,
             marginBottom: compact ? 6 : 8,
           }}>
-            {phone.price_usd ? `$${phone.price_usd.toLocaleString()}` : 'Price TBA'}
+            {phone.price_usd ? `$${Math.round(phone.price_usd).toLocaleString()}` : 'Price TBA'}
           </div>
 
           {!compact && badges.length > 0 && (
