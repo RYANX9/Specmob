@@ -27,7 +27,42 @@ export interface Phone {
   full_specifications: FullSpecifications | null
   features: string[] | null
   value_score?: number | null
-  chipset_tier?: 'flagship' | 'mid' | 'entry' | 'unknown'
+  chipset_tier?: string | null
+  popularity?: number | null
+  smart_score?: SmartScore | null
+  price_updated_at?: string | null
+  price_scope?: string | null
+}
+
+export interface SmartScore {
+  overall_score: number | null
+  camera_score: number | null
+  performance_score: number | null
+  battery_score: number | null
+  display_score: number | null
+  build_score: number | null
+  value_score: number | null
+  strengths: string[] | null
+  weaknesses: string[] | null
+  reasoning: string | null
+  tier: string | null
+  model_version: string | null
+  scored_at: string | null
+}
+
+export interface PricePoint {
+  snapshot_date: string
+  scope: string
+  price_usd: number | null
+  price_original?: number | null
+  fx_rate_used?: number | null
+}
+
+export interface PriceHistoryResponse {
+  phone_id: number
+  current_price_usd: number | null
+  count: number
+  history: PricePoint[]
 }
 
 export interface FullSpecifications {
@@ -90,7 +125,7 @@ export interface CategoryResult {
   slug: string
   title: string
   description: string
-  phones: (Phone & { category_score: number })[]
+  phones: (Phone & { category_score: number; smart_tier?: string | null; smart_overall_score?: number | null })[]
 }
 
 export interface BrandStats {
