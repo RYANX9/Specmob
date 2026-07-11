@@ -17,11 +17,6 @@ import { ROUTES, brandSlug, phoneSlug, MAX_COMPARE } from '@/lib/config'
 import { c, z, mq } from '@/lib/tokens'
 import type { Phone, CategoryResult } from '@/lib/types'
 
-// ─── category config ──────────────────────────────────────────────────────────
-// Title: no hardcoded year — latestYear from live data is appended at render.
-// minYear: must match the backend SQL filter for that category exactly.
-// desc/scoring: synced with backend release_year filters.
-
 const CATEGORY_CONFIG: Record<string, {
   title: string
   minYear: number
@@ -122,8 +117,6 @@ const ALL_CATEGORIES = [
   { slug: 'fast-charging',  icon: <Bolt size={18} strokeWidth={1.5} />,      label: 'Fast Charging' },
 ]
 
-// ─── medal ────────────────────────────────────────────────────────────────────
-
 type MedalVariant = 'gold' | 'silver' | 'bronze'
 const MEDAL_COLORS: Record<MedalVariant, string> = {
   gold:   '#C9A84C',
@@ -146,8 +139,6 @@ function Medal({ variant, size = 28 }: { variant: MedalVariant; size?: number })
   )
 }
 
-// ─── word-safe description truncation ─────────────────────────────────────────
-
 function truncateWords(str: string, maxChars: number): string {
   if (str.length <= maxChars) return str
   const cut = str.slice(0, maxChars)
@@ -155,11 +146,11 @@ function truncateWords(str: string, maxChars: number): string {
   return (lastSpace > maxChars * 0.6 ? cut.slice(0, lastSpace) : cut) + '...'
 }
 
-// ─── category-aware content generators ───────────────────────────────────────
+// ─── copy: AI-driven when scored, hardcoded generators as fallback ────────────
 
 interface WhyPoint { bold: string; rest: string }
 
-function getCategoryWhyPoints(slug: string, phone: Phone & { category_score: number }): WhyPoint[] {
+function getCategoryWhyPointsFallback(slug: string, phone: Phone & { category_score: number }): WhyPoint[] {
   const pts: (WhyPoint | null)[] = []
   switch (slug) {
     case 'camera-phones':
@@ -229,7 +220,7 @@ function getCategoryWhyPoints(slug: string, phone: Phone & { category_score: num
   return (pts.filter(Boolean) as WhyPoint[]).slice(0, 4)
 }
 
-function getCategoryTradeOff(slug: string, phone: Phone & { category_score: number }): string {
+function getCategoryTradeOffFallback(slug: string, phone: Phone & { category_score: number }): string {
   switch (slug) {
     case 'camera-phones':
       if (phone.weight_g && phone.weight_g > 200)
@@ -273,7 +264,7 @@ function getCategoryTradeOff(slug: string, phone: Phone & { category_score: numb
   }
 }
 
-function getCategoryReason(slug: string, phone: Phone & { category_score: number }, rank: number): string {
+function getCategoryReasonFallback(slug: string, phone: Phone & { category_score: number }, rank: number): string {
   const prefix = rank === 2 ? 'Runner-up by a narrow margin.' : 'A strong contender in this category.'
   switch (slug) {
     case 'camera-phones':
@@ -296,6 +287,29 @@ function getCategoryReason(slug: string, phone: Phone & { category_score: number
   }
 }
 
+// Wrappers: prefer AI smart_score copy when the phone has been scored,
+// fall back to the per-category hardcoded generators otherwise.
+function getWhyPoints(slug: string, phone: Phone & { category_score: number }): WhyPoint[] {
+  if (phone.smart_score?.strengths?.length) {
+    return phone.smart_score.strengths.slice(0, 4).map(s => ({ bold: '', rest: s }))
+  }
+  return getCategoryWhyPointsFallback(slug, phone)
+}
+
+function getTradeOff(slug: string, phone: Phone & { category_score: number }): string {
+  if (phone.smart_score?.weaknesses?.length) {
+    return phone.smart_score.weaknesses[0]
+  }
+  return getCategoryTradeOffFallback(slug, phone)
+}
+
+function getReason(slug: string, phone: Phone & { category_score: number }, rank: number): string {
+  if (phone.smart_score?.reasoning) {
+    return truncateWords(phone.smart_score.reasoning, 220)
+  }
+  return getCategoryReasonFallback(slug, phone, rank)
+}
+
 // ─── rank card: gold (#1) ─────────────────────────────────────────────────────
 
 function RankCardGold({ phone, score, rank, config, slug, onCompare, isCompared }: {
@@ -308,8 +322,9 @@ function RankCardGold({ phone, score, rank, config, slug, onCompare, isCompared 
   isCompared: boolean
 }) {
   const router    = useRouter()
-  const whyPoints = getCategoryWhyPoints(slug, phone)
-  const tradeOff  = getCategoryTradeOff(slug, phone)
+  const whyPoints = getWhyPoints(slug, phone)
+  const tradeOff  = getTradeOff(slug, phone)
+  const aiScored  = !!phone.smart_score?.reasoning
 
   const categoryLabel = config.title.split(' ').slice(1, 3).join(' ')
 
@@ -343,6 +358,7 @@ function RankCardGold({ phone, score, rank, config, slug, onCompare, isCompared 
             {phone.battery_capacity && <span style={{ padding: '4px 10px', borderRadius: 'var(--r-full)', fontSize: 12, fontWeight: 500, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)' }}>{phone.battery_capacity.toLocaleString()}mAh</span>}
             {phone.chipset && <span style={{ padding: '4px 10px', borderRadius: 'var(--r-full)', fontSize: 12, fontWeight: 500, background: 'rgba(230,57,70,0.2)', color: '#FF8088' }}>{phone.chipset}</span>}
             {phone.fast_charging_w && <span style={{ padding: '4px 10px', borderRadius: 'var(--r-full)', fontSize: 12, fontWeight: 500, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)' }}>{phone.fast_charging_w}W charging</span>}
+            {aiScored && <span style={{ padding: '4px 10px', borderRadius: 'var(--r-full)', fontSize: 12, fontWeight: 600, background: 'rgba(201,168,76,0.25)', color: MEDAL_COLORS.gold }}>AI Scored</span>}
           </div>
         </div>
 
@@ -362,7 +378,7 @@ function RankCardGold({ phone, score, rank, config, slug, onCompare, isCompared 
             {whyPoints.map((pt, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 14, color: c.text2, lineHeight: 1.5 }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', flexShrink: 0, marginTop: 7 }} />
-                <span><strong>{pt.bold}</strong>{' '}{pt.rest}</span>
+                <span>{pt.bold && <strong>{pt.bold}</strong>}{pt.bold ? ' ' : ''}{pt.rest}</span>
               </div>
             ))}
           </div>
@@ -418,7 +434,7 @@ function RankCardMedium({ phone, score, rank, variant, slug, onCompare, isCompar
   isCompared: boolean
 }) {
   const router = useRouter()
-  const reason = getCategoryReason(slug, phone, rank)
+  const reason = getReason(slug, phone, rank)
   const color  = MEDAL_COLORS[variant]
 
   return (
@@ -533,7 +549,7 @@ function MethodologyBox({ config, open, onToggle }: {
       {open && (
         <div style={{ padding: 28 }}>
           <p style={{ fontSize: 14, color: c.text2, lineHeight: 1.7, marginBottom: 24, maxWidth: 640 }}>
-            Our {categoryLabel.toLowerCase()} score is computed automatically from each phone's hardware specifications. We don't factor in real-world test results — this is a pure spec-based ranking. Scores are relative: the highest-scoring phone in each run is normalised to 10, all others are scored against it.
+            Our {categoryLabel.toLowerCase()} score is computed automatically from each phone's hardware specifications, with an AI review layer for scored models. Scores are relative: the highest-scoring phone in each run is normalised to 10, all others are scored against it.
           </p>
           <div className="methodology-weights" style={{ display: 'grid', gap: 12, marginBottom: 24 }}>
             {config.weights.map((w, i) => (
@@ -548,7 +564,7 @@ function MethodologyBox({ config, open, onToggle }: {
           </div>
           <div style={{ padding: '12px 16px', background: 'var(--blue-light)', border: '1px solid rgba(69,123,157,0.12)', borderRadius: 'var(--r-sm)', fontSize: 13, color: c.text2, lineHeight: 1.6, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
             <Info size={16} style={{ flexShrink: 0, color: 'var(--blue)', marginTop: 1 }} />
-            <span><strong>Important:</strong> This ranking reflects hardware specs only. Real-world performance — especially for camera quality — doesn't always align with spec scores. No brand sponsors these rankings.</span>
+            <span><strong>Important:</strong> This ranking reflects hardware specs plus AI review for scored models. Real-world performance — especially for camera quality — doesn't always align with spec scores. No brand sponsors these rankings.</span>
           </div>
         </div>
       )}
@@ -649,7 +665,6 @@ function CategoryPageContent() {
   const latestYear  = data?.phones.reduce((max, p) => Math.max(max, p.release_year ?? 0), 0) || new Date().getFullYear()
   const displayTitle = `${config.title} ${latestYear}`
 
-  // JSON-LD injected client-side — valid anywhere in the document per Google's spec
   const itemListJsonLd = data && {
     '@context': 'https://schema.org',
     '@type': 'ItemList',
