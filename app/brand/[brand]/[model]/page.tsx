@@ -314,7 +314,7 @@ function WhyThisPhone({
               <span style={{ fontFamily: f.serif, fontSize: 22, color: valueScoreColor(smart.overall_score) }}>
                 {smart.overall_score.toFixed(1)}
               </span>
-              <span style={{ fontSize: 11, color: c.text3 }}>/10 AI Score</span>
+              <span style={{ fontSize: 11, color: c.text3 }}>/10 Our Score</span>
             </div>
           )}
         </div>
