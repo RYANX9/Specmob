@@ -1,312 +1,967 @@
-from __future__ import annotations
+'use client'
 
-import logging
+import { useState, useEffect, useRef, Suspense } from 'react'
+import Link from 'next/link'
+import { useRouter, useParams, useSearchParams } from 'next/navigation'
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+} from 'recharts'
+import {
+  ChevronRight, Share2, GitCompare, ShoppingCart,
+  Check, Camera, Battery, Cpu, Monitor,
+  Weight, Zap, Smartphone, ArrowRight,
+} from 'lucide-react'
+import { api, type PricePointRow } from '@/lib/api'
+import { ROUTES, brandSlug, phoneSlug, valueScoreColor } from '@/lib/config'
+import { c, f, z } from '@/lib/tokens'
+import type { Phone } from '@/lib/types'
+import Navbar from '@/app/components/Navbar'
+import { useToast } from '@/app/components/Toast'
+import CompareBar from '@/app/components/CompareBar'
+import Footer from '@/app/components/Footer'
 
-from fastapi import APIRouter, HTTPException, Query
+// ─── HTML / text helpers ──────────────────────────────────────────────────────
 
-from cache import cached
-from config import settings
-from database import get_pool, row_to_dict, rows_to_list
-
-logger = logging.getLogger(__name__)
-
-router = APIRouter(prefix="/categories", tags=["categories"])
-
-_CATEGORY_COLS = """
-    p.*,
-    EXTRACT(EPOCH FROM MAKE_DATE(
-        COALESCE(p.release_year, 1970),
-        COALESCE(p.release_month, 1),
-        COALESCE(p.release_day, 1)
-    ))::bigint AS release_ts,
-    s.tier AS smart_tier,
-    s.overall_score AS smart_overall_score,
-    s.camera_score AS smart_camera_score,
-    s.performance_score AS smart_performance_score,
-    s.battery_score AS smart_battery_score,
-    s.display_score AS smart_display_score,
-    s.build_score AS smart_build_score,
-    s.value_score AS smart_value_score_full,
-    s.strengths AS smart_strengths,
-    s.weaknesses AS smart_weaknesses,
-    s.reasoning AS smart_reasoning,
-    s.model_version AS smart_model_version,
-    s.scored_at AS smart_scored_at
-"""
-
-_SMART_KEYS = (
-    "smart_camera_score", "smart_performance_score", "smart_battery_score",
-    "smart_display_score", "smart_build_score", "smart_value_score_full",
-    "smart_strengths", "smart_weaknesses", "smart_reasoning",
-    "smart_model_version", "smart_scored_at",
-)
-
-
-def _pop_smart_score(d: dict) -> dict | None:
-    """Nests the AI sub-score fields into `smart_score`, leaving the flat
-    `smart_tier` / `smart_overall_score` columns on `d` untouched (existing
-    frontend contract). Returns None if the phone was never scored."""
-    has_score = d.get("smart_overall_score") is not None
-    out = None
-    if has_score:
-        out = {
-            "overall_score":     d.get("smart_overall_score"),
-            "camera_score":      d.get("smart_camera_score"),
-            "performance_score": d.get("smart_performance_score"),
-            "battery_score":     d.get("smart_battery_score"),
-            "display_score":     d.get("smart_display_score"),
-            "build_score":       d.get("smart_build_score"),
-            "value_score":       d.get("smart_value_score_full"),
-            "strengths":         d.get("smart_strengths"),
-            "weaknesses":        d.get("smart_weaknesses"),
-            "reasoning":         d.get("smart_reasoning"),
-            "tier":              d.get("smart_tier"),
-            "model_version":     d.get("smart_model_version"),
-            "scored_at":         d.get("smart_scored_at"),
-        }
-    for k in _SMART_KEYS:
-        d.pop(k, None)
-    return out
-
-
-def _category_sql(smart_expr: str, legacy_score_expr: str, where_clause: str) -> str:
-    return f"""
-        WITH candidates AS (
-            SELECT {{cols}},
-                   ({smart_expr})        AS smart_metric,
-                   ({legacy_score_expr}) AS legacy_raw_score
-            FROM   phones p
-            LEFT JOIN phone_smart_scores s ON s.phone_id = p.id
-            WHERE  {where_clause}
-        ),
-        normalized AS (
-            SELECT *,
-                   COALESCE(
-                       smart_metric,
-                       10.0 * legacy_raw_score / NULLIF(MAX(legacy_raw_score) OVER (), 0)
-                   ) AS blended_score
-            FROM   candidates
-        ),
-        top_n AS (
-            SELECT * FROM normalized
-            ORDER  BY blended_score DESC NULLS LAST
-            LIMIT  {{limit}}
-        )
-        SELECT *,
-               10.0 * blended_score / NULLIF(MAX(blended_score) OVER (), 0) AS category_score
-        FROM   top_n
-        ORDER  BY blended_score DESC NULLS LAST
-    """
-
-
-CATEGORY_CONFIG: dict[str, dict] = {
-    "camera-phones": {
-        "title": "Best Camera Phones",
-        "description": (
-            "Ranked by our smart camera score where available (sensor quality, "
-            "OIS, versatility, real-world imaging), falling back to a spec "
-            "composite of resolution, chip performance, and charging speed "
-            "for unscored phones."
-        ),
-        "sql": _category_sql(
-            smart_expr="s.camera_score",
-            legacy_score_expr="""
-                COALESCE(p.main_camera_mp, 0)::float * 0.40
-                + COALESCE(p.antutu_score, 0)::float / 200000.0 * 2.0
-                + COALESCE(p.fast_charging_w, 0)::float * 0.05
-            """,
-            where_clause=(
-                "p.main_camera_mp IS NOT NULL "
-                "AND p.screen_size >= 5.5 "
-                "AND p.release_year >= 2023"
-            ),
-        ),
-    },
-    "battery-life": {
-        "title": "Best Battery Life",
-        "description": (
-            "Ranked by our smart battery score where available (capacity, "
-            "efficiency, real endurance), falling back to raw battery "
-            "capacity for unscored phones."
-        ),
-        "sql": _category_sql(
-            smart_expr="s.battery_score",
-            legacy_score_expr="COALESCE(p.battery_capacity, 0)::float",
-            where_clause=(
-                "p.battery_capacity IS NOT NULL "
-                "AND p.screen_size >= 5.5 "
-                "AND p.release_year >= 2023"
-            ),
-        ),
-    },
-    "gaming-phones": {
-        "title": "Best Gaming Phones",
-        "description": (
-            "Ranked by our smart performance score where available, falling "
-            "back to raw AnTuTu benchmark for unscored phones. 2024+ releases only."
-        ),
-        "sql": _category_sql(
-            smart_expr="s.performance_score",
-            legacy_score_expr="COALESCE(p.antutu_score, 0)::float",
-            where_clause=(
-                "p.antutu_score IS NOT NULL "
-                "AND p.screen_size >= 5.5 "
-                "AND p.release_year >= 2024"
-            ),
-        ),
-    },
-    "under-300": {
-        "title": "Best Phones Under $300",
-        "description": (
-            "Ranked by our smart value score where available, falling back "
-            "to a specs-per-dollar composite for unscored phones."
-        ),
-        "sql": _category_sql(
-            smart_expr="s.value_score",
-            legacy_score_expr="""
-                COALESCE(p.battery_capacity, 0)::float / 500.0
-                + COALESCE(p.main_camera_mp, 0)::float / 10.0
-                + COALESCE(p.antutu_score, 0)::float / 100000.0
-            """,
-            where_clause=(
-                "p.price_usd <= 300 "
-                "AND p.price_usd > 0 "
-                "AND p.screen_size >= 5.5 "
-                "AND p.release_year >= 2022"
-            ),
-        ),
-    },
-    "under-500": {
-        "title": "Best Phones Under $500",
-        "description": (
-            "Ranked by our smart value score where available, falling back "
-            "to a specs-per-dollar composite for unscored phones."
-        ),
-        "sql": _category_sql(
-            smart_expr="s.value_score",
-            legacy_score_expr="""
-                COALESCE(p.battery_capacity, 0)::float / 500.0
-                + COALESCE(p.main_camera_mp, 0)::float / 10.0
-                + COALESCE(p.antutu_score, 0)::float / 100000.0
-            """,
-            where_clause=(
-                "p.price_usd <= 500 "
-                "AND p.price_usd > 0 "
-                "AND p.screen_size >= 5.5 "
-                "AND p.release_year >= 2022"
-            ),
-        ),
-    },
-    "lightweight": {
-        "title": "Lightest Smartphones",
-        "description": (
-            "Modern smartphones (5.5\"+ screen) between 100g-185g. Purely a "
-            "physical measurement — smart score does not apply here."
-        ),
-        "sql": _category_sql(
-            smart_expr="NULL::numeric",
-            legacy_score_expr="(200.0 - COALESCE(p.weight_g, 200))::float",
-            where_clause=(
-                "p.weight_g IS NOT NULL "
-                "AND p.weight_g BETWEEN 100 AND 185 "
-                "AND p.screen_size >= 5.5 "
-                "AND p.release_year >= 2023"
-            ),
-        ),
-    },
-    "compact-phones": {
-        "title": "Best Compact Phones",
-        "description": (
-            "Screens between 5.0\"-6.3\". Ranked by our smart performance "
-            "score where available within the compact segment, falling back "
-            "to raw AnTuTu."
-        ),
-        "sql": _category_sql(
-            smart_expr="s.performance_score",
-            legacy_score_expr="COALESCE(p.antutu_score, 0)::float",
-            where_clause=(
-                "p.screen_size <= 6.3 "
-                "AND p.screen_size >= 5.0 "
-                "AND p.release_year >= 2023"
-            ),
-        ),
-    },
-    "fast-charging": {
-        "title": "Fastest Charging Phones",
-        "description": (
-            "Ranked by maximum wired charging wattage. 30W minimum. Purely a "
-            "physical measurement — smart score does not apply here."
-        ),
-        "sql": _category_sql(
-            smart_expr="NULL::numeric",
-            legacy_score_expr="COALESCE(p.fast_charging_w, 0)::float",
-            where_clause=(
-                "p.fast_charging_w >= 30 "
-                "AND p.screen_size >= 5.5 "
-                "AND p.release_year >= 2023"
-            ),
-        ),
-    },
+function stripHtml(raw: string): string {
+  return raw
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&deg;/g, '°')
+    .replace(/&mdash;/g, '—')
+    .replace(/&ndash;/g, '–')
+    .replace(/&times;/g, '×')
+    .replace(/&copy;/g, '©')
+    .replace(/&reg;/g, '®')
+    .replace(/&trade;/g, '™')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
 }
 
-_SLUG_ALIASES: dict[str, str] = {
-    "camera":      "camera-phones",
-    "battery":     "battery-life",
-    "gaming":      "gaming-phones",
-    "lightweight": "lightweight",
-    "compact":     "compact-phones",
-    "charging":    "fast-charging",
+function specValueToString(v: unknown): string {
+  if (v === null || v === undefined) return '—'
+  if (typeof v === 'boolean') return v ? 'Yes' : 'No'
+  if (typeof v === 'number') return String(v)
+  if (typeof v === 'string') {
+    const stripped = stripHtml(v)
+    return stripped || '—'
+  }
+  if (Array.isArray(v)) {
+    return v.map(specValueToString).filter(s => s !== '—').join(', ') || '—'
+  }
+  if (typeof v === 'object') {
+    return Object.entries(v as Record<string, unknown>)
+      .filter(([, val]) => {
+        const s = String(val ?? '')
+        return !s.startsWith('http') && s !== 'null' && s !== ''
+      })
+      .map(([k, val]) => `${k}: ${specValueToString(val)}`)
+      .join(' · ') || '—'
+  }
+  return String(v)
 }
 
+const SKIP_SPEC_KEYS = new Set([
+  'metadata', 'media', 'benchmarks', 'price_info',
+  'quick_specs', 'processed_at', 'source_url', 'specifications',
+])
 
-@router.get("")
-async def list_categories():
-    async def _fetch():
-        return {
-            "categories": [
-                {"slug": slug, "title": cfg["title"], "description": cfg["description"]}
-                for slug, cfg in CATEGORY_CONFIG.items()
-            ]
+function getSpecGroups(phone: Phone): Array<[string, Record<string, string>]> {
+  const fs = phone.full_specifications
+  if (!fs || typeof fs !== 'object') return []
+  const root: Record<string, unknown> =
+    (fs as any).specifications && typeof (fs as any).specifications === 'object'
+      ? (fs as any).specifications
+      : (fs as any)
+
+  const groups: Array<[string, Record<string, string>]> = []
+  for (const [groupName, groupVal] of Object.entries(root)) {
+    if (SKIP_SPEC_KEYS.has(groupName)) continue
+    if (!groupVal || typeof groupVal !== 'object' || Array.isArray(groupVal)) continue
+    const rows: Record<string, string> = {}
+    for (const [k, v] of Object.entries(groupVal as Record<string, unknown>)) {
+      if (k.toLowerCase().includes('url') && typeof v === 'string' && v.startsWith('http')) continue
+      const val = specValueToString(v)
+      if (val && val !== '—') rows[k] = val
+    }
+    if (Object.keys(rows).length > 0) groups.push([groupName, rows])
+  }
+  return groups
+}
+
+// ─── spec group ordering ──────────────────────────────────────────────────────
+
+const SPEC_GROUP_ORDER = [
+  'launch', 'availability', 'status',
+  'network', 'sim',
+  'display', 'screen',
+  'platform', 'performance', 'chipset', 'processor',
+  'memory', 'storage',
+  'main camera', 'rear camera', 'camera',
+  'selfie', 'front camera', 'secondary camera',
+  'sound', 'audio',
+  'comms', 'connectivity', 'wlan', 'bluetooth', 'nfc',
+  'sensors', 'features',
+  'battery',
+  'body', 'build', 'design', 'dimensions',
+  'tests', 'misc', 'other',
+]
+
+function rankSpecGroup(name: string): number {
+  const lower = name.toLowerCase()
+  const idx = SPEC_GROUP_ORDER.findIndex(k => lower.includes(k))
+  return idx === -1 ? 998 : idx
+}
+
+// ─── slug resolution ────────────────────────────────────────────────────────
+
+function pickBest(phones: Phone[], targetSlug: string): Phone | null {
+  if (!phones.length) return null
+  const target = targetSlug.toLowerCase()
+  let best: Phone | null = null
+  let bestScore = -1
+  for (const p of phones) {
+    const ps = phoneSlug(p).toLowerCase()
+    if (ps === target) return p
+    let score = 0; let ti = 0
+    for (let pi = 0; pi < ps.length && ti < target.length; pi++) {
+      if (ps[pi] === target[ti]) { score++; ti++ }
+    }
+    if (score > bestScore) { bestScore = score; best = p }
+  }
+  return bestScore > target.length * 0.45 ? best : null
+}
+
+async function resolvePhone(brand: string, model: string, signal: AbortSignal): Promise<Phone | null> {
+  const brandName  = brand.replace(/-/g, ' ')
+  const modelWords = model.replace(/-/g, ' ')
+
+  const [withBrand, withoutBrand] = await Promise.allSettled([
+    api.phones.search({ q: modelWords, brand: brandName, page_size: 10 }, signal),
+    api.phones.search({ q: modelWords, page_size: 10 }, signal),
+  ])
+
+  if (withBrand.status === 'fulfilled') {
+    const match = pickBest(withBrand.value.results, model)
+    if (match) return api.phones.detail(match.id, signal)
+  }
+
+  if (withoutBrand.status === 'fulfilled') {
+    const match = pickBest(withoutBrand.value.results, model)
+    if (match) return api.phones.detail(match.id, signal)
+  }
+
+  const brandTokens = brandName.toLowerCase().split(' ')
+  let queryTokens = modelWords.toLowerCase().split(' ')
+  for (const bt of brandTokens) {
+    if (queryTokens[0] === bt) queryTokens = queryTokens.slice(1)
+  }
+  const stripped = queryTokens.join(' ')
+
+  if (stripped && stripped !== modelWords.toLowerCase()) {
+    try {
+      const res = await api.phones.search({ q: stripped, brand: brandName, page_size: 10 }, signal)
+      const match = pickBest(res.results, model)
+      if (match) return api.phones.detail(match.id, signal)
+    } catch { /* continue */ }
+  }
+
+  try {
+    const res = await api.phones.search({ brand: brandName, page_size: 50 }, signal)
+    const match = pickBest(res.results, model)
+    if (match) return api.phones.detail(match.id, signal)
+  } catch { /* ignore */ }
+
+  return null
+}
+
+// ─── sub-components ───────────────────────────────────────────────────────────
+
+type TabType = 'overview' | 'specs' | 'compare'
+
+function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button onClick={onClick} style={{
+      padding: '14px 20px', fontSize: 14, fontWeight: 500,
+      color: active ? c.text1 : c.text3,
+      borderBottom: `2px solid ${active ? c.accent : 'transparent'}`,
+      transition: 'all 0.15s', whiteSpace: 'nowrap',
+      background: 'none', border: 'none', cursor: 'pointer',
+    }}>
+      {children}
+    </button>
+  )
+}
+
+function SpecRow({ label, value, alt }: { label: string; value: string; alt: boolean }) {
+  const lines = value.split('\n').filter(Boolean)
+  return (
+    <div style={{
+      display: 'flex', gap: 0, padding: '7px 14px',
+      borderBottom: `1px solid ${c.border}`,
+      background: alt ? 'rgba(248,248,245,0.6)' : 'transparent',
+      alignItems: 'flex-start',
+    }}>
+      <div style={{ width: 130, minWidth: 130, flexShrink: 0, fontSize: 12, color: c.text3, fontWeight: 500, paddingTop: 1, paddingRight: 12, lineHeight: 1.4 }}>
+        {label}
+      </div>
+      <div style={{ flex: 1, fontSize: 13, color: c.text1, lineHeight: 1.5 }}>
+        {lines.length <= 1
+          ? value
+          : lines.map((line, i) => <div key={i} style={{ marginBottom: i < lines.length - 1 ? 3 : 0 }}>{line}</div>)
         }
+      </div>
+    </div>
+  )
+}
 
-    return await cached("categories:list", settings.cache_ttl_stable, _fetch)
+function SpecGroup({ title, specs }: { title: string; specs: Record<string, string> }) {
+  const entries = Object.entries(specs)
+  if (!entries.length) return null
+  return (
+    <div style={{ marginBottom: 6, borderRadius: 'var(--r-md)', overflow: 'hidden', border: `1px solid ${c.border}` }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '10px 14px', background: c.bg,
+        borderBottom: `1px solid ${c.border}`,
+      }}>
+        <span style={{ flex: 1, fontSize: 12, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.6px', color: c.text1 }}>
+          {title}
+        </span>
+        <span style={{ fontSize: 11, color: c.text3 }}>{entries.length} specs</span>
+      </div>
+      <div style={{ background: c.surface }}>
+        {entries.map(([k, v], i) => <SpecRow key={k} label={k} value={v} alt={i % 2 === 1} />)}
+      </div>
+    </div>
+  )
+}
 
+function QuickSpecCard({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
+  return (
+    <div style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-md)', padding: '16px 12px', textAlign: 'center' }}>
+      <div style={{ color: c.text3, display: 'flex', justifyContent: 'center', marginBottom: 8 }}>{icon}</div>
+      <div style={{ fontSize: 16, fontWeight: 600, color: c.text1, marginBottom: 3, lineHeight: 1.2 }}>{value}</div>
+      <div style={{ fontSize: 11, color: c.text3, textTransform: 'uppercase' as const, letterSpacing: '0.3px' }}>{label}</div>
+    </div>
+  )
+}
 
-@router.get("/{category_slug}")
-async def get_category(
-    category_slug: str,
-    limit: int = Query(10, ge=5, le=20),
-):
-    resolved = _SLUG_ALIASES.get(category_slug, category_slug)
-    cfg = CATEGORY_CONFIG.get(resolved)
-    if not cfg:
-        raise HTTPException(status_code=404, detail=f"Category '{category_slug}' not found.")
+function OverviewSection({ title, headline, specs }: { title: string; headline: string; specs: { label: string; value: string }[] }) {
+  if (!specs.length) return null
+  return (
+    <div style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-md)', padding: '22px 24px' }}>
+      <div style={{ fontFamily: f.serif, fontSize: 20, color: c.text1, marginBottom: 10 }}>{title}</div>
+      <div style={{ fontWeight: 600, fontSize: 15, color: c.text1, marginBottom: 14 }}>{headline}</div>
+      <div className="specs-2col">
+        {specs.map(s => (
+          <div key={s.label} style={{ padding: '9px 12px', background: c.bg, borderRadius: 'var(--r-sm)' }}>
+            <div style={{ fontSize: 11, color: c.text3, marginBottom: 3 }}>{s.label}</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: c.text1, lineHeight: 1.4 }}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
 
-    async def _fetch():
-        sql = cfg["sql"].format(cols=_CATEGORY_COLS, limit=limit)
-        async with get_pool().acquire() as conn:
-            rows = await conn.fetch(sql)
+// "Why this phone" — driven by the AI smart_score when the phone has been
+// scored (reasoning present), falling back to the spec-derived overview
+// sections for unscored phones.
+function WhyThisPhone({
+  phone,
+  fallbackSections,
+}: {
+  phone: Phone
+  fallbackSections: { title: string; headline: string; specs: { label: string; value: string }[] }[]
+}) {
+  const smart = phone.smart_score
 
-        phones = []
-        for r in rows:
-            d = row_to_dict(r)
-            d.pop("smart_metric", None)
-            d.pop("legacy_raw_score", None)
-            d.pop("blended_score", None)
-            raw_cs = d.pop("category_score", 0) or 0
-            d["category_score"] = round(float(raw_cs), 2)
-            d["smart_score"] = _pop_smart_score(d)
-            phones.append(d)
-
-        return {
-            "slug":        resolved,
-            "title":       cfg["title"],
-            "description": cfg["description"],
-            "phones":      phones,
-        }
-
-    return await cached(
-        f"category:{resolved}:{limit}",
-        settings.cache_ttl_stable,
-        _fetch,
+  if (!smart || !smart.reasoning) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {fallbackSections.map(s => <OverviewSection key={s.title} {...s} />)}
+      </div>
     )
+  }
+
+  const tierLabel = smart.tier ? smart.tier.replace(/_/g, ' ') : null
+
+  return (
+    <div style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-lg)', padding: '24px 28px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+        <div style={{ fontFamily: f.serif, fontSize: 22, color: c.text1 }}>Why This Phone</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {tierLabel && (
+            <span style={{
+              padding: '4px 12px', background: 'var(--accent-light)', color: c.accent,
+              border: '1px solid var(--accent-border)', borderRadius: 'var(--r-full)',
+              fontSize: 12, fontWeight: 600, textTransform: 'capitalize' as const,
+            }}>
+              {tierLabel}
+            </span>
+          )}
+          {smart.overall_score != null && (
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
+              <span style={{ fontFamily: f.serif, fontSize: 22, color: valueScoreColor(smart.overall_score) }}>
+                {smart.overall_score.toFixed(1)}
+              </span>
+              <span style={{ fontSize: 11, color: c.text3 }}>/10 AI Score</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <p style={{ fontSize: 14, color: c.text2, lineHeight: 1.7, marginBottom: 20 }}>{smart.reasoning}</p>
+
+      <div className="specs-2col">
+        {!!smart.strengths?.length && (
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.5px', color: 'var(--green)', marginBottom: 8 }}>
+              Strengths
+            </div>
+            {smart.strengths.slice(0, 5).map((s, i) => (
+              <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 7, fontSize: 13, color: c.text2, lineHeight: 1.5 }}>
+                <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--green)', flexShrink: 0, marginTop: 7 }} />
+                <span>{s}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {!!smart.weaknesses?.length && (
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.5px', color: 'var(--orange)', marginBottom: 8 }}>
+              Weaknesses
+            </div>
+            {smart.weaknesses.slice(0, 5).map((s, i) => (
+              <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 7, fontSize: 13, color: c.text2, lineHeight: 1.5 }}>
+                <div style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--orange)', flexShrink: 0, marginTop: 7 }} />
+                <span>{s}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Line chart over global-scope price_points. Backend returns ASC by date already.
+function PriceHistoryChart({ points, loading }: { points: PricePointRow[]; loading: boolean }) {
+  const data = points
+    .filter(p => p.price_usd != null)
+    .map(p => ({ date: p.snapshot_date, price: Number(p.price_usd) }))
+
+  if (loading) {
+    return <div className="skeleton" style={{ height: 280, borderRadius: 'var(--r-lg)' }} />
+  }
+
+  if (data.length < 2) return null
+
+  const first = data[0].price
+  const last  = data[data.length - 1].price
+  const deltaPct = first ? ((last - first) / first) * 100 : 0
+
+  return (
+    <div style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-lg)', padding: '22px 24px' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ fontFamily: f.serif, fontSize: 20, color: c.text1 }}>Price History</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: deltaPct <= 0 ? 'var(--green)' : c.accent }}>
+          {deltaPct > 0 ? '+' : ''}{deltaPct.toFixed(1)}% since first tracked
+        </div>
+      </div>
+      <div style={{ width: '100%', height: 220 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+            <CartesianGrid stroke={c.border} vertical={false} />
+            <XAxis
+              dataKey="date"
+              tick={{ fontSize: 11, fill: 'var(--text-3)' }}
+              tickLine={false}
+              axisLine={{ stroke: 'var(--border)' }}
+              minTickGap={40}
+            />
+            <YAxis
+              tick={{ fontSize: 11, fill: 'var(--text-3)' }}
+              tickLine={false}
+              axisLine={false}
+              width={54}
+              tickFormatter={v => `$${v}`}
+            />
+            <Tooltip
+              formatter={(v: number) => [`$${v.toLocaleString()}`, 'Price']}
+              contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid var(--border)' }}
+            />
+            <Line type="monotone" dataKey="price" stroke="var(--accent)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  )
+}
+
+function SimilarCard({ phone }: { phone: Phone }) {
+  const [imgErr, setImgErr] = useState(false)
+  return (
+    <Link
+      href={ROUTES.phone(brandSlug(phone.brand), phoneSlug(phone))}
+      style={{ flexShrink: 0, width: 156, background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-md)', padding: '14px 12px', textAlign: 'center', transition: 'all 0.15s', scrollSnapAlign: 'start', display: 'block', textDecoration: 'none' }}
+      onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.transform = 'translateY(-2px)'; el.style.boxShadow = 'var(--shadow-md)'; el.style.borderColor = c.borderHover }}
+      onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.transform = 'none'; el.style.boxShadow = 'none'; el.style.borderColor = c.border }}
+    >
+      <div style={{ width: 72, height: 72, margin: '0 auto 10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {phone.main_image_url && !imgErr
+          ? <img src={phone.main_image_url} alt={phone.model_name} loading="lazy" decoding="async" onError={() => setImgErr(true)} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          : <Smartphone size={32} color={c.border} strokeWidth={1} />}
+      </div>
+      <div style={{ fontSize: 10, color: c.text3, textTransform: 'uppercase' as const, letterSpacing: '0.4px', marginBottom: 2 }}>{phone.brand}</div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: c.text1, lineHeight: 1.3, marginBottom: 6, fontFamily: f.serif }}>{phone.model_name}</div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: c.text1 }}>
+        {phone.price_usd ? `$${Math.round(phone.price_usd).toLocaleString()}` : '—'}
+      </div>
+      {phone.main_camera_mp && (
+        <div style={{ fontSize: 11, color: c.text3, marginTop: 3 }}>{phone.main_camera_mp}MP · {phone.battery_capacity ? `${phone.battery_capacity}mAh` : ''}</div>
+      )}
+    </Link>
+  )
+}
+
+// ─── JSON-LD builders ─────────────────────────────────────────────────────────
+
+function buildProductJsonLd(phone: Phone, brand: string, model: string): object {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: `${phone.brand} ${phone.model_name}`,
+    brand: { '@type': 'Brand', name: phone.brand },
+    description: [
+      phone.main_camera_mp ? `${phone.main_camera_mp}MP main camera` : null,
+      phone.battery_capacity ? `${phone.battery_capacity.toLocaleString()}mAh battery` : null,
+      phone.chipset ? phone.chipset : null,
+      phone.screen_size ? `${phone.screen_size}" display` : null,
+    ].filter(Boolean).join(', '),
+    ...(phone.price_usd != null && {
+      offers: {
+        '@type': 'Offer',
+        price: phone.price_usd,
+        priceCurrency: 'USD',
+        availability: 'https://schema.org/InStock',
+        url: `https://Specmob.vercel.app/brand/${brandSlug(phone.brand)}/${phoneSlug(phone)}`,
+      },
+    }),
+    ...(phone.main_image_url && { image: phone.main_image_url }),
+  }
+}
+
+function buildBreadcrumbJsonLd(phone: Phone): object {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://Specmob.vercel.app' },
+      { '@type': 'ListItem', position: 2, name: phone.brand, item: `https://Specmob.vercel.app/brand/${brandSlug(phone.brand)}` },
+      { '@type': 'ListItem', position: 3, name: phone.model_name, item: `https://Specmob.vercel.app/brand/${brandSlug(phone.brand)}/${phoneSlug(phone)}` },
+    ],
+  }
+}
+
+// ─── main page component ──────────────────────────────────────────────────────
+
+function PhoneDetailContent() {
+  const params       = useParams()
+  const router       = useRouter()
+  const searchParams = useSearchParams()
+  const { toast }    = useToast()
+
+  const brand = (params?.brand as string) ?? ''
+  const model = (params?.model as string) ?? ''
+
+  const [phone, setPhone]                   = useState<Phone | null>(null)
+  const [similar, setSimilar]               = useState<Phone[]>([])
+  const [similarLoading, setSimilarLoading] = useState(false)
+  const [loading, setLoading]               = useState(true)
+  const [notFound, setNotFound]             = useState(false)
+  const [tab, setTab]                       = useState<TabType>(() => {
+    const t = searchParams.get('tab')
+    return (t === 'specs' || t === 'compare') ? t : 'overview'
+  })
+  const [imgErr, setImgErr]               = useState(false)
+  const [copied, setCopied]               = useState(false)
+  const [comparePhones, setComparePhones] = useState<Phone[]>([])
+  const [priceHistoryPoints, setPriceHistoryPoints] = useState<PricePointRow[]>([])
+  const [priceHistoryLoading, setPriceHistoryLoading] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  const handleTabChange = (newTab: TabType) => {
+    setTab(newTab)
+    const p = new URLSearchParams(searchParams.toString())
+    if (newTab === 'overview') {
+      p.delete('tab')
+    } else {
+      p.set('tab', newTab)
+    }
+    const str = p.toString()
+    router.replace(str ? `?${str}` : window.location.pathname, { scroll: false })
+  }
+
+  useEffect(() => {
+    if (!brand || !model) return
+    const controller = new AbortController()
+
+    setLoading(true)
+    setNotFound(false)
+    setPhone(null)
+    setSimilar([])
+    setPriceHistoryPoints([])
+
+    resolvePhone(brand, model, controller.signal)
+      .then(async found => {
+        if (controller.signal.aborted) return
+        if (!found) { setNotFound(true); return }
+        setPhone(found)
+
+        setSimilarLoading(true)
+        api.phones.similar(found.id, 12)
+          .then(res => { if (!controller.signal.aborted) setSimilar(res?.phones ?? []) })
+          .catch(() => {})
+          .finally(() => { if (!controller.signal.aborted) setSimilarLoading(false) })
+      })
+      .catch(() => { if (!controller.signal.aborted) setNotFound(true) })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false) })
+
+    return () => controller.abort()
+  }, [brand, model])
+
+  // Price history fetched separately once the phone ID is known — its own
+  // AbortController so a fast phone resolve doesn't get cancelled by a
+  // slow-loading chart or vice versa.
+  useEffect(() => {
+    if (!phone?.id) return
+    const controller = new AbortController()
+    setPriceHistoryLoading(true)
+    api.phones.priceHistory(phone.id, { scope: 'global' }, controller.signal)
+      .then(res => { if (!controller.signal.aborted) setPriceHistoryPoints(res.price_points ?? []) })
+      .catch(() => { if (!controller.signal.aborted) setPriceHistoryPoints([]) })
+      .finally(() => { if (!controller.signal.aborted) setPriceHistoryLoading(false) })
+    return () => controller.abort()
+  }, [phone?.id])
+
+  const inCompare = phone ? comparePhones.some(p => p.id === phone.id) : false
+
+  const handleCompareToggle = () => {
+    if (!phone) return
+    setComparePhones(prev => {
+      if (prev.find(p => p.id === phone.id)) {
+        toast('Removed from compare', 'info')
+        return prev.filter(p => p.id !== phone.id)
+      }
+      if (prev.length >= 4) { toast('Maximum 4 phones', 'error'); return prev }
+      toast('Added to compare', 'success')
+      return [...prev, phone]
+    })
+  }
+
+  const handleShare = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href)
+      setCopied(true)
+      toast('Link copied!', 'success')
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      toast('Could not copy link — try copying from the address bar', 'error')
+    }
+  }
+
+  // ── loading ─────────────────────────────────────────────────────────────────
+  if (loading) return (
+    <div style={{ minHeight: '100vh', background: c.bg }}>
+      <Navbar compareCount={0} />
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px var(--page-px)' }}>
+        <div className="phone-hero-grid" style={{ gap: 40, paddingBottom: 48 }}>
+          <div className="skeleton" style={{ aspectRatio: '1', borderRadius: 'var(--r-xl)' }} />
+          <div style={{ paddingTop: 8 }}>
+            {([['30%', 12], ['85%', 36], ['40%', 28], ['100%', 72]] as const).map(([w, h], i) => (
+              <div key={i} className="skeleton" style={{ height: h, width: w, marginBottom: 16, borderRadius: 8 }} />
+            ))}
+          </div>
+        </div>
+        <div className="quick-specs-grid" style={{ marginBottom: 48 }}>
+          {Array.from({ length: 6 }).map((_, i) => <div key={i} className="skeleton" style={{ height: 80, borderRadius: 'var(--r-md)' }} />)}
+        </div>
+      </div>
+    </div>
+  )
+
+  // ── not found ────────────────────────────────────────────────────────────────
+  if (notFound || !phone) return (
+    <div style={{ minHeight: '100vh', background: c.bg }}>
+      <Navbar compareCount={0} />
+      <div style={{ maxWidth: 600, margin: '80px auto', padding: '0 var(--page-px)', textAlign: 'center' }}>
+        <Smartphone size={64} color={c.border} strokeWidth={1} style={{ margin: '0 auto 20px' }} />
+        <h1 style={{ fontFamily: f.serif, fontSize: 28, color: c.text1, marginBottom: 10 }}>Phone not found</h1>
+        <p style={{ fontSize: 15, color: c.text2, lineHeight: 1.6, marginBottom: 24 }}>
+          We don't have this phone in our database. We only track phones currently available for purchase.
+        </p>
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <Link href={ROUTES.home} style={{ padding: '10px 24px', background: c.primary, color: '#fff', borderRadius: 'var(--r-full)', fontSize: 14, fontWeight: 600 }}>
+            Browse All Phones
+          </Link>
+          <Link href={ROUTES.brand(brand)} style={{ padding: '10px 24px', border: `1px solid ${c.border}`, color: c.text2, borderRadius: 'var(--r-full)', fontSize: 14, fontWeight: 500 }}>
+            Browse {brand.replace(/-/g, ' ')} phones
+          </Link>
+        </div>
+      </div>
+      <Footer />
+    </div>
+  )
+
+  // ── derived ──────────────────────────────────────────────────────────────────
+  const quickSpecs = [
+    phone.screen_size         ? { icon: <Monitor size={20} strokeWidth={1.5} />, value: `${phone.screen_size}"`,                label: 'Display'  } : null,
+    phone.main_camera_mp      ? { icon: <Camera  size={20} strokeWidth={1.5} />, value: `${phone.main_camera_mp}MP`,            label: 'Camera'   } : null,
+    phone.battery_capacity    ? { icon: <Battery size={20} strokeWidth={1.5} />, value: `${phone.battery_capacity.toLocaleString()}`, label: 'mAh' } : null,
+    phone.ram_options?.length ? { icon: <Cpu     size={20} strokeWidth={1.5} />, value: `${Math.max(...phone.ram_options!)}GB`, label: 'Max RAM'  } : null,
+    phone.fast_charging_w     ? { icon: <Zap     size={20} strokeWidth={1.5} />, value: `${phone.fast_charging_w}W`,            label: 'Charging' } : null,
+    phone.weight_g            ? { icon: <Weight  size={20} strokeWidth={1.5} />, value: `${phone.weight_g}g`,                  label: 'Weight'   } : null,
+  ].filter(Boolean) as { icon: React.ReactNode; value: string; label: string }[]
+
+  const specGroups  = getSpecGroups(phone)
+  const sortedSpecGroups = [...specGroups].sort(([a], [b]) => rankSpecGroup(a) - rankSpecGroup(b))
+  const valueScore  = (phone as any).value_score as number | null
+  const fs          = phone.full_specifications as any
+
+  const str = (v: unknown) => v ? String(v) : null
+
+  const overviewSections = [
+    {
+      title: 'Display', headline: phone.screen_size ? `${phone.screen_size}" Screen` : 'Display',
+      specs: [
+        phone.screen_size       ? { label: 'Screen Size', value: `${phone.screen_size}"` } : null,
+        phone.screen_resolution ? { label: 'Resolution',  value: phone.screen_resolution } : null,
+        str(fs?.quick_specs?.displaytype) ? { label: 'Type', value: stripHtml(String(fs.quick_specs.displaytype)) } : null,
+      ].filter(Boolean) as { label: string; value: string }[],
+    },
+    {
+      title: 'Camera', headline: phone.main_camera_mp ? `${phone.main_camera_mp}MP Main Camera` : 'Camera System',
+      specs: [
+        phone.main_camera_mp ? { label: 'Main Camera', value: `${phone.main_camera_mp} MP` } : null,
+        str(fs?.quick_specs?.cam1modules) ? { label: 'Rear System',  value: stripHtml(String(fs.quick_specs.cam1modules)) } : null,
+        str(fs?.quick_specs?.cam2modules) ? { label: 'Front Camera', value: stripHtml(String(fs.quick_specs.cam2modules)) } : null,
+      ].filter(Boolean) as { label: string; value: string }[],
+    },
+    {
+      title: 'Performance', headline: phone.chipset || 'Processor',
+      specs: [
+        phone.chipset             ? { label: 'Chipset', value: phone.chipset } : null,
+        phone.ram_options?.length ? { label: 'RAM', value: phone.ram_options!.map(r => `${r}GB`).join(' / ') } : null,
+        phone.storage_options?.length
+          ? { label: 'Storage', value: phone.storage_options!.map(s => s >= 1000 ? `${s/1000}TB` : `${s}GB`).join(' / ') } : null,
+        phone.antutu_score ? { label: 'AnTuTu Score', value: phone.antutu_score.toLocaleString() } : null,
+      ].filter(Boolean) as { label: string; value: string }[],
+    },
+    {
+      title: 'Battery & Charging', headline: phone.battery_capacity ? `${phone.battery_capacity.toLocaleString()} mAh` : 'Battery',
+      specs: [
+        phone.battery_capacity ? { label: 'Capacity',      value: `${phone.battery_capacity.toLocaleString()} mAh` } : null,
+        phone.fast_charging_w  ? { label: 'Fast Charging', value: `${phone.fast_charging_w}W wired` }               : null,
+      ].filter(Boolean) as { label: string; value: string }[],
+    },
+    {
+      title: 'Build & Design', headline: phone.weight_g ? `${phone.weight_g}g` : 'Build',
+      specs: [
+        phone.weight_g     ? { label: 'Weight',    value: `${phone.weight_g}g` }      : null,
+        phone.thickness_mm ? { label: 'Thickness', value: `${phone.thickness_mm}mm` } : null,
+      ].filter(Boolean) as { label: string; value: string }[],
+    },
+  ].filter(s => s.specs.length > 0)
+
+  // ── render ───────────────────────────────────────────────────────────────────
+  return (
+    <div style={{ minHeight: '100vh', background: c.bg }}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(buildProductJsonLd(phone, brand, model)) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(buildBreadcrumbJsonLd(phone)) }}
+      />
+
+      <Navbar
+        compareCount={comparePhones.length}
+        onOpenCompare={() => {
+          if (comparePhones.length >= 2)
+            router.push(ROUTES.compare(...comparePhones.map(p => phoneSlug(p))))
+        }}
+      />
+
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 var(--page-px)' }}>
+
+        <nav style={{ padding: '14px 0', fontSize: 13, color: c.text3, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <Link href={ROUTES.home} style={{ color: c.text2 }}>Home</Link>
+          <ChevronRight size={12} />
+          <Link href={ROUTES.brand(brandSlug(phone.brand))} style={{ color: c.text2 }}>{phone.brand}</Link>
+          <ChevronRight size={12} />
+          <span style={{ color: c.text3 }}>{phone.model_name}</span>
+        </nav>
+
+        <div className="phone-hero-grid">
+          <div style={{
+            background: c.surface, border: `1px solid ${c.border}`,
+            borderRadius: 'var(--r-xl)', padding: 32,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            aspectRatio: '1', position: 'relative',
+          }}>
+            {phone.main_image_url && !imgErr
+              ? <img src={phone.main_image_url} alt={`${phone.brand} ${phone.model_name}`} onError={() => setImgErr(true)} style={{ maxWidth: '72%', maxHeight: '72%', objectFit: 'contain' }} />
+              : <Smartphone size={100} color={c.border} strokeWidth={0.8} />}
+            {phone.release_year && (
+              <div style={{ position: 'absolute', top: 14, right: 14, background: c.bg, border: `1px solid ${c.border}`, borderRadius: 'var(--r-full)', padding: '4px 10px', fontSize: 11, fontWeight: 600, color: c.text3 }}>
+                {phone.release_year}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.6px', color: c.text3, marginBottom: 6 }}>
+              {phone.brand}
+            </div>
+            <h1 style={{ fontFamily: f.serif, fontSize: 'clamp(24px,3vw,36px)', color: c.text1, letterSpacing: '-0.4px', lineHeight: 1.15, marginBottom: 10 }}>
+              {phone.model_name}
+            </h1>
+            <div style={{ fontSize: 'clamp(20px,2.5vw,28px)', fontWeight: 600, color: c.text1, marginBottom: 4 }}>
+              {phone.price_usd ? `$${Math.round(phone.price_usd).toLocaleString()}` : 'Price TBA'}
+            </div>
+            {phone.price_usd && <div style={{ fontSize: 13, color: c.text3, marginBottom: 18 }}>Starting price · US</div>}
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
+              <span style={{ padding: '4px 12px', background: 'var(--green-light)', color: 'var(--green)', border: '1px solid var(--green-border)', borderRadius: 'var(--r-full)', fontSize: 12, fontWeight: 600 }}>
+                Available
+              </span>
+              {phone.chipset_tier === 'flagship' && (
+                <span style={{ padding: '4px 12px', background: 'var(--accent-light)', color: c.accent, border: '1px solid var(--accent-border)', borderRadius: 'var(--r-full)', fontSize: 12, fontWeight: 600 }}>
+                  Flagship
+                </span>
+              )}
+            </div>
+
+            {valueScore != null && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-md)', marginBottom: 18 }}>
+                <div style={{ fontSize: 30, fontWeight: 700, lineHeight: 1, color: valueScoreColor(valueScore) }}>
+                  {valueScore.toFixed(1)}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: c.text2, marginBottom: 5 }}>Value Score</div>
+                  <div style={{ height: 5, background: c.bg, borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${valueScore * 10}%`, background: valueScoreColor(valueScore), borderRadius: 3, transition: 'width 0.6s ease' }} />
+                  </div>
+                </div>
+                <div style={{ fontSize: 11, color: c.text3 }}>vs peers</div>
+              </div>
+            )}
+
+            {/* Consolidated action block — compare + buy + share live together
+                instead of scattered widgets */}
+            <div className="hero-actions">
+              <button
+                onClick={handleCompareToggle}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '11px 20px',
+                  fontSize: 14, fontWeight: 600, flex: 1,
+                  color: inCompare ? '#fff' : c.primary,
+                  background: inCompare ? c.primary : 'transparent',
+                  border: `1px solid ${c.primary}`, borderRadius: 'var(--r-full)',
+                  transition: 'all 0.15s', cursor: 'pointer',
+                }}
+              >
+                <GitCompare size={15} strokeWidth={2} />
+                {inCompare ? 'In Compare' : 'Add to Compare'}
+              </button>
+
+              {phone.amazon_link && (
+                
+                  href={phone.amazon_link}
+                  target="_blank"
+                  rel="noopener noreferrer sponsored"
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 20px', fontSize: 14, fontWeight: 600, color: '#fff', background: c.primary, borderRadius: 'var(--r-full)', textDecoration: 'none', justifyContent: 'center', flex: 1 }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#2A2A42' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = c.primary }}
+                >
+                  <ShoppingCart size={15} strokeWidth={2} />
+                  Buy on Amazon
+                </a>
+              )}
+            </div>
+            {phone.amazon_link && (
+              <span style={{ fontSize: 10, color: c.text3, display: 'block', marginTop: 6 }}>
+                Affiliate link — we may earn a commission
+              </span>
+            )}
+
+            <button
+              onClick={handleShare}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: copied ? 'var(--green)' : c.text3, transition: 'color 0.15s', marginTop: 14, background: 'none', border: 'none', cursor: 'pointer' }}
+            >
+              {copied ? <Check size={13} /> : <Share2 size={13} />}
+              {copied ? 'Link copied!' : 'Copy link'}
+            </button>
+          </div>
+        </div>
+
+        <div className="quick-specs-grid" style={{ marginBottom: 40 }}>
+          {quickSpecs.map((spec, i) => <QuickSpecCard key={i} {...spec} />)}
+        </div>
+
+        <div style={{
+          position: 'sticky', top: 'var(--nav-h)', zIndex: z.sticky,
+          background: 'rgba(248,248,245,0.95)', backdropFilter: 'blur(16px)',
+          borderBottom: `1px solid ${c.border}`, marginBottom: 28,
+          display: 'flex', overflowX: 'auto',
+        }}>
+          <TabButton active={tab === 'overview'} onClick={() => handleTabChange('overview')}>Overview</TabButton>
+          <TabButton active={tab === 'specs'}    onClick={() => handleTabChange('specs')}>Full Specs</TabButton>
+          <TabButton active={tab === 'compare'}  onClick={() => handleTabChange('compare')}>Compare</TabButton>
+        </div>
+
+        {tab === 'overview' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 48 }}>
+            <WhyThisPhone phone={phone} fallbackSections={overviewSections} />
+            <PriceHistoryChart points={priceHistoryPoints} loading={priceHistoryLoading} />
+          </div>
+        )}
+
+        {tab === 'specs' && (
+          <div style={{ marginBottom: 48 }}>
+            {sortedSpecGroups.length > 0
+              ? sortedSpecGroups.map(([name, specs]) => (
+                  <SpecGroup key={name} title={name} specs={specs} />
+                ))
+              : (
+                <div style={{ textAlign: 'center', padding: '48px 0', color: c.text3 }}>
+                  <Smartphone size={48} color={c.border} strokeWidth={1} style={{ margin: '0 auto 12px' }} />
+                  <p>Detailed specifications not available for this model.</p>
+                </div>
+              )
+            }
+          </div>
+        )}
+
+        {tab === 'compare' && (
+          <div style={{ maxWidth: 600, marginBottom: 48 }}>
+            <div style={{ fontFamily: f.serif, fontSize: 22, color: c.text1, marginBottom: 6 }}>
+              Compare {phone.model_name}
+            </div>
+            <p style={{ fontSize: 14, color: c.text3, marginBottom: 22 }}>
+              Pick any phone below for a full side-by-side spec comparison.
+            </p>
+
+            {similarLoading ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {Array.from({ length: 4 }).map((_, i) => <div key={i} className="skeleton" style={{ height: 68, borderRadius: 'var(--r-md)' }} />)}
+              </div>
+            ) : similar.length === 0 ? (
+              <div style={{ padding: '32px 20px', textAlign: 'center', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-md)', color: c.text3 }}>
+                <Smartphone size={36} color={c.border} strokeWidth={1} style={{ margin: '0 auto 10px' }} />
+                <p style={{ fontSize: 14 }}>No similar phones found at this price range.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {similar.slice(0, 8).map(p => (
+                  <Link
+                    key={p.id}
+                    href={ROUTES.compare(phoneSlug(phone), phoneSlug(p))}
+                    style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-md)', transition: 'all 0.15s', textDecoration: 'none' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = c.primary; (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-sm)' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = c.border; (e.currentTarget as HTMLElement).style.boxShadow = 'none' }}
+                  >
+                    <div style={{ width: 44, height: 44, background: c.bg, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {p.main_image_url
+                        ? <img src={p.main_image_url} alt="" loading="lazy" decoding="async" style={{ width: 36, height: 36, objectFit: 'contain' }} />
+                        : <Smartphone size={20} color={c.border} strokeWidth={1} />}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: c.text1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.model_name}</div>
+                      <div style={{ fontSize: 12, color: c.text3, marginTop: 2 }}>
+                        {p.price_usd ? `$${Math.round(p.price_usd).toLocaleString()}` : '—'}
+                        {p.main_camera_mp   ? ` · ${p.main_camera_mp}MP`                             : ''}
+                        {p.battery_capacity ? ` · ${p.battery_capacity.toLocaleString()}mAh`          : ''}
+                        {p.antutu_score     ? ` · ${(p.antutu_score/1_000_000).toFixed(1)}M AnTuTu`  : ''}
+                      </div>
+                    </div>
+                    <ArrowRight size={15} color={c.text3} strokeWidth={2} />
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <section style={{ marginTop: 8, marginBottom: 64 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 20 }}>
+            <h2 style={{ fontFamily: f.serif, fontSize: 24, color: c.text1 }}>Similar Phones</h2>
+            <span style={{ fontSize: 13, color: c.text3 }}>Price · Size · Performance</span>
+          </div>
+
+          {similarLoading ? (
+            <div style={{ display: 'flex', gap: 14 }}>
+              {Array.from({ length: 5 }).map((_, i) => <div key={i} className="skeleton" style={{ width: 156, height: 200, flexShrink: 0, borderRadius: 'var(--r-md)' }} />)}
+            </div>
+          ) : similar.length === 0 ? (
+            <div style={{ padding: '32px 20px', textAlign: 'center', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-md)', color: c.text3 }}>
+              <p style={{ fontSize: 14 }}>No similar phones found at a comparable price range.</p>
+            </div>
+          ) : (
+            <div style={{ position: 'relative' }}>
+              <div ref={scrollRef} className="scrollbar-none" style={{ display: 'flex', gap: 14, overflowX: 'auto', scrollSnapType: 'x mandatory', paddingBottom: 4 }}>
+                {similar.map(p => <SimilarCard key={p.id} phone={p} />)}
+              </div>
+              <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 56, background: 'linear-gradient(-90deg,var(--bg) 0%,transparent 100%)', pointerEvents: 'none' }} />
+            </div>
+          )}
+        </section>
+      </div>
+
+      <Footer />
+
+      <CompareBar
+        phones={comparePhones}
+        onRemove={id => setComparePhones(prev => prev.filter(p => p.id !== id))}
+        onClear={() => setComparePhones([])}
+      />
+
+      <style>{`
+        .phone-hero-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; padding-bottom: 40px; align-items: start; }
+        .quick-specs-grid { display: grid; grid-template-columns: repeat(6,1fr); gap: 12px; }
+        .specs-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 4px; }
+        .hero-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+        @media (max-width: 1023px) {
+          .phone-hero-grid { grid-template-columns: 1fr; gap: 28px; }
+          .phone-hero-grid > div:first-child { max-width: 400px; margin: 0 auto; width: 100%; }
+          .quick-specs-grid { grid-template-columns: repeat(3,1fr); }
+        }
+        @media (max-width: 640px) {
+          .quick-specs-grid { grid-template-columns: repeat(2,1fr); gap: 8px; }
+          .specs-2col { grid-template-columns: 1fr; }
+          .hero-actions { flex-direction: column; }
+          .hero-actions a, .hero-actions button { justify-content: center; }
+        }
+      `}</style>
+    </div>
+  )
+}
+
+export default function PhoneDetailPage() {
+  return (
+    <Suspense fallback={null}>
+      <PhoneDetailContent />
+    </Suspense>
+  )
+}
