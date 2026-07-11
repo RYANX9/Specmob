@@ -26,10 +26,6 @@ export class APIError extends Error {
 
 // ─── signal helpers ───────────────────────────────────────────────────────────
 
-/**
- * Returns an AbortSignal that fires when ANY of the supplied signals abort.
- * Used to combine an external caller signal with the internal timeout signal.
- */
 function anySignal(signals: AbortSignal[]): AbortSignal {
   const ctrl = new AbortController()
   for (const sig of signals) {
@@ -43,18 +39,6 @@ function anySignal(signals: AbortSignal[]): AbortSignal {
 }
 
 // ─── cache presets ────────────────────────────────────────────────────────────
-//
-// These are RequestInit fragments merged into each fetch call.
-//
-// In Next.js SERVER components, `next: { revalidate }` triggers ISR:
-//   - stable:      1 h  — brand lists, filter stats, category metadata
-//   - phoneDetail: 24 h — phone specs and pricing
-//   - trending:    15 m — trending phone list
-//
-// In CLIENT components (all the 'use client' pages), `next: { revalidate }`
-// is silently ignored by the browser — only `cache: 'no-store'` has any
-// effect client-side. The presets are still applied; they just do nothing
-// extra in that context, so there is no functional regression.
 
 const CACHE = {
   noStore:     { cache: 'no-store' } as RequestInit,
@@ -71,9 +55,6 @@ async function req<T>(
   path: string,
   init: RequestInit & { signal?: AbortSignal } = {},
 ): Promise<T> {
-  // Per-request timeout — prevents Render cold-start hangs from blocking
-  // the UI indefinitely. The timeout signal is composed with any external
-  // signal from the caller (e.g. an unmount AbortController).
   const timeoutCtrl = new AbortController()
   const timeoutId   = setTimeout(
     () => timeoutCtrl.abort(new DOMException('Request timed out', 'TimeoutError')),
@@ -125,33 +106,54 @@ function qs(params: Record<string, unknown>): string {
   return s ? `?${s}` : ''
 }
 
+// ─── price history types ───────────────────────────────────────────────────────
+// Matches routes/phones.py GET /phones/{id}/price-history exactly.
+// NOT the same shape as the PriceHistoryResponse in lib/types.ts (that one
+// assumes a `current_price_usd` + `history` shape the backend doesn't send).
+
+export interface PriceHistoryPoint {
+  snapshot_date: string
+  condition: string | null
+  min_price_usd: number | null
+  max_price_usd: number | null
+  avg_price_usd: number | null
+  listing_count: number | null
+}
+
+export interface PricePointRow {
+  snapshot_date: string
+  scope: string
+  price_usd: number | null
+}
+
+export interface PriceHistoryApiResponse {
+  phone_id: number
+  points: PriceHistoryPoint[]
+  price_points: PricePointRow[]
+}
+
 // ─── public API surface ───────────────────────────────────────────────────────
 
 export const api = {
   phones: {
-    // User-driven — always fresh, cancellable via AbortSignal
     search: (filters: SearchFilters, signal?: AbortSignal) =>
       req<SearchResponse>(
         `/phones/search${qs(filters as Record<string, unknown>)}`,
         { ...CACHE.noStore, signal },
       ),
 
-    // 24 h ISR in server components; fresh in client components
     detail: (id: number, signal?: AbortSignal) =>
       req<Phone>(`/phones/${id}`, { ...CACHE.phoneDetail, signal }),
 
-    // Static enough to benefit from ISR
     latest: (limit = 20) =>
       req<{ phones: Phone[] }>(`/phones/latest?limit=${limit}`, CACHE.stable),
 
-    // 15 min ISR — changes frequently enough to warrant short window
     trending: (limit = 10) =>
       req<{ phones: Phone[] }>(`/phones/trending?limit=${limit}`, CACHE.trending),
 
     similar: (id: number, limit = 12) =>
       req<{ phones: Phone[] }>(`/phones/${id}/similar?limit=${limit}`, CACHE.phoneDetail),
 
-    // User-assembled comparison — always fresh
     compare: (ids: number[]) =>
       req<{ phones: Phone[] }>(`/phones/compare?ids=${ids.join(',')}`, CACHE.noStore),
 
@@ -161,7 +163,6 @@ export const api = {
         CACHE.noStore,
       ),
 
-    // User-driven recommendation — always fresh, cancellable
     recommend: (
       params: { min_price?: number; max_price?: number; priorities: string; limit?: number },
       signal?: AbortSignal,
@@ -170,19 +171,27 @@ export const api = {
         `/phones/recommend${qs(params as Record<string, unknown>)}`,
         { ...CACHE.noStore, signal },
       ),
+
+    // condition: filters price_history rows ('new' | 'used' | 'all')
+    // scope: filters price_points rows ('global' | 'local' | 'all')
+    priceHistory: (
+      id: number,
+      opts: { condition?: 'new' | 'used' | 'all'; scope?: 'global' | 'local' | 'all' } = {},
+      signal?: AbortSignal,
+    ) =>
+      req<PriceHistoryApiResponse>(
+        `/phones/${id}/price-history${qs(opts as Record<string, unknown>)}`,
+        { ...CACHE.phoneDetail, signal },
+      ),
   },
 
   brands: {
-    // Called on every Navbar mount. 1 h ISR in server components;
-    // in client components the browser re-fetches but this is acceptable
-    // since the brand list changes at most a few times per year.
     list: () =>
       req<{ brands: { brand: string; count: number }[] }>('/brands', CACHE.stable),
 
     detail: (slug: string) =>
       req<BrandStats>(`/brands/${slug}`, CACHE.stable),
 
-    // Filtered by user input — always fresh
     phones: (
       slug: string,
       params: {
@@ -205,13 +214,11 @@ export const api = {
         CACHE.stable,
       ),
 
-    // 1 h ISR — category rankings recalculate nightly from spec data
     get: (slug: string, limit = 10) =>
       req<CategoryResult>(`/categories/${slug}?limit=${limit}`, CACHE.stable),
   },
 
   filters: {
-    // Price ranges and brand counts rarely change within an hour
     stats: () => req<FilterStats>('/filters/stats', CACHE.stable),
   },
 }
