@@ -351,7 +351,7 @@ function HomeContent() {
           No clutter. No discontinued junk. Just phones you can actually buy today, compared honestly.
         </p>
 
-        <form onSubmit={handleHeroSearch} style={{ position: 'relative', maxWidth: 560, margin: '0 auto 22px' }}>
+        <form onSubmit={handleHeroSearch} style={{ position: 'relative', maxWidth: 560, margin: '0 auto 16px' }}>
           <input
             value={heroQuery}
             onChange={e => setHeroQuery(e.target.value)}
@@ -387,7 +387,31 @@ function HomeContent() {
           </button>
         </form>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
+        <div className="hero-dual-cta">
+          <div style={{ flex: 1, height: 1, background: c.border }} />
+          <span style={{ fontSize: 12, fontWeight: 600, color: c.text3, textTransform: 'uppercase', letterSpacing: '0.6px' }}>or</span>
+          <div style={{ flex: 1, height: 1, background: c.border }} />
+        </div>
+
+        <Link
+          href={ROUTES.pick}
+          className="hero-pick-cta"
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 10,
+            padding: '15px 30px', background: c.accent, color: '#fff',
+            borderRadius: 'var(--r-full)', fontSize: 16, fontWeight: 600,
+            boxShadow: '0 4px 16px rgba(230,57,70,0.25)', transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#D32F3E'; (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = c.accent; (e.currentTarget as HTMLElement).style.transform = 'none' }}
+        >
+          Not sure what to buy? Help Me Choose <ArrowRight size={18} strokeWidth={2.2} />
+        </Link>
+        <p style={{ fontSize: 13, color: c.text3, marginTop: 10 }}>
+          Tell us your budget and priorities — get your top 5 matches in 30 seconds.
+        </p>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap', marginTop: 28 }}>
           <span style={{ fontSize: 13, color: c.text3 }}>Popular:</span>
           {POPULAR.map(tag => (
             <button
@@ -420,15 +444,6 @@ function HomeContent() {
             </button>
           ))}
         </div>
-
-        <Link
-          href={ROUTES.pick}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 15, fontWeight: 500, color: c.accent, transition: 'gap 0.15s' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.gap = '10px' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.gap = '6px' }}
-        >
-          Not sure? Help Me Choose <ArrowRight size={16} strokeWidth={2} />
-        </Link>
       </section>
 
       <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 var(--page-px)', marginBottom: 48 }}>
@@ -557,6 +572,7 @@ function HomeContent() {
       )}
 
       <style>{`
+        .hero-dual-cta { display: flex; align-items: center; gap: 14px; max-width: 340px; margin: 0 auto 20px; }
         .phone-grid-layout { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
         ${mq.lg} {
           #phone-grid { grid-template-columns: 1fr !important; }
@@ -565,7 +581,10 @@ function HomeContent() {
           .phone-grid-layout { grid-template-columns: repeat(4, 1fr); gap: 12px; }
         }
         @media (max-width: 860px) { .phone-grid-layout { grid-template-columns: repeat(3, 1fr); gap: 10px; } }
-        ${mq.sm} { .phone-grid-layout { grid-template-columns: repeat(2, 1fr); gap: 8px; } }
+        ${mq.sm} {
+          .phone-grid-layout { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+          .hero-pick-cta { width: 100%; justify-content: center; }
+        }
       `}</style>
     </div>
   )
