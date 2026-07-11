@@ -9,7 +9,7 @@ import {
 import {
   ChevronRight, Share2, GitCompare, ShoppingCart,
   Check, Camera, Battery, Cpu, Monitor,
-  Weight, Zap, Smartphone, ArrowRight,
+  Weight, Zap, Smartphone, ArrowRight, HardHat,
 } from 'lucide-react'
 import { api, type PricePointRow } from '@/lib/api'
 import { ROUTES, brandSlug, phoneSlug, valueScoreColor } from '@/lib/config'
@@ -273,9 +273,42 @@ function OverviewSection({ title, headline, specs }: { title: string; headline: 
   )
 }
 
+// Sub-score breakdown bar. Each bar is one axis of hardware quality
+// (camera, performance, battery, display, build) — independent of price.
+const QUALITY_ICON: Record<string, React.ReactNode> = {
+  camera_score: <Camera size={14} strokeWidth={1.5} />,
+  performance_score: <Cpu size={14} strokeWidth={1.5} />,
+  battery_score: <Battery size={14} strokeWidth={1.5} />,
+  display_score: <Monitor size={14} strokeWidth={1.5} />,
+  build_score: <HardHat size={14} strokeWidth={1.5} />,
+}
+
+const QUALITY_LABEL: Record<string, string> = {
+  camera_score: 'Camera',
+  performance_score: 'Performance',
+  battery_score: 'Battery',
+  display_score: 'Display',
+  build_score: 'Build',
+}
+
+function QualityBar({ field, score }: { field: string; score: number }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <span style={{ color: c.text3, display: 'flex', flexShrink: 0, width: 16 }}>{QUALITY_ICON[field]}</span>
+      <span style={{ width: 84, fontSize: 12, color: c.text2, flexShrink: 0 }}>{QUALITY_LABEL[field]}</span>
+      <div style={{ flex: 1, height: 6, background: c.bg, borderRadius: 3, overflow: 'hidden' }}>
+        <div style={{ height: '100%', borderRadius: 3, width: `${score * 10}%`, background: valueScoreColor(score), transition: 'width 0.6s ease' }} />
+      </div>
+      <span style={{ width: 28, fontSize: 12, fontWeight: 600, color: c.text1, textAlign: 'right', flexShrink: 0 }}>{score.toFixed(1)}</span>
+    </div>
+  )
+}
+
 // "Why this phone" — driven by the AI smart_score when the phone has been
 // scored (reasoning present), falling back to the spec-derived overview
-// sections for unscored phones.
+// sections for unscored phones. Shows per-category quality bars instead of
+// a single headline number so it reads as a distinct axis from Value Score
+// (which is specs-relative-to-price, not raw hardware quality).
 function WhyThisPhone({
   phone,
   fallbackSections,
@@ -295,32 +328,45 @@ function WhyThisPhone({
 
   const tierLabel = smart.tier ? smart.tier.replace(/_/g, ' ') : null
 
+  const qualityFields: [string, number | null][] = [
+    ['camera_score', smart.camera_score],
+    ['performance_score', smart.performance_score],
+    ['battery_score', smart.battery_score],
+    ['display_score', smart.display_score],
+    ['build_score', smart.build_score],
+  ]
+  const availableQuality = qualityFields.filter(([, v]) => v != null) as [string, number][]
+
   return (
     <div style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-lg)', padding: '24px 28px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
         <div style={{ fontFamily: f.serif, fontSize: 22, color: c.text1 }}>Why This Phone</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {tierLabel && (
-            <span style={{
-              padding: '4px 12px', background: 'var(--accent-light)', color: c.accent,
-              border: '1px solid var(--accent-border)', borderRadius: 'var(--r-full)',
-              fontSize: 12, fontWeight: 600, textTransform: 'capitalize' as const,
-            }}>
-              {tierLabel}
-            </span>
-          )}
-          {smart.overall_score != null && (
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-              <span style={{ fontFamily: f.serif, fontSize: 22, color: valueScoreColor(smart.overall_score) }}>
-                {smart.overall_score.toFixed(1)}
-              </span>
-              <span style={{ fontSize: 11, color: c.text3 }}>/10 Our Score</span>
-            </div>
-          )}
-        </div>
+        {tierLabel && (
+          <span style={{
+            padding: '4px 12px', background: 'var(--accent-light)', color: c.accent,
+            border: '1px solid var(--accent-border)', borderRadius: 'var(--r-full)',
+            fontSize: 12, fontWeight: 600, textTransform: 'capitalize' as const,
+          }}>
+            {tierLabel}
+          </span>
+        )}
       </div>
 
       <p style={{ fontSize: 14, color: c.text2, lineHeight: 1.7, marginBottom: 20 }}>{smart.reasoning}</p>
+
+      {availableQuality.length > 0 && (
+        <div style={{ marginBottom: 20, padding: '16px 18px', background: c.bg, borderRadius: 'var(--r-md)' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.5px', color: c.text3, marginBottom: 12 }}>
+            Hardware Quality by Category
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {availableQuality.map(([field, score]) => <QualityBar key={field} field={field} score={score} />)}
+          </div>
+          <p style={{ fontSize: 11, color: c.text3, lineHeight: 1.5, marginTop: 12 }}>
+            These reflect hardware quality on its own. The Value Score above weighs the same hardware against its price — a phone can score well here and lower on value if it costs more than comparable phones.
+          </p>
+        </div>
+      )}
 
       <div className="specs-2col">
         {!!smart.strengths?.length && (
@@ -754,17 +800,22 @@ function PhoneDetailContent() {
             </div>
 
             {valueScore != null && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-md)', marginBottom: 18 }}>
-                <div style={{ fontSize: 30, fontWeight: 700, lineHeight: 1, color: valueScoreColor(valueScore) }}>
-                  {valueScore.toFixed(1)}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: c.text2, marginBottom: 5 }}>Value Score</div>
-                  <div style={{ height: 5, background: c.bg, borderRadius: 3, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${valueScore * 10}%`, background: valueScoreColor(valueScore), borderRadius: 3, transition: 'width 0.6s ease' }} />
+              <div style={{ padding: '14px 18px', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-md)', marginBottom: 18 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div style={{ fontSize: 30, fontWeight: 700, lineHeight: 1, color: valueScoreColor(valueScore) }}>
+                    {valueScore.toFixed(1)}
                   </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: c.text2, marginBottom: 5 }}>Value Score</div>
+                    <div style={{ height: 5, background: c.bg, borderRadius: 3, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${valueScore * 10}%`, background: valueScoreColor(valueScore), borderRadius: 3, transition: 'width 0.6s ease' }} />
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 11, color: c.text3 }}>vs peers</div>
                 </div>
-                <div style={{ fontSize: 11, color: c.text3 }}>vs peers</div>
+                <p style={{ fontSize: 11, color: c.text3, marginTop: 10, lineHeight: 1.5 }}>
+                  How much hardware you get for the price, compared to similarly priced phones — not a raw quality rating.
+                </p>
               </div>
             )}
 
