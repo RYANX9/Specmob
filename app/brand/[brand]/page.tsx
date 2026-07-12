@@ -19,6 +19,7 @@ import { useToast } from '@/app/components/Toast'
 import CompareBar from '@/app/components/CompareBar'
 import FilterPanel from '@/app/components/FilterPanel'
 import PhoneCard, { PhoneCardSkeleton } from '@/app/components/PhoneCard'
+import { formatDisplayPrice } from '@/lib/price'
 
 interface BrandStats {
   brand: string
@@ -154,7 +155,7 @@ function MiniPhoneCard({ phone }: { phone: Phone }) {
           : <Smartphone size={32} color={c.border} strokeWidth={1} />}
       </div>
       <div style={{ fontFamily: f.serif, fontSize: 13, color: c.text1, lineHeight: 1.3, marginBottom: 6 }}>{phone.model_name}</div>
-      <div style={{ fontSize: 13, fontWeight: 600, color: c.text1, marginBottom: 4 }}>{phone.price_usd ? `$${Math.round(phone.price_usd).toLocaleString()}` : '—'}</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: c.text1, marginBottom: 4 }}>{formatDisplayPrice(phone)}</div>
       {(phone.main_camera_mp || phone.battery_capacity) && (
         <div style={{ fontSize: 11, color: c.text3 }}>
           {[phone.main_camera_mp ? `${phone.main_camera_mp}MP` : null, phone.battery_capacity ? `${phone.battery_capacity.toLocaleString()}mAh` : null].filter(Boolean).join(' · ')}
@@ -189,7 +190,7 @@ function PhoneListRow({ phone, inCompare, onCompareToggle }: { phone: Phone; inC
           ].filter(Boolean).join(' · ')}
         </div>
       </Link>
-      <div style={{ fontSize: 16, fontWeight: 600, color: c.text1, flexShrink: 0 }}>{phone.price_usd ? `$${Math.round(phone.price_usd).toLocaleString()}` : '—'}</div>
+      <div style={{ fontSize: 16, fontWeight: 600, color: c.text1, flexShrink: 0 }}>{formatDisplayPrice(phone)}</div>
       <button
         onClick={e => { e.preventDefault(); e.stopPropagation(); onCompareToggle(phone) }}
         aria-pressed={inCompare}
