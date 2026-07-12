@@ -32,6 +32,11 @@ export interface Phone {
   smart_score?: SmartScore | null
   price_updated_at?: string | null
   price_scope?: string | null
+  // Per-request personalized copy from /phones/recommend, generated from
+  // the shopper's actual budget + priorities. Present only when that call
+  // succeeded — always treat as optional.
+  match_line?: string | null
+  tradeoff_line?: string | null
 }
 
 export interface SmartScore {
@@ -135,6 +140,14 @@ export interface BrandStats {
   avg_battery: number | null
   latest_year: number | null
   latest_phone: Phone | null
+}
+
+// One holistic verdict plus one labeled pick per compared phone, generated
+// fresh for the exact set of phones in the request. Present only when the
+// backend's Gemini call succeeded — always guard with `?.` at call sites.
+export interface CompareVerdict {
+  verdict: string
+  picks: { id: number; for_label: string; reason: string }[]
 }
 
 export type SortOption =
