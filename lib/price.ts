@@ -31,9 +31,9 @@ export function formatDisplayPrice(phone: Phone, historyPoints?: PricePointLike[
 export function parseMiscPrice(phone: Phone): number | null {
   const raw = findSpecValue(phone, ['Misc'], ['Price'])
   if (!raw) return null
-  const match = raw.match(/([\d]{1,3}(?:[.,]\d{3})*(?:\.\d+)?)/)
+  const match = raw.match(/[\d,]+\.?\d*/)   // fixed: no longer requires a thousands separator
   if (!match) return null
-  const amount = parseFloat(match[1].replace(/,/g, ''))
+  const amount = parseFloat(match[0].replace(/,/g, ''))
   if (!Number.isFinite(amount) || amount <= 0) return null
   const rate = CURRENCY_TO_USD[detectCurrencyCode(raw)] ?? 1
   return Math.round(amount * rate)
@@ -61,7 +61,8 @@ export function withLaunchPrice(
   specGroups: Array<[string, Record<string, string>]>,
   phone: Phone,
 ): Array<[string, Record<string, string>]> {
-  const usd = parseMiscPrice(phone)
+  // price_usd is canonical post-alignment — stop re-deriving it from Misc text
+  const usd = phone.price_usd ?? parseMiscPrice(phone)
   return specGroups.map(([groupName, rows]) => {
     if (!/misc/i.test(groupName)) return [groupName, rows] as [string, Record<string, string>]
     const next: Record<string, string> = {}
