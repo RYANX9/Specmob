@@ -16,6 +16,8 @@ import { api } from '@/lib/api'
 import { ROUTES, brandSlug, phoneSlug, MAX_COMPARE } from '@/lib/config'
 import { c, z, mq } from '@/lib/tokens'
 import type { Phone, CategoryResult } from '@/lib/types'
+import { formatDisplayPrice } from '@/lib/price'
+
 
 const CATEGORY_CONFIG: Record<string, {
   title: string
@@ -415,7 +417,7 @@ function RankCardGold({ phone, score, rank, config, slug, onCompare, isCompared 
           {isCompared ? '✓ In Compare' : '+ Add to Compare'}
         </button>
         <span style={{ marginLeft: 'auto', fontSize: 18, fontWeight: 600, color: c.text1 }}>
-          {phone.price_usd ? `$${phone.price_usd.toLocaleString()}` : 'Price TBA'}
+          {formatDisplayPrice(phone)}
         </span>
       </div>
     </div>
@@ -475,7 +477,7 @@ function RankCardMedium({ phone, score, rank, variant, slug, onCompare, isCompar
         <div style={{ fontFamily: 'var(--font-serif)', fontSize: 38, letterSpacing: '-1px', lineHeight: 1, color }}>{score.toFixed(1)}</div>
         <div style={{ fontSize: 11, color: c.text3, marginBottom: 8 }}>Score</div>
         <div style={{ fontSize: 16, fontWeight: 600, color: c.text1, marginTop: 8 }}>
-          {phone.price_usd ? `$${phone.price_usd.toLocaleString()}` : '---'}
+          {formatDisplayPrice(phone)}
         </div>
       </div>
     </div>
@@ -514,7 +516,7 @@ function RankCardCompact({ phone, score, rank, onCompare, isCompared }: {
       </div>
       <div className="compact-score" style={{ fontSize: 15, fontWeight: 700, color: c.text2, flexShrink: 0, minWidth: 40, textAlign: 'right' }}>{score.toFixed(1)}</div>
       <div style={{ fontSize: 14, fontWeight: 600, color: c.text1, flexShrink: 0, minWidth: 60, textAlign: 'right' }}>
-        {phone.price_usd ? `$${phone.price_usd.toLocaleString()}` : '---'}
+        {formatDisplayPrice(phone)}
       </div>
       <ChevronRight size={16} color={c.border} className="compact-arrow" />
     </div>
