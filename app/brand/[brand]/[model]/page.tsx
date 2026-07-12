@@ -14,6 +14,8 @@ import {
 import { api, type PricePointRow } from '@/lib/api'
 import { ROUTES, brandSlug, phoneSlug, valueScoreColor } from '@/lib/config'
 import { resolveTier } from '@/lib/tiers'
+import { resolveDisplayPrice, withLaunchPrice } from '@/lib/price'
+import { getPanelType, getFrontCamera } from '@/lib/specs'
 import { c, f, z } from '@/lib/tokens'
 import type { Phone } from '@/lib/types'
 import Navbar from '@/app/components/Navbar'
@@ -274,8 +276,6 @@ function OverviewSection({ title, headline, specs }: { title: string; headline: 
   )
 }
 
-// Sub-score breakdown bar. Each bar is one axis of hardware quality
-// (camera, performance, battery, display, build) — independent of price.
 const QUALITY_ICON: Record<string, React.ReactNode> = {
   camera_score: <Camera size={14} strokeWidth={1.5} />,
   performance_score: <Cpu size={14} strokeWidth={1.5} />,
@@ -305,11 +305,6 @@ function QualityBar({ field, score }: { field: string; score: number }) {
   )
 }
 
-// "Why this phone" — driven by the AI smart_score when the phone has been
-// scored (reasoning present), falling back to the spec-derived overview
-// sections for unscored phones. Shows per-category quality bars instead of
-// a single headline number so it reads as a distinct axis from Value Score
-// (which is specs-relative-to-price, not raw hardware quality).
 function WhyThisPhone({
   phone,
   fallbackSections,
@@ -401,11 +396,6 @@ function WhyThisPhone({
   )
 }
 
-// Real price fluctuations for a single phone are usually a few percent —
-// a Y-axis anchored at 0 flattens that into a nearly straight line. This
-// zooms the axis to the actual data range instead, padded and rounded to
-// clean $50 increments, with a $300 floor so a single outlier point still
-// renders a readable scale rather than one pixel-wide spike.
 function computeYDomain(prices: number[]): [number, number] {
   const min = Math.min(...prices)
   const max = Math.max(...prices)
@@ -427,7 +417,6 @@ function computeYDomain(prices: number[]): [number, number] {
   return [lo, hi]
 }
 
-// Line chart over global-scope price_points. Backend returns ASC by date already.
 function PriceHistoryChart({ points, loading }: { points: PricePointRow[]; loading: boolean }) {
   const data = points
     .filter(p => p.price_usd != null)
@@ -485,6 +474,7 @@ function PriceHistoryChart({ points, loading }: { points: PricePointRow[]; loadi
 
 function SimilarCard({ phone }: { phone: Phone }) {
   const [imgErr, setImgErr] = useState(false)
+  const displayPrice = resolveDisplayPrice(phone)
   return (
     <Link
       href={ROUTES.phone(brandSlug(phone.brand), phoneSlug(phone))}
@@ -500,7 +490,7 @@ function SimilarCard({ phone }: { phone: Phone }) {
       <div style={{ fontSize: 10, color: c.text3, textTransform: 'uppercase' as const, letterSpacing: '0.4px', marginBottom: 2 }}>{phone.brand}</div>
       <div style={{ fontSize: 12, fontWeight: 600, color: c.text1, lineHeight: 1.3, marginBottom: 6, fontFamily: f.serif }}>{phone.model_name}</div>
       <div style={{ fontSize: 13, fontWeight: 700, color: c.text1 }}>
-        {phone.price_usd ? `$${Math.round(phone.price_usd).toLocaleString()}` : '—'}
+        {displayPrice != null ? `$${Math.round(displayPrice).toLocaleString()}` : '—'}
       </div>
       {phone.main_camera_mp && (
         <div style={{ fontSize: 11, color: c.text3, marginTop: 3 }}>{phone.main_camera_mp}MP · {phone.battery_capacity ? `${phone.battery_capacity}mAh` : ''}</div>
@@ -511,7 +501,7 @@ function SimilarCard({ phone }: { phone: Phone }) {
 
 // ─── JSON-LD builders ─────────────────────────────────────────────────────────
 
-function buildProductJsonLd(phone: Phone, brand: string, model: string): object {
+function buildProductJsonLd(phone: Phone, brand: string, model: string, displayPrice: number | null): object {
   return {
     '@context': 'https://schema.org',
     '@type': 'Product',
@@ -523,10 +513,10 @@ function buildProductJsonLd(phone: Phone, brand: string, model: string): object 
       phone.chipset ? phone.chipset : null,
       phone.screen_size ? `${phone.screen_size}" display` : null,
     ].filter(Boolean).join(', '),
-    ...(phone.price_usd != null && {
+    ...(displayPrice != null && {
       offers: {
         '@type': 'Offer',
-        price: phone.price_usd,
+        price: displayPrice,
         priceCurrency: 'USD',
         availability: 'https://schema.org/InStock',
         url: `https://Specmob.vercel.app/brand/${brandSlug(phone.brand)}/${phoneSlug(phone)}`,
@@ -615,9 +605,6 @@ function PhoneDetailContent() {
     return () => controller.abort()
   }, [brand, model])
 
-  // Price history fetched separately once the phone ID is known — its own
-  // AbortController so a fast phone resolve doesn't get cancelled by a
-  // slow-loading chart or vice versa.
   useEffect(() => {
     if (!phone?.id) return
     const controller = new AbortController()
@@ -655,7 +642,6 @@ function PhoneDetailContent() {
     }
   }
 
-  // ── loading ─────────────────────────────────────────────────────────────────
   if (loading) return (
     <div style={{ minHeight: '100vh', background: c.bg }}>
       <Navbar compareCount={0} />
@@ -675,7 +661,6 @@ function PhoneDetailContent() {
     </div>
   )
 
-  // ── not found ────────────────────────────────────────────────────────────────
   if (notFound || !phone) return (
     <div style={{ minHeight: '100vh', background: c.bg }}>
       <Navbar compareCount={0} />
@@ -699,6 +684,8 @@ function PhoneDetailContent() {
   )
 
   // ── derived ──────────────────────────────────────────────────────────────────
+  const displayPrice = resolveDisplayPrice(phone, priceHistoryPoints)
+
   const quickSpecs = [
     phone.screen_size         ? { icon: <Monitor size={20} strokeWidth={1.5} />, value: `${phone.screen_size}"`,                label: 'Display'  } : null,
     phone.main_camera_mp      ? { icon: <Camera  size={20} strokeWidth={1.5} />, value: `${phone.main_camera_mp}MP`,            label: 'Camera'   } : null,
@@ -709,12 +696,12 @@ function PhoneDetailContent() {
   ].filter(Boolean) as { icon: React.ReactNode; value: string; label: string }[]
 
   const specGroups  = getSpecGroups(phone)
-  const sortedSpecGroups = [...specGroups].sort(([a], [b]) => rankSpecGroup(a) - rankSpecGroup(b))
+  const sortedSpecGroups = withLaunchPrice(
+    [...specGroups].sort(([a], [b]) => rankSpecGroup(a) - rankSpecGroup(b)),
+    phone,
+  )
   const valueScore  = (phone as any).value_score as number | null
-  const fs          = phone.full_specifications as any
   const tier        = resolveTier(phone.smart_score?.tier, phone.chipset_tier)
-
-  const str = (v: unknown) => v ? String(v) : null
 
   const overviewSections = [
     {
@@ -722,15 +709,16 @@ function PhoneDetailContent() {
       specs: [
         phone.screen_size       ? { label: 'Screen Size', value: `${phone.screen_size}"` } : null,
         phone.screen_resolution ? { label: 'Resolution',  value: phone.screen_resolution } : null,
-        str(fs?.quick_specs?.displaytype) ? { label: 'Type', value: stripHtml(String(fs.quick_specs.displaytype)) } : null,
+        getPanelType(phone) !== '—' ? { label: 'Type', value: getPanelType(phone) } : null,
       ].filter(Boolean) as { label: string; value: string }[],
     },
     {
       title: 'Camera', headline: phone.main_camera_mp ? `${phone.main_camera_mp}MP Main Camera` : 'Camera System',
       specs: [
         phone.main_camera_mp ? { label: 'Main Camera', value: `${phone.main_camera_mp} MP` } : null,
-        str(fs?.quick_specs?.cam1modules) ? { label: 'Rear System',  value: stripHtml(String(fs.quick_specs.cam1modules)) } : null,
-        str(fs?.quick_specs?.cam2modules) ? { label: 'Front Camera', value: stripHtml(String(fs.quick_specs.cam2modules)) } : null,
+        (phone.full_specifications as any)?.quick_specs?.cam1modules
+          ? { label: 'Rear System', value: stripHtml(String((phone.full_specifications as any).quick_specs.cam1modules)) } : null,
+        getFrontCamera(phone) !== '—' ? { label: 'Front Camera', value: getFrontCamera(phone) } : null,
       ].filter(Boolean) as { label: string; value: string }[],
     },
     {
@@ -764,7 +752,7 @@ function PhoneDetailContent() {
     <div style={{ minHeight: '100vh', background: c.bg }}>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(buildProductJsonLd(phone, brand, model)) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(buildProductJsonLd(phone, brand, model, displayPrice)) }}
       />
       <script
         type="application/ld+json"
@@ -814,9 +802,9 @@ function PhoneDetailContent() {
               {phone.model_name}
             </h1>
             <div style={{ fontSize: 'clamp(20px,2.5vw,28px)', fontWeight: 600, color: c.text1, marginBottom: 4 }}>
-              {phone.price_usd ? `$${Math.round(phone.price_usd).toLocaleString()}` : 'Price TBA'}
+              {displayPrice != null ? `$${Math.round(displayPrice).toLocaleString()}` : 'Price TBA'}
             </div>
-            {phone.price_usd && <div style={{ fontSize: 13, color: c.text3, marginBottom: 18 }}>Starting price · US</div>}
+            {displayPrice != null && <div style={{ fontSize: 13, color: c.text3, marginBottom: 18 }}>Starting price · US</div>}
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
               <span style={{ padding: '4px 12px', background: 'var(--green-light)', color: 'var(--green)', border: '1px solid var(--green-border)', borderRadius: 'var(--r-full)', fontSize: 12, fontWeight: 600 }}>
@@ -849,8 +837,6 @@ function PhoneDetailContent() {
               </div>
             )}
 
-            {/* Consolidated action block — compare + buy + share live together
-                instead of scattered widgets */}
             <div className="hero-actions">
               <button
                 onClick={handleCompareToggle}
@@ -868,7 +854,7 @@ function PhoneDetailContent() {
               </button>
 
               {phone.amazon_link && (
-                <a
+                
                   href={phone.amazon_link}
                   target="_blank"
                   rel="noopener noreferrer sponsored"
@@ -971,7 +957,7 @@ function PhoneDetailContent() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 14, fontWeight: 600, color: c.text1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.model_name}</div>
                       <div style={{ fontSize: 12, color: c.text3, marginTop: 2 }}>
-                        {p.price_usd ? `$${Math.round(p.price_usd).toLocaleString()}` : '—'}
+                        {(() => { const dp = resolveDisplayPrice(p); return dp != null ? `$${Math.round(dp).toLocaleString()}` : '—' })()}
                         {p.main_camera_mp   ? ` · ${p.main_camera_mp}MP`                             : ''}
                         {p.battery_capacity ? ` · ${p.battery_capacity.toLocaleString()}mAh`          : ''}
                         {p.antutu_score     ? ` · ${(p.antutu_score/1_000_000).toFixed(1)}M AnTuTu`  : ''}
