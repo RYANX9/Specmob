@@ -1,6 +1,4 @@
 import { API_BASE } from './config'
-
-// add to the import at top:
 import type {
   SearchResponse,
   SearchFilters,
@@ -10,7 +8,7 @@ import type {
   BrandStats,
   CompareVerdict,
 } from './types'
-  
+
 // ─── error class ─────────────────────────────────────────────────────────────
 
 export class APIError extends Error {
@@ -158,10 +156,13 @@ export const api = {
       req<{ phones: Phone[] }>(`/phones/${id}/similar?limit=${limit}`, CACHE.phoneDetail),
 
     compare: (ids: number[]) =>
-      req<{ phones: Phone[] }>(`/phones/compare?ids=${ids.join(',')}`, CACHE.noStore),
+      req<{ phones: Phone[]; verdict: CompareVerdict | null }>(
+        `/phones/compare?ids=${ids.join(',')}`,
+        CACHE.noStore,
+      ),
 
     compareBySlugs: (slugs: string[]) =>
-      req<{ phones: Phone[] }>(
+      req<{ phones: Phone[]; verdict: CompareVerdict | null }>(
         `/phones/compare?slugs=${slugs.map(encodeURIComponent).join(',')}`,
         CACHE.noStore,
       ),
@@ -209,15 +210,6 @@ export const api = {
         CACHE.noStore,
       ),
   },
-  
-  compare: (ids: number[]) =>
-      req<{ phones: Phone[]; verdict: CompareVerdict | null }>(`/phones/compare?ids=${ids.join(',')}`, CACHE.noStore),
-
-    compareBySlugs: (slugs: string[]) =>
-      req<{ phones: Phone[]; verdict: CompareVerdict | null }>(
-        `/phones/compare?slugs=${slugs.map(encodeURIComponent).join(',')}`,
-        CACHE.noStore,
-      ),
 
   categories: {
     list: () =>
