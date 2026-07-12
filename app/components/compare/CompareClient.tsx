@@ -11,10 +11,11 @@ import {
 import { c, f, r, z } from '@/lib/tokens'
 import { ROUTES, brandSlug, phoneSlug, MAX_COMPARE } from '@/lib/config'
 import { api } from '@/lib/api'
+import { getPanelType, getFrontCamera } from '@/lib/specs'
 import Navbar from '../Navbar'
 import Footer from '../Footer'
 import { useToast } from '../Toast'
-import type { Phone } from '@/lib/types'
+import type { Phone, CompareVerdict } from '@/lib/types'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -92,14 +93,14 @@ const SPEC_SECTIONS: SpecSectionDef[] = [
     rows: [
       { label: 'Screen Size', getValue: p => fmt(p.screen_size, '"'), getRaw: p => p.screen_size },
       { label: 'Resolution',  getValue: p => p.screen_resolution ?? '—' },
-      { label: 'Panel Type',  getValue: p => (p.full_specifications as any)?.quick_specs?.displaytype ?? '—' },
+      { label: 'Panel Type',  getValue: p => getPanelType(p) },
     ],
   },
   {
     title: 'Camera', icon: <Camera size={15} strokeWidth={1.5} />,
     rows: [
       { label: 'Main Camera',  getValue: p => fmt(p.main_camera_mp, ' MP'), getRaw: p => p.main_camera_mp },
-      { label: 'Front Camera', getValue: p => (p.full_specifications as any)?.quick_specs?.cam2modules ?? '—' },
+      { label: 'Front Camera', getValue: p => getFrontCamera(p) },
       { label: 'Features',     getValue: p => p.features?.join(', ') ?? '—' },
     ],
   },
@@ -133,7 +134,6 @@ const SPEC_SECTIONS: SpecSectionDef[] = [
 
 function PhoneColumn({ phone, onRemove, isWinner }: { phone: Phone; onRemove: () => void; isWinner: boolean }) {
   const [imgErr, setImgErr] = useState(false)
-  // Show whether the score is from the server (reliable) or a client-side estimate
   const hasServerScore = phone.value_score != null
   const displayScore   = hasServerScore ? phone.value_score! : scoreComposite(phone)
 
@@ -316,7 +316,7 @@ function AddPhoneSlot({ onSelect, excludeIds }: { onSelect: (p: Phone) => void; 
 
 // ─── quick verdict ────────────────────────────────────────────────────────────
 
-function QuickVerdict({ phones }: { phones: Phone[] }) {
+function QuickVerdict({ phones, verdict }: { phones: Phone[]; verdict: CompareVerdict | null }) {
   const wins = new Map<number, number>()
   const items = VERDICTS.map(v => {
     const bestIdx = getBestIdx(phones, v.getter, v.lower)
@@ -360,7 +360,17 @@ function QuickVerdict({ phones }: { phones: Phone[] }) {
           )
         })}
 
-        {overallWinner && (
+        {verdict?.verdict ? (
+          <div style={{ gridColumn: '1 / -1', background: c.primary, borderRadius: r.md, padding: '16px 20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+              <Trophy size={18} color="#C9A84C" />
+              <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'rgba(255,255,255,0.4)' }}>Overall</span>
+            </div>
+            <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.85)', lineHeight: 1.65 }}>
+              {verdict.verdict}
+            </div>
+          </div>
+        ) : overallWinner && (
           <div style={{ gridColumn: '1 / -1', background: c.primary, borderRadius: r.md, padding: '16px 20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
               <Trophy size={18} color="#C9A84C" />
@@ -479,8 +489,35 @@ function DetailedVerdicts({ phones }: { phones: Phone[] }) {
 
 // ─── bottom line ──────────────────────────────────────────────────────────────
 
-function BottomLine({ phones }: { phones: Phone[] }) {
+function BottomLine({ phones, verdict }: { phones: Phone[]; verdict: CompareVerdict | null }) {
   if (phones.length < 2) return null
+
+  if (verdict?.picks?.length) {
+    const byId = new Map(phones.map(p => [p.id, p]))
+    const recs = verdict.picks
+      .map(pick => ({ for: pick.for_label, phone: byId.get(pick.id), reason: pick.reason }))
+      .filter((rec): rec is { for: string; phone: Phone; reason: string } => !!rec.phone)
+
+    if (recs.length > 0) {
+      return (
+        <div style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: r.lg, padding: '28px 32px', textAlign: 'center', marginBottom: 40 }}>
+          <h2 style={{ fontFamily: f.serif, fontSize: 24, color: c.text1, marginBottom: 6 }}>The Bottom Line</h2>
+          <p style={{ fontSize: 13, color: c.text3, marginBottom: 24 }}>Different phones for different people.</p>
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(recs.length, 3)},1fr)`, gap: 12 }} className="bottom-recs">
+            {recs.map(rec => (
+              <div key={rec.for} style={{ padding: 16, background: c.bg, borderRadius: r.md, textAlign: 'left' }}>
+                <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: c.accent, marginBottom: 6 }}>{rec.for}</div>
+                <div style={{ fontFamily: f.serif, fontSize: 15, color: c.text1, marginBottom: 4 }}>{rec.phone.model_name}</div>
+                <div style={{ fontSize: 12, color: c.text2, lineHeight: 1.5 }}>{rec.reason}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )
+    }
+  }
+
+  // Fallback: spec-derived picks, used only when no verdict is available
   const getScore   = (p: Phone) => p.value_score ?? scoreComposite(p)
   const bestValue  = phones.reduce((a, b) => getScore(a) > getScore(b) ? a : b)
   const cheapest   = phones.reduce((a, b) => (a.price_usd ?? Infinity) < (b.price_usd ?? Infinity) ? a : b)
@@ -518,6 +555,7 @@ function CompareContent({ initialPhones }: { initialPhones: Phone[] }) {
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState<string | null>(null)
   const [copied, setCopied]   = useState(false)
+  const [verdict, setVerdict] = useState<CompareVerdict | null>(null)
 
   const ownUpdate = useRef(false)
   const spString  = searchParams.toString()
@@ -552,6 +590,7 @@ function CompareContent({ initialPhones }: { initialPhones: Phone[] }) {
           const byId    = new Map(data.phones.map(p => [p.id, p]))
           const ordered = idList.map(id => byId.get(id)).filter((p): p is Phone => Boolean(p))
           setPhones(ordered.length ? ordered : data.phones)
+          setVerdict(data.verdict ?? null)
         } else {
           setError('Could not find the requested phones.')
           setPhones([])
@@ -566,6 +605,22 @@ function CompareContent({ initialPhones }: { initialPhones: Phone[] }) {
 
     return () => { cancelled = true }
   }, [spString, initialPhones.length])
+
+  // Fetches the holistic verdict for whatever phone set is currently on
+  // screen — covers phones that arrived via initialPhones (server-resolved
+  // slugs) as well as phones added/removed client-side afterward.
+  const phoneIdsKey = phones.map(p => p.id).join(',')
+  useEffect(() => {
+    if (phones.length < 2) { setVerdict(null); return }
+    const ids = phones.map(p => p.id)
+    let cancelled = false
+
+    api.phones.compare(ids)
+      .then(data => { if (!cancelled) setVerdict(data.verdict ?? null) })
+      .catch(() => { if (!cancelled) setVerdict(null) })
+
+    return () => { cancelled = true }
+  }, [phoneIdsKey])
 
   const navigateToSlugs = useCallback((updated: Phone[]) => {
     ownUpdate.current = true
@@ -705,10 +760,10 @@ function CompareContent({ initialPhones }: { initialPhones: Phone[] }) {
 
             {canCompare && (
               <>
-                <QuickVerdict phones={phones} />
+                <QuickVerdict phones={phones} verdict={verdict} />
                 <SpecTable phones={phones} />
                 <DetailedVerdicts phones={phones} />
-                <BottomLine phones={phones} />
+                <BottomLine phones={phones} verdict={verdict} />
               </>
             )}
 
