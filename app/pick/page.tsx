@@ -14,6 +14,7 @@ import CompareBar from '@/app/components/CompareBar'
 import { useToast } from '@/app/components/Toast'
 import { api } from '@/lib/api'
 import { ROUTES, phoneSlug, brandSlug, MAX_COMPARE } from '@/lib/config'
+import { resolveDisplayPrice } from '@/lib/price'
 import { c, z } from '@/lib/tokens'
 import type { Phone } from '@/lib/types'
 
@@ -283,6 +284,10 @@ function StepPriorities({ selected, onToggle }: { selected: Set<string>; onToggl
   )
 }
 
+// ResultCard shows the backend's per-phone match_line / tradeoff_line when
+// present (generated server-side from the shopper's actual budget +
+// priorities). Falls back to spec-derived copy only if the backend call
+// didn't return anything for this phone.
 function ResultCard({
   phone, rank, score, isBest, onCompare, isCompared,
 }: {
@@ -295,8 +300,9 @@ function ResultCard({
 }) {
   const router = useRouter()
   const color = scoreColor(score)
+  const displayPrice = resolveDisplayPrice(phone)
 
-  const whyPoints = [
+  const whyPointsFallback = [
     phone.main_camera_mp && phone.main_camera_mp >= 48
       ? `${phone.main_camera_mp}MP camera system with advanced computational photography.`
       : null,
@@ -311,13 +317,16 @@ function ResultCard({
       : null,
   ].filter(Boolean) as string[]
 
-  const tradeOff = phone.weight_g && phone.weight_g > 200
+  const tradeOffFallback = phone.weight_g && phone.weight_g > 200
     ? `Heavy at ${phone.weight_g}g.`
     : phone.screen_size && phone.screen_size < 6.0
       ? `Compact ${phone.screen_size}" screen may feel small for media.`
-      : phone.price_usd && phone.price_usd > 800
-        ? `Premium pricing at $${phone.price_usd.toLocaleString()} — check alternatives below.`
+      : displayPrice && displayPrice > 800
+        ? `Premium pricing at $${displayPrice.toLocaleString()} — check alternatives below.`
         : `No major trade-offs at this price point.`
+
+  const whyText   = phone.match_line ?? null
+  const tradeText = phone.tradeoff_line ?? tradeOffFallback
 
   return (
     <div
@@ -352,14 +361,16 @@ function ResultCard({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div style={{
-            width: 56, height: 56, background: c.bg,
+            width: isBest ? 80 : 56, height: isBest ? 80 : 56, background: c.bg,
             borderRadius: 'var(--r-md)', display: 'flex',
             alignItems: 'center', justifyContent: 'center',
             overflow: 'hidden', flexShrink: 0,
+            border: isBest ? `1px solid ${c.border}` : undefined,
+            transition: 'width 0.2s, height 0.2s',
           }}>
             {phone.main_image_url
-              ? <img src={phone.main_image_url} alt={phone.model_name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-              : <Smartphone size={28} color={c.border} strokeWidth={1} />}
+              ? <img src={phone.main_image_url} alt={phone.model_name} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: isBest ? 8 : 4 }} />
+              : <Smartphone size={isBest ? 36 : 28} color={c.border} strokeWidth={1} />}
           </div>
           <div>
             <div style={{ fontFamily: 'var(--font-serif)', fontSize: isBest ? 24 : 20, color: c.text1, letterSpacing: '-0.3px' }}>
@@ -383,12 +394,19 @@ function ResultCard({
       {isBest ? (
         <>
           <div style={{ marginBottom: 14, paddingLeft: 4 }}>
-            {whyPoints.slice(0, 3).map((pt, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 8, fontSize: 14, color: c.text2, lineHeight: 1.5 }}>
+            {whyText ? (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 8, fontSize: 14, color: c.text2, lineHeight: 1.5 }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', flexShrink: 0, marginTop: 7 }} />
-                <span>{pt}</span>
+                <span>{whyText}</span>
               </div>
-            ))}
+            ) : (
+              whyPointsFallback.slice(0, 3).map((pt, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 8, fontSize: 14, color: c.text2, lineHeight: 1.5 }}>
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', flexShrink: 0, marginTop: 7 }} />
+                  <span>{pt}</span>
+                </div>
+              ))
+            )}
           </div>
           <div style={{
             fontSize: 13, color: 'var(--orange)', fontStyle: 'italic',
@@ -397,11 +415,11 @@ function ResultCard({
             display: 'inline-flex', alignItems: 'flex-start', gap: 8,
           }}>
             <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-            <span><strong>Trade-off:</strong> {tradeOff}</span>
+            <span><strong>Trade-off:</strong> {tradeText}</span>
           </div>
         </>
       ) : (
-        <p style={{ fontSize: 14, color: c.text2, lineHeight: 1.6, marginBottom: 14 }}>{tradeOff}</p>
+        <p style={{ fontSize: 14, color: c.text2, lineHeight: 1.6, marginBottom: 14 }}>{whyText ?? tradeOffFallback}</p>
       )}
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -431,7 +449,7 @@ function ResultCard({
           {isCompared ? '✓ In Compare' : '+ Compare'}
         </button>
         <span style={{ marginLeft: 'auto', fontSize: 18, fontWeight: 700, color: c.text1 }}>
-          {phone.price_usd ? `$${phone.price_usd.toLocaleString()}` : 'Price TBA'}
+          {displayPrice != null ? `$${Math.round(displayPrice).toLocaleString()}` : 'Price TBA'}
         </span>
       </div>
     </div>
