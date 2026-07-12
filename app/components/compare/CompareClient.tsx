@@ -16,7 +16,7 @@ import Navbar from '../Navbar'
 import Footer from '../Footer'
 import { useToast } from '../Toast'
 import type { Phone, CompareVerdict } from '@/lib/types'
-import formatDisplayPrice from '@/lib/price'
+import { formatDisplayPrice } from '@/lib/price'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
