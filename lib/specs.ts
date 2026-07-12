@@ -78,18 +78,73 @@ export function findSpecValue(
   return null
 }
 
+/** Finds a spec group by name and returns the first field matching `contentPattern`
+ * (tested against the field's stringified value), or the first non-excluded field
+ * if no pattern hits. Covers scrapes where the field key doesn't match the known
+ * vocabulary in findSpecValue but the group itself is present. */
+function scanGroupByContent(
+  phone: { full_specifications?: any },
+  groupNamePattern: RegExp,
+  contentPattern?: RegExp,
+  excludeKeyPattern?: RegExp,
+): string | null {
+  const root = specRoot(phone)
+  if (!root) return null
+
+  const group = Object.entries(root).find(([name]) => groupNamePattern.test(name))?.[1] as
+    | Record<string, unknown>
+    | undefined
+  if (!group) return null
+
+  if (contentPattern) {
+    for (const val of Object.values(group)) {
+      const str = specValueToString(val)
+      if (str !== '—' && contentPattern.test(str)) return str
+    }
+  }
+
+  const entry = Object.entries(group).find(
+    ([k]) => !excludeKeyPattern || !excludeKeyPattern.test(k),
+  )
+  if (entry) {
+    const str = specValueToString(entry[1])
+    if (str && str !== '—') return str
+  }
+  return null
+}
+
 export function getPanelType(phone: Phone): string {
   const qs = (phone.full_specifications as any)?.quick_specs?.displaytype
   if (qs) return stripHtml(String(qs))
-  return findSpecValue(phone, ['Display', 'Screen'], ['Type', 'Panel']) ?? '—'
+
+  const direct = findSpecValue(phone, ['Display', 'Screen'], ['Type', 'Panel', 'Technology'])
+  if (direct) return direct
+
+  const scanned = scanGroupByContent(
+    phone,
+    /display|screen/i,
+    /OLED|AMOLED|IPS|LCD|TFT|Retina|LTPO/i,
+    /size|resolution|protection|ratio/i,
+  )
+  return scanned ?? '—'
 }
 
 export function getFrontCamera(phone: Phone): string {
   const qs = (phone.full_specifications as any)?.quick_specs?.cam2modules
   if (qs) return stripHtml(String(qs))
-  return findSpecValue(
+
+  const direct = findSpecValue(
     phone,
     ['Selfie Camera', 'Front Camera', 'Secondary Camera'],
     ['Single', 'Dual', 'Triple', 'Quad'],
-  ) ?? '—'
+  )
+  if (direct) return direct
+
+  const scanned = scanGroupByContent(
+    phone,
+    /selfie|front camera|secondary camera/i,
+    /\bMP\b/i,
+    /video|feature/i,
+  )
+  return scanned ?? '—'
 }
