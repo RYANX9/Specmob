@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { api, type PricePointRow } from '@/lib/api'
 import { ROUTES, brandSlug, phoneSlug, valueScoreColor } from '@/lib/config'
+import { resolveTier } from '@/lib/tiers'
 import { c, f, z } from '@/lib/tokens'
 import type { Phone } from '@/lib/types'
 import Navbar from '@/app/components/Navbar'
@@ -326,7 +327,7 @@ function WhyThisPhone({
     )
   }
 
-  const tierLabel = smart.tier ? smart.tier.replace(/_/g, ' ') : null
+  const tier = resolveTier(smart.tier, phone.chipset_tier)
 
   const qualityFields: [string, number | null][] = [
     ['camera_score', smart.camera_score],
@@ -341,13 +342,13 @@ function WhyThisPhone({
     <div style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-lg)', padding: '24px 28px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
         <div style={{ fontFamily: f.serif, fontSize: 22, color: c.text1 }}>Why This Phone</div>
-        {tierLabel && (
+        {tier && (
           <span style={{
-            padding: '4px 12px', background: 'var(--accent-light)', color: c.accent,
-            border: '1px solid var(--accent-border)', borderRadius: 'var(--r-full)',
-            fontSize: 12, fontWeight: 600, textTransform: 'capitalize' as const,
+            padding: '4px 12px', background: tier.bg, color: tier.color,
+            border: `1px solid ${tier.color}25`, borderRadius: 'var(--r-full)',
+            fontSize: 12, fontWeight: 600,
           }}>
-            {tierLabel}
+            {tier.label}
           </span>
         )}
       </div>
@@ -400,6 +401,32 @@ function WhyThisPhone({
   )
 }
 
+// Real price fluctuations for a single phone are usually a few percent —
+// a Y-axis anchored at 0 flattens that into a nearly straight line. This
+// zooms the axis to the actual data range instead, padded and rounded to
+// clean $50 increments, with a $300 floor so a single outlier point still
+// renders a readable scale rather than one pixel-wide spike.
+function computeYDomain(prices: number[]): [number, number] {
+  const min = Math.min(...prices)
+  const max = Math.max(...prices)
+  const spread = max - min
+  const padding = Math.max(spread * 0.35, 40)
+
+  let lo = min - padding
+  let hi = max + padding
+
+  const MIN_SPAN = 300
+  if (hi - lo < MIN_SPAN) {
+    const mid = (hi + lo) / 2
+    lo = mid - MIN_SPAN / 2
+    hi = mid + MIN_SPAN / 2
+  }
+
+  lo = Math.max(0, Math.floor(lo / 50) * 50)
+  hi = Math.ceil(hi / 50) * 50
+  return [lo, hi]
+}
+
 // Line chart over global-scope price_points. Backend returns ASC by date already.
 function PriceHistoryChart({ points, loading }: { points: PricePointRow[]; loading: boolean }) {
   const data = points
@@ -415,6 +442,7 @@ function PriceHistoryChart({ points, loading }: { points: PricePointRow[]; loadi
   const first = data[0].price
   const last  = data[data.length - 1].price
   const deltaPct = first ? ((last - first) / first) * 100 : 0
+  const yDomain = computeYDomain(data.map(d => d.price))
 
   return (
     <div style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-lg)', padding: '22px 24px' }}>
@@ -436,6 +464,7 @@ function PriceHistoryChart({ points, loading }: { points: PricePointRow[]; loadi
               minTickGap={40}
             />
             <YAxis
+              domain={yDomain}
               tick={{ fontSize: 11, fill: 'var(--text-3)' }}
               tickLine={false}
               axisLine={false}
@@ -683,6 +712,7 @@ function PhoneDetailContent() {
   const sortedSpecGroups = [...specGroups].sort(([a], [b]) => rankSpecGroup(a) - rankSpecGroup(b))
   const valueScore  = (phone as any).value_score as number | null
   const fs          = phone.full_specifications as any
+  const tier        = resolveTier(phone.smart_score?.tier, phone.chipset_tier)
 
   const str = (v: unknown) => v ? String(v) : null
 
@@ -792,9 +822,9 @@ function PhoneDetailContent() {
               <span style={{ padding: '4px 12px', background: 'var(--green-light)', color: 'var(--green)', border: '1px solid var(--green-border)', borderRadius: 'var(--r-full)', fontSize: 12, fontWeight: 600 }}>
                 Available
               </span>
-              {phone.chipset_tier === 'flagship' && (
-                <span style={{ padding: '4px 12px', background: 'var(--accent-light)', color: c.accent, border: '1px solid var(--accent-border)', borderRadius: 'var(--r-full)', fontSize: 12, fontWeight: 600 }}>
-                  Flagship
+              {tier && (
+                <span style={{ padding: '4px 12px', background: tier.bg, color: tier.color, border: `1px solid ${tier.color}25`, borderRadius: 'var(--r-full)', fontSize: 12, fontWeight: 600 }}>
+                  {tier.label}
                 </span>
               )}
             </div>
