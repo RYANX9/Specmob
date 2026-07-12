@@ -48,10 +48,8 @@ function specRoot(phone: { full_specifications?: any }): Record<string, any> | n
   return fs.specifications && typeof fs.specifications === 'object' ? fs.specifications : fs
 }
 
-/**
- * Searches spec groups by name (substring match), and within matched groups
- * tries each field name in priority order, returning the first hit.
- */
+/** Searches spec groups by name (substring match); within matched groups tries
+ * each field name in priority order, returns the first hit. */
 export function findSpecValue(
   phone: { full_specifications?: any },
   groupNames: string[],
