@@ -1,4 +1,6 @@
 import { API_BASE } from './config'
+
+// add to the import at top:
 import type {
   SearchResponse,
   SearchFilters,
@@ -6,8 +8,9 @@ import type {
   FilterStats,
   CategoryResult,
   BrandStats,
+  CompareVerdict,
 } from './types'
-
+  
 // ─── error class ─────────────────────────────────────────────────────────────
 
 export class APIError extends Error {
@@ -206,6 +209,15 @@ export const api = {
         CACHE.noStore,
       ),
   },
+  
+  compare: (ids: number[]) =>
+      req<{ phones: Phone[]; verdict: CompareVerdict | null }>(`/phones/compare?ids=${ids.join(',')}`, CACHE.noStore),
+
+    compareBySlugs: (slugs: string[]) =>
+      req<{ phones: Phone[]; verdict: CompareVerdict | null }>(
+        `/phones/compare?slugs=${slugs.map(encodeURIComponent).join(',')}`,
+        CACHE.noStore,
+      ),
 
   categories: {
     list: () =>
