@@ -17,6 +17,7 @@ import { ROUTES, phoneSlug, brandSlug, MAX_COMPARE } from '@/lib/config'
 import { resolveDisplayPrice } from '@/lib/price'
 import { c, z } from '@/lib/tokens'
 import type { Phone } from '@/lib/types'
+import { formatDisplayPrice } from '@/lib/price'
 
 const STEPS = [
   { num: 1, label: 'Budget' },
@@ -449,7 +450,7 @@ function ResultCard({
           {isCompared ? '✓ In Compare' : '+ Compare'}
         </button>
         <span style={{ marginLeft: 'auto', fontSize: 18, fontWeight: 700, color: c.text1 }}>
-          {displayPrice != null ? `$${Math.round(displayPrice).toLocaleString()}` : 'Price TBA'}
+          {formatDisplayPrice(phone)}
         </span>
       </div>
     </div>
