@@ -8,6 +8,7 @@ import { api } from '@/lib/api'
 import { ROUTES, brandSlug, phoneSlug } from '@/lib/config'
 import { c, f, z } from '@/lib/tokens'
 import type { Phone } from '@/lib/types'
+import { formatDisplayPrice } from '@/lib/price'
 
 interface NavbarProps {
   compareCount?: number
@@ -326,8 +327,10 @@ export default function Navbar({ compareCount = 0, onOpenCompare }: NavbarProps)
                       </div>
                     </div>
                     {phone.price_usd && (
+                    {formatDisplayPrice(phone) !== 'Price TBA' && (
                       <div style={{ fontSize: 13, fontWeight: 600, color: c.text1, flexShrink: 0 }}>
-                        ${phone.price_usd.toLocaleString()}
+                        {formatDisplayPrice(phone)}
+
                       </div>
                     )}
                   </button>
