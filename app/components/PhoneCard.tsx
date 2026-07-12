@@ -6,6 +6,7 @@ import { Smartphone, Check } from 'lucide-react'
 import { ROUTES, brandSlug, phoneSlug, valueScoreColor } from '@/lib/config'
 import { c, f } from '@/lib/tokens'
 import type { Phone } from '@/lib/types'
+import { formatDisplayPrice } from '@/lib/price'
 
 interface PhoneCardProps {
   phone: Phone
@@ -45,7 +46,7 @@ export default function PhoneCard({ phone, compareIds, onCompareToggle, compact 
   const inCompare = compareIds.includes(phone.id)
   const isNew = isNewRelease(phone)
   const tier = tierDisplay(phone)
-
+  const priceLabel = formatDisplayPrice(phone)
   const href = ROUTES.phone(brandSlug(phone.brand), phoneSlug(phone))
 
   const badges: string[] = []
@@ -155,10 +156,10 @@ export default function PhoneCard({ phone, compareIds, onCompareToggle, compact 
 
           <div style={{
             fontSize: compact ? 14 : 16, fontWeight: 700,
-            color: phone.price_usd ? c.text1 : c.text3,
+            color: priceLabel !== 'Price TBA' ? c.text1 : c.text3,
             marginBottom: compact ? 6 : 8,
           }}>
-            {phone.price_usd ? `$${Math.round(phone.price_usd).toLocaleString()}` : 'Price TBA'}
+            {priceLabel}
           </div>
 
           {!compact && badges.length > 0 && (
