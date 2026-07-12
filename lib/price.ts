@@ -1,27 +1,14 @@
 import type { Phone } from './types'
 import { findSpecValue } from './specs'
 
-// Static FX table — no live rate source available client-side. Update periodically.
+// Static FX table — no live rate source client-side. Update periodically.
 const CURRENCY_TO_USD: Record<string, number> = {
-  USD: 1,
-  EUR: 1.08,
-  GBP: 1.27,
-  INR: 0.012,
-  CNY: 0.14,
-  JPY: 0.0067,
-  KRW: 0.00073,
-  AUD: 0.65,
-  CAD: 0.73,
-  BRL: 0.17,
-  CHF: 1.13,
+  USD: 1, EUR: 1.08, GBP: 1.27, INR: 0.012, CNY: 0.14,
+  JPY: 0.0067, KRW: 0.00073, AUD: 0.65, CAD: 0.73, BRL: 0.17, CHF: 1.13,
 }
 
 const CURRENCY_SYMBOLS: [RegExp, string][] = [
-  [/€/, 'EUR'],
-  [/£/, 'GBP'],
-  [/₹/, 'INR'],
-  [/¥/, 'CNY'],
-  [/\$/, 'USD'],
+  [/€/, 'EUR'], [/£/, 'GBP'], [/₹/, 'INR'], [/¥/, 'CNY'], [/\$/, 'USD'],
 ]
 
 function detectCurrencyCode(raw: string): string {
@@ -32,13 +19,10 @@ function detectCurrencyCode(raw: string): string {
   for (const [sym, code] of CURRENCY_SYMBOLS) {
     if (sym.test(raw)) return code
   }
-  return 'USD' // no marker found — treat as already USD
+  return 'USD'
 }
 
-/**
- * Last-resort: full_specifications → Misc → Price, e.g. "About 520 EUR".
- * Strips "About", extracts the number, converts to USD.
- */
+/** full_specifications → Misc → Price, e.g. "About 520 EUR" → number of USD. */
 export function parseMiscPrice(phone: Phone): number | null {
   const raw = findSpecValue(phone, ['Misc'], ['Price'])
   if (!raw) return null
@@ -54,13 +38,7 @@ export interface PricePointLike {
   price_usd: number | null
 }
 
-/**
- * Price to display, in priority order:
- *   1. Latest point on the price-history graph (points are ASC by date —
- *      walk from the end for the first non-null price_usd).
- *   2. phones.price_usd from the spec row.
- *   3. Parsed from full_specifications → Misc → Price, converted to USD.
- */
+/** Priority: latest price-history point → phones.price_usd → parsed Misc price. */
 export function resolveDisplayPrice(phone: Phone, historyPoints?: PricePointLike[]): number | null {
   if (historyPoints?.length) {
     for (let i = historyPoints.length - 1; i >= 0; i--) {
@@ -69,4 +47,29 @@ export function resolveDisplayPrice(phone: Phone, historyPoints?: PricePointLike
   }
   if (phone.price_usd != null) return phone.price_usd
   return parseMiscPrice(phone)
+}
+
+/** Renames the Misc→Price spec row to "Launch Price" and replaces its value
+ * with the parsed/converted USD number, so the raw "About 520 EUR" string
+ * never reaches the UI. */
+export function withLaunchPrice(
+  specGroups: Array<[string, Record<string, string>]>,
+  phone: Phone,
+): Array<[string, Record<string, string>]> {
+  const usd = parseMiscPrice(phone)
+  return specGroups.map(([groupName, rows]) => {
+    if (!/misc/i.test(groupName)) return [groupName, rows] as [string, Record<string, string>]
+    const next: Record<string, string> = {}
+    let injected = false
+    for (const [k, v] of Object.entries(rows)) {
+      if (/price/i.test(k)) {
+        next['Launch Price'] = usd != null ? `$${usd.toLocaleString()}` : v
+        injected = true
+      } else {
+        next[k] = v
+      }
+    }
+    if (!injected && usd != null) next['Launch Price'] = `$${usd.toLocaleString()}`
+    return [groupName, next] as [string, Record<string, string>]
+  })
 }
