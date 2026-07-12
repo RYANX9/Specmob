@@ -16,6 +16,7 @@ import Navbar from '../Navbar'
 import Footer from '../Footer'
 import { useToast } from '../Toast'
 import type { Phone, CompareVerdict } from '@/lib/types'
+import formatDisplayPrice from '@/lib/price'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -185,7 +186,7 @@ function PhoneColumn({ phone, onRemove, isWinner }: { phone: Phone; onRemove: ()
         </p>
       </Link>
 
-      <p style={{ fontSize: 18, fontWeight: 700, color: c.text1, marginBottom: 6 }}>{fmtPrice(phone.price_usd)}</p>
+      <p style={{ fontSize: 18, fontWeight: 700, color: c.text1, marginBottom: 6 }}>{formatDisplayPrice(phone)}</p>
 
       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: c.text3, padding: '3px 8px', background: c.bg, borderRadius: r.full }}>
         Value:{' '}
@@ -304,7 +305,9 @@ function AddPhoneSlot({ onSelect, excludeIds }: { onSelect: (p: Phone) => void; 
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontSize: 12, fontWeight: 600, color: c.text1 }}>{p.model_name}</p>
-              <p style={{ fontSize: 10, color: c.text3 }}>{p.brand}{p.price_usd ? ` · $${p.price_usd.toLocaleString()}` : ''}</p>
+              <p style={{ fontSize: 10, color: c.text3 }}>
+                {p.brand}{formatDisplayPrice(p) !== 'Price TBA' ? ` · ${formatDisplayPrice(p)}` : ''}
+              </p>
             </div>
             <span style={{ fontSize: 11, fontWeight: 600, color: c.primary, border: `1px solid ${c.border}`, borderRadius: r.full, padding: '3px 10px', flexShrink: 0 }}>+ Add</span>
           </button>
