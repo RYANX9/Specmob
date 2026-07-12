@@ -326,11 +326,9 @@ export default function Navbar({ compareCount = 0, onOpenCompare }: NavbarProps)
                         {phone.model_name}
                       </div>
                     </div>
-                    {phone.price_usd && (
-                    {formatDisplayPrice(phone) !== 'Price TBA' && (
+                    {phone.price_usd && formatDisplayPrice(phone) !== 'Price TBA' && (
                       <div style={{ fontSize: 13, fontWeight: 600, color: c.text1, flexShrink: 0 }}>
                         {formatDisplayPrice(phone)}
-
                       </div>
                     )}
                   </button>
