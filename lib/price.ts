@@ -22,6 +22,11 @@ function detectCurrencyCode(raw: string): string {
   return 'USD'
 }
 
+export function formatDisplayPrice(phone: Phone, historyPoints?: PricePointLike[]): string {
+  const price = resolveDisplayPrice(phone, historyPoints)
+  return price != null ? `$${Math.round(price).toLocaleString()}` : 'Price TBA'
+}
+
 /** full_specifications → Misc → Price, e.g. "About 520 EUR" → number of USD. */
 export function parseMiscPrice(phone: Phone): number | null {
   const raw = findSpecValue(phone, ['Misc'], ['Price'])
