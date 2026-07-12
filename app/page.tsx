@@ -17,6 +17,7 @@ import { api } from '@/lib/api'
 import { ROUTES, brandSlug, phoneSlug, PAGE_SIZE, MAX_COMPARE, CATEGORY_META } from '@/lib/config'
 import { c, f, z, mq } from '@/lib/tokens'
 import type { Phone, SearchFilters } from '@/lib/types'
+import { formatDisplayPrice } from '@/lib/price'
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   'camera-phones':  <Camera size={22} strokeWidth={1.5} />,
