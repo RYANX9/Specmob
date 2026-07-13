@@ -12,7 +12,7 @@ export default function Error({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error('[Mobylite] Unhandled error:', error)
+    console.error('[Specmob] Unhandled error:', error)
   }, [error])
 
   const digest = error.digest ?? 'unknown'
@@ -52,7 +52,7 @@ export default function Error({
           }}
         >
           <img src="/logored.svg" alt="" aria-hidden="true" style={{ height: '1em', width: 'auto' }} />
-          Mobylite
+          Specmob
         </Link>
 
         <nav style={{
@@ -220,7 +220,7 @@ export default function Error({
           <p style={{ fontSize: 12, color: c.text3, textAlign: 'center' as const }}>
             Problem persisting?{' '}
             <a
-              href="mailto:hello@mobylite.com"
+              href="mailto:hello@Specmob.com"
               style={{ color: c.text2, textDecoration: 'underline' }}
             >
               Contact us
@@ -238,7 +238,7 @@ export default function Error({
         flexWrap: 'wrap' as const,
         gap: 12,
       }}>
-        <span style={{ fontFamily: f.serif, fontSize: 16, color: c.primary }}>Mobylite</span>
+        <span style={{ fontFamily: f.serif, fontSize: 16, color: c.primary }}>Specmob</span>
         <nav style={{ display: 'flex', gap: 20 }}>
           {[
             { label: 'Browse',   href: '/' },
@@ -257,7 +257,7 @@ export default function Error({
           ))}
         </nav>
         <span style={{ fontSize: 12, color: c.text3 }}>
-          © {new Date().getFullYear()} Mobylite
+          © {new Date().getFullYear()} Specmob
         </span>
       </footer>
     </div>
