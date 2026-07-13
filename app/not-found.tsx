@@ -47,7 +47,7 @@ function NotFoundContent() {
             </div>
 
             <div style={{ position: 'absolute', top: -10, right: -10, width: 44, height: 44, background: c.surface, border: `2px solid ${c.border}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-md)', zIndex: 2, animation: 'floatBob 3s ease-in-out infinite' }}>
-              <img src="/logored.svg" alt="Mobylite" style={{ width: 24, height: 24 }} />
+              <img src="/logored.svg" alt="Specmob" style={{ width: 24, height: 24 }} />
             </div>
           </div>
 
@@ -121,8 +121,8 @@ function NotFoundContent() {
       <footer style={{ background: c.primary, color: 'white', padding: '32px 24px' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: f.serif, fontSize: 18, color: 'white' }}>
-            <img src="/logored.svg" alt="Mobylite" style={{ width: 22, height: 22 }} />
-            Mobylite
+            <img src="/logored.svg" alt="Specmob" style={{ width: 22, height: 22 }} />
+            Specmob
           </div>
           <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
             <a href="/" style={{ fontSize: 13, color: '#A0A0B0', transition: 'color 0.15s' }}>Browse</a>
@@ -130,7 +130,7 @@ function NotFoundContent() {
             <a href="/pick" style={{ fontSize: 13, color: '#A0A0B0', transition: 'color 0.15s' }}>Help Me Choose</a>
             <a href="/about" style={{ fontSize: 13, color: '#A0A0B0', transition: 'color 0.15s' }}>About</a>
           </div>
-          <span style={{ fontSize: 12, color: '#6A6A7A' }}>© {new Date().getFullYear()} Mobylite</span>
+          <span style={{ fontSize: 12, color: '#6A6A7A' }}>© {new Date().getFullYear()} Specmob</span>
         </div>
       </footer>
 
