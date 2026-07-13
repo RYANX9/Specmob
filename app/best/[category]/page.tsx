@@ -338,11 +338,19 @@ function RankCardGold({ phone, score, rank, config, slug, onCompare, isCompared 
       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = 'none'; (e.currentTarget as HTMLElement).style.borderColor = c.border }}
     >
       <div className="rank-card-gold-top" style={{ background: 'linear-gradient(135deg, #1A1A2E 0%, #2A2A4E 100%)', padding: '28px 32px', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 28, alignItems: 'center' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-          <div style={{ width: 52, height: 52, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(201,168,76,0.2)', border: `2px solid ${MEDAL_COLORS.gold}` }}>
-            <Medal variant="gold" />
+        <div style={{ position: 'relative', width: 72, height: 72, flexShrink: 0, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 'var(--r-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+          {phone.main_image_url
+            ? <img src={phone.main_image_url} alt={phone.model_name} style={{ width: '80%', height: '80%', objectFit: 'contain' }} />
+            : <Smartphone size={28} color="rgba(255,255,255,0.3)" strokeWidth={1} />}
+          <div style={{
+            position: 'absolute', top: -8, left: -8,
+            width: 26, height: 26, borderRadius: '50%',
+            background: MEDAL_COLORS.gold, color: '#1A1A2E',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 12, fontWeight: 800, boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+          }}>
+            {rank}
           </div>
-          <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', color: 'rgba(255,255,255,0.4)' }}>#{rank}</span>
         </div>
 
         <div style={{ minWidth: 0 }}>
@@ -446,11 +454,19 @@ function RankCardMedium({ phone, score, rank, variant, slug, onCompare, isCompar
       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-sm)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-hover)' }}
       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = 'none'; (e.currentTarget as HTMLElement).style.borderColor = c.border }}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0, paddingTop: 2 }}>
-        <div style={{ width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: `${color}1E`, border: `2px solid ${color}` }}>
-          <Medal variant={variant} size={24} />
+      <div style={{ position: 'relative', width: 56, height: 56, flexShrink: 0, background: c.bg, border: `1px solid ${c.border}`, borderRadius: 'var(--r-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+        {phone.main_image_url
+          ? <img src={phone.main_image_url} alt={phone.model_name} style={{ width: '78%', height: '78%', objectFit: 'contain' }} />
+          : <Smartphone size={22} color={c.border} strokeWidth={1} />}
+        <div style={{
+          position: 'absolute', top: -6, left: -6,
+          width: 20, height: 20, borderRadius: '50%',
+          background: color, color: '#fff',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 10, fontWeight: 800, boxShadow: '0 2px 4px rgba(0,0,0,0.25)',
+        }}>
+          {rank}
         </div>
-        <span style={{ fontSize: 11, fontWeight: 700, color: c.text3 }}>#{rank}</span>
       </div>
 
       <div>
