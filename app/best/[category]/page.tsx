@@ -340,16 +340,16 @@ function RankCardGold({ phone, score, rank, config, slug, onCompare, isCompared 
       <div className="rank-card-gold-top" style={{ background: 'linear-gradient(135deg, #1A1A2E 0%, #2A2A4E 100%)', padding: '28px 32px', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 28, alignItems: 'center' }}>
         <div style={{ position: 'relative', width: 72, height: 72, flexShrink: 0, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 'var(--r-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
           {phone.main_image_url
-            ? <img src={phone.main_image_url} alt={phone.model_name} style={{ width: '80%', height: '80%', objectFit: 'contain' }} />
+            ? <img src={phone.main_image_url} alt={phone.model_name} style={{ width: '78%', height: '78%', objectFit: 'contain' }} />
             : <Smartphone size={28} color="rgba(255,255,255,0.3)" strokeWidth={1} />}
           <div style={{
-            position: 'absolute', top: -8, left: -8,
-            width: 26, height: 26, borderRadius: '50%',
+            position: 'absolute', bottom: 0, left: 0,
+            padding: '2px 7px 2px 6px',
             background: MEDAL_COLORS.gold, color: '#1A1A2E',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 12, fontWeight: 800, boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+            fontSize: 11, fontWeight: 800,
+            borderTopRightRadius: 6,
           }}>
-            {rank}
+            #{rank}
           </div>
         </div>
 
@@ -456,16 +456,16 @@ function RankCardMedium({ phone, score, rank, variant, slug, onCompare, isCompar
     >
       <div style={{ position: 'relative', width: 56, height: 56, flexShrink: 0, background: c.bg, border: `1px solid ${c.border}`, borderRadius: 'var(--r-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
         {phone.main_image_url
-          ? <img src={phone.main_image_url} alt={phone.model_name} style={{ width: '78%', height: '78%', objectFit: 'contain' }} />
-          : <Smartphone size={22} color={c.border} strokeWidth={1} />}
+          ? <img src={phone.main_image_url} alt={phone.model_name} style={{ width: '75%', height: '75%', objectFit: 'contain' }} />
+          : <Smartphone size={20} color={c.border} strokeWidth={1} />}
         <div style={{
-          position: 'absolute', top: -6, left: -6,
-          width: 20, height: 20, borderRadius: '50%',
+          position: 'absolute', bottom: 0, left: 0,
+          padding: '1px 6px 1px 5px',
           background: color, color: '#fff',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 10, fontWeight: 800, boxShadow: '0 2px 4px rgba(0,0,0,0.25)',
+          fontSize: 10, fontWeight: 800,
+          borderTopRightRadius: 5,
         }}>
-          {rank}
+          #{rank}
         </div>
       </div>
 
