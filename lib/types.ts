@@ -37,6 +37,12 @@ export interface Phone {
   // succeeded — always treat as optional.
   match_line?: string | null
   tradeoff_line?: string | null
+  // Only present on /phones/recommend results. False means this phone fell
+  // outside the shopper's requested price range and was included only
+  // because a hard filter (e.g. foldable) needed the budget widened to
+  // find enough matches.
+  in_requested_budget?: boolean | null
+  match_score?: number | null
 }
 
 export interface SmartScore {
@@ -148,6 +154,19 @@ export interface BrandStats {
 export interface CompareVerdict {
   verdict: string
   picks: { id: number; for_label: string; reason: string }[]
+}
+
+// Response shape for GET /phones/recommend. Carries the budget-widening and
+// hard-filter transparency fields the pick flow needs to explain itself
+// instead of silently backfilling non-matching phones.
+export interface RecommendResponse {
+  phones: Phone[]
+  priorities: string[]
+  hard_filters: string[]
+  requested_price_range: { min: number | null; max: number | null }
+  effective_price_range: { min: number | null; max: number | null }
+  budget_widened: boolean
+  insufficient_matches: boolean
 }
 
 export type SortOption =
