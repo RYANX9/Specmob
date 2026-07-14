@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import {
   ArrowRight, ArrowLeft, Camera, Battery, Zap, Smartphone,
   Feather, Monitor, Bolt, BadgeDollarSign, Check, Info,
-  ChevronRight, Crosshair,
+  ChevronRight, Crosshair, Gamepad2, Fold, Droplets, Waves,
 } from 'lucide-react'
 import Navbar from '@/app/components/Navbar'
 import Footer from '@/app/components/Footer'
@@ -15,32 +15,47 @@ import { useToast } from '@/app/components/Toast'
 import { api } from '@/lib/api'
 import { ROUTES, phoneSlug, brandSlug, MAX_COMPARE } from '@/lib/config'
 import { resolveDisplayPrice } from '@/lib/price'
+import { PRICE_TIERS, getPriceTier, type PriceTierId } from '@/lib/priceTiers'
 import { c, z } from '@/lib/tokens'
 import type { Phone } from '@/lib/types'
 import { formatDisplayPrice } from '@/lib/price'
 
 const STEPS = [
-  { num: 1, label: 'Budget' },
+  { num: 1, label: 'Tier' },
   { num: 2, label: 'Priorities' },
   { num: 3, label: 'Results' },
 ]
 
-const BUDGET_PRESETS = [
-  { id: 'under-300',  label: 'Under $300',    sub: 'Budget',         min: 0,    max: 300,       icon: <BadgeDollarSign size={22} strokeWidth={1.5} /> },
-  { id: '300-600',    label: '$300 – $600',   sub: 'Mid-Range',      min: 300,  max: 600,       icon: <BadgeDollarSign size={22} strokeWidth={1.5} /> },
-  { id: '600-1000',   label: '$600 – $1,000', sub: 'Flagship',       min: 600,  max: 1000,      icon: <BadgeDollarSign size={22} strokeWidth={1.5} /> },
-  { id: '1000-plus',  label: '$1,000+',       sub: "Sky's the limit", min: 1000, max: undefined, icon: <BadgeDollarSign size={22} strokeWidth={1.5} /> },
-]
+const TIER_ICON: Record<PriceTierId, React.ReactNode> = {
+  s: <BadgeDollarSign size={22} strokeWidth={1.5} />,
+  a: <BadgeDollarSign size={22} strokeWidth={1.5} />,
+  b: <BadgeDollarSign size={22} strokeWidth={1.5} />,
+  c: <BadgeDollarSign size={22} strokeWidth={1.5} />,
+  d: <BadgeDollarSign size={22} strokeWidth={1.5} />,
+}
+
+const TIER_COLOR: Record<PriceTierId, string> = {
+  s: '#C9A84C',
+  a: 'var(--accent)',
+  b: 'var(--blue)',
+  c: 'var(--green)',
+  d: 'var(--text-2)',
+}
 
 const PRIORITIES = [
-  { id: 'camera',       label: 'Camera Quality',  desc: 'Great photos & video',          icon: <Camera size={24} strokeWidth={1.5} /> },
-  { id: 'battery',      label: 'Battery Life',    desc: 'Last all day and beyond',       icon: <Battery size={24} strokeWidth={1.5} /> },
-  { id: 'performance',  label: 'Performance',     desc: 'No lag, fast for anything',     icon: <Zap size={24} strokeWidth={1.5} /> },
-  { id: 'compact',      label: 'Compact Size',    desc: 'Easy to use one-handed',        icon: <Smartphone size={24} strokeWidth={1.5} /> },
-  { id: 'lightweight',  label: 'Lightweight',     desc: "Doesn't weigh you down",        icon: <Feather size={24} strokeWidth={1.5} /> },
-  { id: 'display',      label: 'Display Quality', desc: 'Sharp, bright, smooth',         icon: <Monitor size={24} strokeWidth={1.5} /> },
-  { id: 'fast_charging',label: 'Fast Charging',   desc: 'Quick top-ups, less waiting',   icon: <Bolt size={24} strokeWidth={1.5} /> },
-  { id: 'value',        label: 'Best Value',      desc: 'Most specs per dollar',         icon: <BadgeDollarSign size={24} strokeWidth={1.5} /> },
+  { id: 'camera',             label: 'Camera Quality',      desc: 'Great photos & video',        icon: <Camera size={24} strokeWidth={1.5} /> },
+  { id: 'battery',            label: 'Battery Life',        desc: 'Last all day and beyond',      icon: <Battery size={24} strokeWidth={1.5} /> },
+  { id: 'performance',        label: 'Performance',         desc: 'No lag, fast for anything',    icon: <Zap size={24} strokeWidth={1.5} /> },
+  { id: 'gaming',              label: 'Gaming',              desc: 'Sustained high frame rates',   icon: <Gamepad2 size={24} strokeWidth={1.5} /> },
+  { id: 'compact',            label: 'Compact Size',        desc: 'Easy to use one-handed',       icon: <Smartphone size={24} strokeWidth={1.5} /> },
+  { id: 'lightweight',        label: 'Lightweight',         desc: "Doesn't weigh you down",       icon: <Feather size={24} strokeWidth={1.5} /> },
+  { id: 'display',            label: 'Display Quality',     desc: 'Sharp, bright, smooth',        icon: <Monitor size={24} strokeWidth={1.5} /> },
+  { id: 'smooth_display',     label: 'High Refresh Rate',   desc: '120Hz+ for scrolling & games',  icon: <Waves size={24} strokeWidth={1.5} /> },
+  { id: 'fast_charging',      label: 'Fast Charging',       desc: 'Quick top-ups, less waiting',   icon: <Bolt size={24} strokeWidth={1.5} /> },
+  { id: 'wireless_charging',  label: 'Wireless Charging',   desc: 'Drop it on a pad, no cable',    icon: <Zap size={24} strokeWidth={1.5} /> },
+  { id: 'foldable',           label: 'Foldable',            desc: 'Fold-out or flip form factor',  icon: <Fold size={24} strokeWidth={1.5} /> },
+  { id: 'durability',         label: 'Water/Dust Resistant',desc: 'Rated for rain, splashes, dust', icon: <Droplets size={24} strokeWidth={1.5} /> },
+  { id: 'value',              label: 'Best Value',          desc: 'Most specs per dollar',         icon: <BadgeDollarSign size={24} strokeWidth={1.5} /> },
 ]
 
 function scoreColor(score: number): string {
@@ -74,11 +89,11 @@ function ProgressDots({ current }: { current: number }) {
   )
 }
 
-function StepBudget({
+function StepTier({
   selected, onSelect, customMin, customMax, onCustomChange,
 }: {
-  selected: string | null
-  onSelect: (id: string, min?: number, max?: number) => void
+  selected: PriceTierId | null
+  onSelect: (id: PriceTierId) => void
   customMin: string
   customMax: string
   onCustomChange: (min: string, max: string) => void
@@ -95,24 +110,28 @@ function StepBudget({
         <p style={{ fontSize: 15, color: c.text3 }}>Step 1 of 3</p>
       </div>
 
-      <p style={{ textAlign: 'center', fontSize: 18, fontWeight: 500, color: c.text1, marginBottom: 28 }}>
-        What's your budget?
+      <p style={{ textAlign: 'center', fontSize: 18, fontWeight: 500, color: c.text1, marginBottom: 6 }}>
+        What tier are you shopping in?
+      </p>
+      <p style={{ textAlign: 'center', fontSize: 13, color: c.text3, marginBottom: 28, maxWidth: 480, margin: '0 auto 28px' }}>
+        These are standard market tiers, not our invention — the same segments phone reviewers use.
       </p>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 14, marginBottom: 28 }}>
-        {BUDGET_PRESETS.map(preset => {
-          const active = selected === preset.id
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14, marginBottom: 28 }}>
+        {PRICE_TIERS.map(tier => {
+          const active = selected === tier.id
+          const priceLabel = tier.max == null ? `$${tier.min.toLocaleString()}+` : `$${tier.min}–$${tier.max}`
           return (
             <button
-              key={preset.id}
-              onClick={() => onSelect(preset.id, preset.min, preset.max)}
+              key={tier.id}
+              onClick={() => onSelect(tier.id)}
               style={{
                 background: active ? 'rgba(26,26,46,0.04)' : c.surface,
                 border: `2px solid ${active ? c.primary : c.border}`,
-                borderRadius: 'var(--r-lg)', padding: '24px 16px',
+                borderRadius: 'var(--r-lg)', padding: '20px 16px',
                 cursor: 'pointer', transition: 'all 0.15s ease',
-                textAlign: 'center', display: 'flex', flexDirection: 'column',
-                alignItems: 'center', gap: 8,
+                textAlign: 'left', display: 'flex', flexDirection: 'column',
+                gap: 8, position: 'relative',
               }}
               onMouseEnter={e => {
                 if (!active) {
@@ -131,25 +150,32 @@ function StepBudget({
                 }
               }}
             >
-              <div style={{ color: active ? c.primary : c.text3, marginBottom: 4 }}>{preset.icon}</div>
-              <div style={{ fontFamily: 'var(--font-serif)', fontSize: 18, color: c.text1, fontWeight: 500 }}>
-                {preset.label}
-              </div>
-              <div style={{ fontSize: 13, color: c.text3 }}>{preset.sub}</div>
-              {active && (
-                <div style={{
-                  marginTop: 4, width: 24, height: 24, borderRadius: '50%',
-                  background: c.primary, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{
+                  fontSize: 11, fontWeight: 800, letterSpacing: '0.5px',
+                  color: TIER_COLOR[tier.id], padding: '2px 9px',
+                  background: `${TIER_COLOR[tier.id]}18`, borderRadius: 'var(--r-full)',
                 }}>
-                  <Check size={14} color="#fff" strokeWidth={3} />
-                </div>
-              )}
+                  {tier.label}
+                </span>
+                {active && (
+                  <div style={{ width: 20, height: 20, borderRadius: '50%', background: c.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Check size={12} color="#fff" strokeWidth={3} />
+                  </div>
+                )}
+              </div>
+              <div style={{ fontFamily: 'var(--font-serif)', fontSize: 18, color: c.text1, fontWeight: 500 }}>
+                {tier.name}
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: c.text1 }}>{priceLabel}</div>
+              <div style={{ fontSize: 12, color: c.text3, lineHeight: 1.5 }}>{tier.blurb}</div>
+              <div style={{ fontSize: 11, color: c.text3, fontStyle: 'italic', marginTop: 2 }}>{tier.examples}</div>
             </button>
           )
         })}
       </div>
 
-      <div style={{ display: 'flex', gap: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 32 }}>
+      <div style={{ display: 'flex', gap: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
         <span style={{ fontSize: 14, color: c.text3 }}>Or set a custom range:</span>
         {(['min', 'max'] as const).map((bound, i) => (
           <input
@@ -286,11 +312,11 @@ function StepPriorities({ selected, onToggle }: { selected: Set<string>; onToggl
 }
 
 // ResultCard shows the backend's per-phone match_line / tradeoff_line when
-// present (generated server-side from the shopper's actual budget +
+// present (generated server-side from the shopper's actual tier +
 // priorities). Falls back to spec-derived copy only if the backend call
 // didn't return anything for this phone.
 function ResultCard({
-  phone, rank, score, isBest, onCompare, isCompared,
+  phone, rank, score, isBest, onCompare, isCompared, tier,
 }: {
   phone: Phone & { match_score?: number }
   rank: number
@@ -298,6 +324,7 @@ function ResultCard({
   isBest: boolean
   onCompare: (p: Phone) => void
   isCompared: boolean
+  tier: ReturnType<typeof getPriceTier>
 }) {
   const router = useRouter()
   const color = scoreColor(score)
@@ -377,8 +404,15 @@ function ResultCard({
             <div style={{ fontFamily: 'var(--font-serif)', fontSize: isBest ? 24 : 20, color: c.text1, letterSpacing: '-0.3px' }}>
               {isBest ? phone.model_name : `#${rank} ${phone.model_name}`}
             </div>
-            <div style={{ fontSize: 13, color: c.text3, marginTop: 2 }}>
-              {phone.brand} · {phone.chipset_tier || 'Mid-range'} · {phone.release_year}
+            <div style={{ fontSize: 13, color: c.text3, marginTop: 2, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <span>{phone.brand} · {phone.release_year}</span>
+              <span style={{
+                fontSize: 10, fontWeight: 700, letterSpacing: '0.4px',
+                color: TIER_COLOR[tier.id], padding: '1px 7px',
+                background: `${TIER_COLOR[tier.id]}18`, borderRadius: 'var(--r-full)',
+              }}>
+                {tier.label}
+              </span>
             </div>
           </div>
         </div>
@@ -424,17 +458,35 @@ function ResultCard({
       )}
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        {phone.amazon_link && (
+          <a
+            href={phone.amazon_link}
+            target="_blank"
+            rel="noopener noreferrer sponsored"
+            style={{
+              padding: '9px 18px', background: c.primary, color: '#fff',
+              borderRadius: 'var(--r-full)', fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', transition: 'all 0.15s', textDecoration: 'none',
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#2A2A42' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = c.primary }}
+          >
+            Buy Now
+          </a>
+        )}
         <button
           onClick={() => router.push(ROUTES.phone(brandSlug(phone.brand), phoneSlug(phone)))}
           style={{
-            padding: '9px 18px', background: c.primary, color: '#fff',
-            borderRadius: 'var(--r-full)', fontSize: 13, fontWeight: 600,
-            border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+            padding: '9px 18px', border: `1px solid ${c.border}`,
+            color: c.text2, borderRadius: 'var(--r-full)',
+            fontSize: 13, fontWeight: 500, cursor: 'pointer',
+            background: 'transparent', transition: 'all 0.15s',
           }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#2A2A42' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = c.primary }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = c.primary; (e.currentTarget as HTMLElement).style.color = c.text1 }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = c.border; (e.currentTarget as HTMLElement).style.color = c.text2 }}
         >
-          View Details <ChevronRight size={14} style={{ display: 'inline', verticalAlign: 'middle', marginLeft: 2 }} />
+          Details <ChevronRight size={13} style={{ display: 'inline', verticalAlign: 'middle' }} />
         </button>
         <button
           onClick={() => onCompare(phone)}
@@ -458,11 +510,11 @@ function ResultCard({
 }
 
 function StepResults({
-  phones, priorities, budgetLabel, onCompare, compareIds,
+  phones, priorities, tier, onCompare, compareIds,
 }: {
   phones: (Phone & { match_score?: number })[]
   priorities: string[]
-  budgetLabel: string
+  tier: ReturnType<typeof getPriceTier>
   onCompare: (p: Phone) => void
   compareIds: number[]
 }) {
@@ -483,15 +535,23 @@ function StepResults({
       <div style={{
         background: c.bg, padding: '14px 18px', borderRadius: 'var(--r-md)',
         textAlign: 'center', fontSize: 14, color: c.text2, marginBottom: 32,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap',
       }}>
-        Based on: <strong style={{ color: c.text1 }}>{budgetLabel}</strong> · {priorityLabels.join(' · ')}
+        <span style={{
+          fontSize: 10, fontWeight: 800, letterSpacing: '0.4px',
+          color: TIER_COLOR[tier.id], padding: '2px 8px',
+          background: `${TIER_COLOR[tier.id]}18`, borderRadius: 'var(--r-full)',
+        }}>
+          {tier.label}
+        </span>
+        <span><strong style={{ color: c.text1 }}>{tier.name}</strong> · {priorityLabels.join(' · ')}</span>
       </div>
 
       {phones.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 0' }}>
           <Crosshair size={48} color={c.border} strokeWidth={1} style={{ margin: '0 auto 16px' }} />
           <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: 22, color: c.text1, marginBottom: 8 }}>No matches found</h3>
-          <p style={{ fontSize: 14, color: c.text3 }}>Try adjusting your budget or priorities.</p>
+          <p style={{ fontSize: 14, color: c.text3 }}>Try a different tier or fewer priorities.</p>
         </div>
       ) : (
         phones.map((phone, i) => (
@@ -503,6 +563,7 @@ function StepResults({
             isBest={i === 0}
             onCompare={onCompare}
             isCompared={compareIds.includes(phone.id)}
+            tier={tier}
           />
         ))
       )}
@@ -519,15 +580,15 @@ function PickPageContent() {
     const s = parseInt(searchParams.get('step') ?? '1', 10)
     return [1, 2, 3].includes(s) ? s : 1
   })
-  const [budgetId, setBudgetId] = useState<string | null>(() => {
-    const b = searchParams.get('budget')
-    return b && b !== 'custom' ? b : null
+  const [tierId, setTierId] = useState<PriceTierId | null>(() => {
+    const t = searchParams.get('tier')
+    return t && ['s', 'a', 'b', 'c', 'd'].includes(t) ? (t as PriceTierId) : null
   })
   const [customMin, setCustomMin] = useState(() =>
-    searchParams.get('budget') === 'custom' ? (searchParams.get('min') ?? '') : ''
+    searchParams.get('tier') === 'custom' ? (searchParams.get('min') ?? '') : ''
   )
   const [customMax, setCustomMax] = useState(() =>
-    searchParams.get('budget') === 'custom' ? (searchParams.get('max') ?? '') : ''
+    searchParams.get('tier') === 'custom' ? (searchParams.get('max') ?? '') : ''
   )
   const [priorities, setPriorities] = useState<Set<string>>(() => {
     const raw = searchParams.get('p')
@@ -537,13 +598,13 @@ function PickPageContent() {
   const [loading, setLoading] = useState(false)
   const [comparePhones, setComparePhones] = useState<Phone[]>([])
 
-  const commit = useCallback((s: number, bid: string | null, cMin: string, cMax: string, pSet: Set<string>) => {
+  const commit = useCallback((s: number, tid: PriceTierId | null, cMin: string, cMax: string, pSet: Set<string>) => {
     const params = new URLSearchParams()
     params.set('step', String(s))
-    if (bid) {
-      params.set('budget', bid)
+    if (tid) {
+      params.set('tier', tid)
     } else if (cMin && cMax) {
-      params.set('budget', 'custom')
+      params.set('tier', 'custom')
       params.set('min', cMin)
       params.set('max', cMax)
     }
@@ -551,8 +612,8 @@ function PickPageContent() {
     router.replace(`/pick?${params.toString()}`, { scroll: false })
   }, [router])
 
-  const handleBudgetSelect = (id: string) => {
-    setBudgetId(id)
+  const handleTierSelect = (id: PriceTierId) => {
+    setTierId(id)
     setCustomMin('')
     setCustomMax('')
     commit(step, id, '', '', priorities)
@@ -561,7 +622,7 @@ function PickPageContent() {
   const handleCustomChange = (min: string, max: string) => {
     setCustomMin(min)
     setCustomMax(max)
-    setBudgetId(null)
+    setTierId(null)
     commit(step, null, min, max, priorities)
   }
 
@@ -573,7 +634,7 @@ function PickPageContent() {
       } else if (next.size < 3) {
         next.add(id)
       }
-      commit(step, budgetId, customMin, customMax, next)
+      commit(step, tierId, customMin, customMax, next)
       return next
     })
   }
@@ -583,16 +644,19 @@ function PickPageContent() {
     Number(customMin) >= 0 &&
     Number(customMax) > Number(customMin)
   )
-  const canProceedStep1 = !!(budgetId || customRangeValid)
+  const canProceedStep1 = !!(tierId || customRangeValid)
   const canProceedStep2 = priorities.size >= 2
+
+  const activeTier = tierId ? getPriceTier(tierId) : null
 
   const fetchResults = useCallback(async () => {
     let minPrice: number | undefined
     let maxPrice: number | undefined
 
-    if (budgetId) {
-      const preset = BUDGET_PRESETS.find(p => p.id === budgetId)
-      if (preset) { minPrice = preset.min; maxPrice = preset.max }
+    if (tierId) {
+      const t = getPriceTier(tierId)
+      minPrice = t.min
+      maxPrice = t.max
     } else if (customRangeValid) {
       minPrice = Number(customMin)
       maxPrice = Number(customMax)
@@ -616,20 +680,20 @@ function PickPageContent() {
     } finally {
       setLoading(false)
     }
-  }, [budgetId, customMin, customMax, customRangeValid, priorities, toast])
+  }, [tierId, customMin, customMax, customRangeValid, priorities, toast])
 
   const goNext = () => {
     const next = Math.min(step + 1, 3)
     if (step === 2) fetchResults()
     setStep(next)
-    commit(next, budgetId, customMin, customMax, priorities)
+    commit(next, tierId, customMin, customMax, priorities)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const goBack = () => {
     const prev = Math.max(step - 1, 1)
     setStep(prev)
-    commit(prev, budgetId, customMin, customMax, priorities)
+    commit(prev, tierId, customMin, customMax, priorities)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -650,11 +714,15 @@ function PickPageContent() {
 
   const compareIds = comparePhones.map(p => p.id)
 
-  const budgetLabel = budgetId
-    ? BUDGET_PRESETS.find(p => p.id === budgetId)?.label ?? 'Custom'
-    : customRangeValid
-      ? `$${customMin} – $${customMax}`
-      : 'Any'
+  const resultsTier: ReturnType<typeof getPriceTier> = activeTier ?? {
+    id: 'b',
+    label: 'Custom',
+    name: 'Custom Range',
+    min: customRangeValid ? Number(customMin) : 0,
+    max: customRangeValid ? Number(customMax) : undefined,
+    blurb: '',
+    examples: '',
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: c.bg }}>
@@ -670,9 +738,9 @@ function PickPageContent() {
         <ProgressDots current={step} />
 
         {step === 1 && (
-          <StepBudget
-            selected={budgetId}
-            onSelect={handleBudgetSelect}
+          <StepTier
+            selected={tierId}
+            onSelect={handleTierSelect}
             customMin={customMin}
             customMax={customMax}
             onCustomChange={handleCustomChange}
@@ -685,7 +753,7 @@ function PickPageContent() {
           <StepResults
             phones={results}
             priorities={Array.from(priorities)}
-            budgetLabel={budgetLabel}
+            tier={resultsTier}
             onCompare={handleCompare}
             compareIds={compareIds}
           />
