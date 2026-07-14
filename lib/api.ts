@@ -7,6 +7,7 @@ import type {
   CategoryResult,
   BrandStats,
   CompareVerdict,
+  RecommendResponse,
 } from './types'
 
 // ─── error class ─────────────────────────────────────────────────────────────
@@ -171,7 +172,7 @@ export const api = {
       params: { min_price?: number; max_price?: number; priorities: string; limit?: number },
       signal?: AbortSignal,
     ) =>
-      req<{ phones: Phone[]; priorities: string[] }>(
+      req<RecommendResponse>(
         `/phones/recommend${qs(params as Record<string, unknown>)}`,
         { ...CACHE.noStore, signal },
       ),
