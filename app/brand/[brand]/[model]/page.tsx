@@ -352,15 +352,15 @@ function WhyThisPhone({
 
       {availableQuality.length > 0 && (
         <div style={{ marginBottom: 20, padding: '16px 18px', background: c.bg, borderRadius: 'var(--r-md)' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.5px', color: c.text3, marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.5px', color: c.text3, marginBottom: 4 }}>
             Hardware Quality by Category
           </div>
+          <p style={{ fontSize: 11, color: c.text3, lineHeight: 1.5, marginBottom: 12 }}>
+            Independent of price. For price-adjusted comparison, see Value Score above.
+          </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {availableQuality.map(([field, score]) => <QualityBar key={field} field={field} score={score} />)}
           </div>
-          <p style={{ fontSize: 11, color: c.text3, lineHeight: 1.5, marginTop: 12 }}>
-            These reflect hardware quality on its own. The Value Score above weighs the same hardware against its price — a phone can score well here and lower on value if it costs more than comparable phones.
-          </p>
         </div>
       )}
 
@@ -519,7 +519,7 @@ function buildProductJsonLd(phone: Phone, brand: string, model: string, displayP
         price: displayPrice,
         priceCurrency: 'USD',
         availability: 'https://schema.org/InStock',
-        url: `https://Specmob.vercel.app/brand/${brandSlug(phone.brand)}/${phoneSlug(phone)}`,
+        url: `https://specmob.vercel.app/brand/${brandSlug(phone.brand)}/${phoneSlug(phone)}`,
       },
     }),
     ...(phone.main_image_url && { image: phone.main_image_url }),
@@ -531,9 +531,9 @@ function buildBreadcrumbJsonLd(phone: Phone): object {
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
     itemListElement: [
-      { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://Specmob.vercel.app' },
-      { '@type': 'ListItem', position: 2, name: phone.brand, item: `https://Specmob.vercel.app/brand/${brandSlug(phone.brand)}` },
-      { '@type': 'ListItem', position: 3, name: phone.model_name, item: `https://Specmob.vercel.app/brand/${brandSlug(phone.brand)}/${phoneSlug(phone)}` },
+      { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://specmob.vercel.app' },
+      { '@type': 'ListItem', position: 2, name: phone.brand, item: `https://specmob.vercel.app/brand/${brandSlug(phone.brand)}` },
+      { '@type': 'ListItem', position: 3, name: phone.model_name, item: `https://specmob.vercel.app/brand/${brandSlug(phone.brand)}/${phoneSlug(phone)}` },
     ],
   }
 }
@@ -820,19 +820,19 @@ function PhoneDetailContent() {
             {valueScore != null && (
               <div style={{ padding: '14px 18px', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-md)', marginBottom: 18 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <div style={{ fontSize: 30, fontWeight: 700, lineHeight: 1, color: valueScoreColor(valueScore) }}>
+                  <div style={{ fontSize: 30, fontWeight: 700, lineHeight: 1, color: c.accent }}>
                     {valueScore.toFixed(1)}
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: c.text2, marginBottom: 5 }}>Value Score</div>
                     <div style={{ height: 5, background: c.bg, borderRadius: 3, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${valueScore * 10}%`, background: valueScoreColor(valueScore), borderRadius: 3, transition: 'width 0.6s ease' }} />
+                      <div style={{ height: '100%', width: `${valueScore * 10}%`, background: c.accent, borderRadius: 3, transition: 'width 0.6s ease' }} />
                     </div>
                   </div>
                   <div style={{ fontSize: 11, color: c.text3 }}>vs peers</div>
                 </div>
                 <p style={{ fontSize: 11, color: c.text3, marginTop: 10, lineHeight: 1.5 }}>
-                  How much hardware you get for the price, compared to similarly priced phones — not a raw quality rating.
+                  Hardware-per-dollar vs similarly priced phones. Not a quality rating — see Hardware Quality below for that.
                 </p>
               </div>
             )}
