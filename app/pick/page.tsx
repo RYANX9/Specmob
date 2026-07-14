@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import {
   ArrowRight, ArrowLeft, Camera, Battery, Zap, Smartphone,
   Feather, Monitor, Bolt, BadgeDollarSign, Check, Info,
-  ChevronRight, Crosshair, Gamepad2, Layers, Droplets, Waves,
+  ChevronRight, Crosshair, Gamepad2, Layers, Droplets, Waves, AlertTriangle,
 } from 'lucide-react'
 import Navbar from '@/app/components/Navbar'
 import Footer from '@/app/components/Footer'
@@ -314,11 +314,15 @@ function StepPriorities({ selected, onToggle }: { selected: Set<string>; onToggl
 // ResultCard shows the backend's per-phone match_line / tradeoff_line when
 // present (generated server-side from the shopper's actual tier +
 // priorities). Falls back to spec-derived copy only if the backend call
-// didn't return anything for this phone.
+// didn't return anything for this phone. A phone flagged in_requested_budget
+// === false was included only because a hard filter (e.g. foldable) needed
+// the price range widened to find enough matches — that always wins over
+// any other fallback tradeoff, and is never masked by the AI copy either
+// (see routes/recommend_copy.py's within_requested_budget instruction).
 function ResultCard({
   phone, rank, score, isBest, onCompare, isCompared, tier,
 }: {
-  phone: Phone & { match_score?: number }
+  phone: Phone & { match_score?: number; in_requested_budget?: boolean | null }
   rank: number
   score: number
   isBest: boolean
@@ -329,6 +333,7 @@ function ResultCard({
   const router = useRouter()
   const color = scoreColor(score)
   const displayPrice = resolveDisplayPrice(phone)
+  const outOfBudget = phone.in_requested_budget === false
 
   const whyPointsFallback = [
     phone.main_camera_mp && phone.main_camera_mp >= 48
@@ -345,16 +350,18 @@ function ResultCard({
       : null,
   ].filter(Boolean) as string[]
 
-  const tradeOffFallback = phone.weight_g && phone.weight_g > 200
-    ? `Heavy at ${phone.weight_g}g.`
-    : phone.screen_size && phone.screen_size < 6.0
-      ? `Compact ${phone.screen_size}" screen may feel small for media.`
-      : displayPrice && displayPrice > 800
-        ? `Premium pricing at $${displayPrice.toLocaleString()} — check alternatives below.`
-        : `No major trade-offs at this price point.`
+  const tradeOffFallback = outOfBudget
+    ? `Outside your selected budget${displayPrice != null ? ` — $${displayPrice.toLocaleString()}` : ''}, included because too few matches were found inside it.`
+    : phone.weight_g && phone.weight_g > 200
+      ? `Heavy at ${phone.weight_g}g.`
+      : phone.screen_size && phone.screen_size < 6.0
+        ? `Compact ${phone.screen_size}" screen may feel small for media.`
+        : displayPrice && displayPrice > 800
+          ? `Premium pricing at $${displayPrice.toLocaleString()} — check alternatives below.`
+          : `No major trade-offs at this price point.`
 
   const whyText   = phone.match_line ?? null
-  const tradeText = phone.tradeoff_line ?? tradeOffFallback
+  const tradeText = outOfBudget ? tradeOffFallback : (phone.tradeoff_line ?? tradeOffFallback)
 
   return (
     <div
@@ -459,7 +466,7 @@ function ResultCard({
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         {phone.amazon_link && (
-          <a
+          
             href={phone.amazon_link}
             target="_blank"
             rel="noopener noreferrer sponsored"
@@ -501,8 +508,13 @@ function ResultCard({
         >
           {isCompared ? '✓ In Compare' : '+ Compare'}
         </button>
-        <span style={{ marginLeft: 'auto', fontSize: 18, fontWeight: 700, color: c.text1 }}>
-          {formatDisplayPrice(phone)}
+        <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {outOfBudget && (
+            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--orange)', background: 'rgba(231,111,81,0.1)', padding: '2px 8px', borderRadius: 'var(--r-full)', textTransform: 'uppercase' as const, letterSpacing: '0.4px' }}>
+              Outside budget
+            </span>
+          )}
+          <span style={{ fontSize: 18, fontWeight: 700, color: c.text1 }}>{formatDisplayPrice(phone)}</span>
         </span>
       </div>
     </div>
@@ -510,13 +522,19 @@ function ResultCard({
 }
 
 function StepResults({
-  phones, priorities, tier, onCompare, compareIds,
+  phones, priorities, tier, onCompare, compareIds, meta,
 }: {
-  phones: (Phone & { match_score?: number })[]
+  phones: (Phone & { match_score?: number; in_requested_budget?: boolean | null })[]
   priorities: string[]
   tier: ReturnType<typeof getPriceTier>
   onCompare: (p: Phone) => void
   compareIds: number[]
+  meta: {
+    budgetWidened: boolean
+    insufficientMatches: boolean
+    effectiveMin: number | null
+    effectiveMax: number | null
+  } | null
 }) {
   const priorityLabels = priorities.map(id => PRIORITIES.find(p => p.id === id)?.label ?? id)
 
@@ -534,7 +552,7 @@ function StepResults({
 
       <div style={{
         background: c.bg, padding: '14px 18px', borderRadius: 'var(--r-md)',
-        textAlign: 'center', fontSize: 14, color: c.text2, marginBottom: 32,
+        textAlign: 'center', fontSize: 14, color: c.text2, marginBottom: 16,
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap',
       }}>
         <span style={{
@@ -546,6 +564,26 @@ function StepResults({
         </span>
         <span><strong style={{ color: c.text1 }}>{tier.name}</strong> · {priorityLabels.join(' · ')}</span>
       </div>
+
+      {meta?.insufficientMatches && phones.length > 0 && (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 16px', background: 'rgba(231,111,81,0.06)', border: '1px solid rgba(231,111,81,0.15)', borderRadius: 'var(--r-md)', marginBottom: 16 }}>
+          <AlertTriangle size={15} color="var(--orange)" style={{ flexShrink: 0, marginTop: 1 }} />
+          <p style={{ fontSize: 13, color: c.text2, lineHeight: 1.5 }}>
+            Only {phones.length} phone{phones.length !== 1 ? 's' : ''} match{phones.length === 1 ? 'es' : ''} every requirement you picked — that's the full catalog for this combination right now, not a partial list.
+          </p>
+        </div>
+      )}
+
+      {meta?.budgetWidened && (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 16px', background: 'var(--blue-light)', border: '1px solid rgba(69,123,157,0.15)', borderRadius: 'var(--r-md)', marginBottom: 16 }}>
+          <Info size={15} color="var(--blue)" style={{ flexShrink: 0, marginTop: 1 }} />
+          <p style={{ fontSize: 13, color: c.text2, lineHeight: 1.5 }}>
+            Not enough matches inside {tier.name} for a hard requirement like foldable, so we widened the price range
+            {meta.effectiveMax != null ? ` up to $${Math.round(meta.effectiveMax).toLocaleString()}` : ''}
+            {meta.effectiveMin != null && meta.effectiveMin !== tier.min ? ` (from $${Math.round(meta.effectiveMin).toLocaleString()})` : ''} to find them. Phones outside your original budget are marked below.
+          </p>
+        </div>
+      )}
 
       {phones.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 0' }}>
@@ -594,9 +632,15 @@ function PickPageContent() {
     const raw = searchParams.get('p')
     return raw ? new Set(raw.split(',').filter(id => PRIORITIES.some(p => p.id === id))) : new Set()
   })
-  const [results, setResults] = useState<(Phone & { match_score?: number })[]>([])
+  const [results, setResults] = useState<(Phone & { match_score?: number; in_requested_budget?: boolean | null })[]>([])
   const [loading, setLoading] = useState(false)
   const [comparePhones, setComparePhones] = useState<Phone[]>([])
+  const [recommendMeta, setRecommendMeta] = useState<{
+    budgetWidened: boolean
+    insufficientMatches: boolean
+    effectiveMin: number | null
+    effectiveMax: number | null
+  } | null>(null)
 
   const commit = useCallback((s: number, tid: PriceTierId | null, cMin: string, cMax: string, pSet: Set<string>) => {
     const params = new URLSearchParams()
@@ -673,9 +717,16 @@ function PickPageContent() {
         priorities: priorityList.join(','),
         limit: 5,
       })
-      setResults(data.phones as (Phone & { match_score?: number })[])
+      setResults(data.phones as (Phone & { match_score?: number; in_requested_budget?: boolean | null })[])
+      setRecommendMeta({
+        budgetWidened: data.budget_widened,
+        insufficientMatches: data.insufficient_matches,
+        effectiveMin: data.effective_price_range?.min ?? null,
+        effectiveMax: data.effective_price_range?.max ?? null,
+      })
     } catch {
       setResults([])
+      setRecommendMeta(null)
       toast('Failed to load recommendations', 'error')
     } finally {
       setLoading(false)
@@ -756,6 +807,7 @@ function PickPageContent() {
             tier={resultsTier}
             onCompare={handleCompare}
             compareIds={compareIds}
+            meta={recommendMeta}
           />
         )}
 
