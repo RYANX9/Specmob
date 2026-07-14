@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import {
   ArrowRight, ArrowLeft, Camera, Battery, Zap, Smartphone,
   Feather, Monitor, Bolt, BadgeDollarSign, Check, Info,
-  ChevronRight, Crosshair, Gamepad2, Fold, Droplets, Waves,
+  ChevronRight, Crosshair, Gamepad2, Layers, Droplets, Waves,
 } from 'lucide-react'
 import Navbar from '@/app/components/Navbar'
 import Footer from '@/app/components/Footer'
@@ -53,7 +53,7 @@ const PRIORITIES = [
   { id: 'smooth_display',     label: 'High Refresh Rate',   desc: '120Hz+ for scrolling & games',  icon: <Waves size={24} strokeWidth={1.5} /> },
   { id: 'fast_charging',      label: 'Fast Charging',       desc: 'Quick top-ups, less waiting',   icon: <Bolt size={24} strokeWidth={1.5} /> },
   { id: 'wireless_charging',  label: 'Wireless Charging',   desc: 'Drop it on a pad, no cable',    icon: <Zap size={24} strokeWidth={1.5} /> },
-  { id: 'foldable',           label: 'Foldable',            desc: 'Fold-out or flip form factor',  icon: <Fold size={24} strokeWidth={1.5} /> },
+  { id: 'foldable',           label: 'Foldable',            desc: 'Fold-out or flip form factor',  icon: <Layers size={24} strokeWidth={1.5} /> },
   { id: 'durability',         label: 'Water/Dust Resistant',desc: 'Rated for rain, splashes, dust', icon: <Droplets size={24} strokeWidth={1.5} /> },
   { id: 'value',              label: 'Best Value',          desc: 'Most specs per dollar',         icon: <BadgeDollarSign size={24} strokeWidth={1.5} /> },
 ]
