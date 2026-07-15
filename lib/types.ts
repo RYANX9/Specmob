@@ -45,6 +45,14 @@ export interface Phone {
   match_score?: number | null
 }
 
+export interface PhoneVariant {
+  id: number
+  ram_gb: number
+  storage_gb: number
+  price_usd: number | null
+
+}
+
 export interface SmartScore {
   overall_score: number | null
   camera_score: number | null
