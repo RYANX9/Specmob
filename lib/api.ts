@@ -7,6 +7,7 @@ import type {
   CategoryResult,
   BrandStats,
   CompareVerdict,
+  PhoneVariant,
   RecommendResponse,
 } from './types'
 
