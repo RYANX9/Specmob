@@ -177,8 +177,6 @@ export const api = {
         { ...CACHE.noStore, signal },
       ),
 
-    // condition: filters price_history rows ('new' | 'used' | 'all')
-    // scope: filters price_points rows ('global' | 'local' | 'all')
     priceHistory: (
       id: number,
       opts: { condition?: 'new' | 'used' | 'all'; scope?: 'global' | 'local' | 'all' } = {},
@@ -188,6 +186,9 @@ export const api = {
         `/phones/${id}/price-history${qs(opts as Record<string, unknown>)}`,
         { ...CACHE.phoneDetail, signal },
       ),
+
+    variants: (id: number, signal?: AbortSignal) =>
+      req<{ phone_id: number; variants: PhoneVariant[] }>(`/phones/${id}/variants`, { ...CACHE.phoneDetail, signal }),
   },
 
   brands: {
