@@ -9,7 +9,7 @@ import {
 import {
   ChevronRight, Share2, GitCompare, ShoppingCart,
   Check, Camera, Battery, Cpu, Monitor,
-  Weight, Zap, Smartphone, ArrowRight, HardHat,
+  Weight, Zap, Smartphone, ArrowRight, HardHat, ExternalLink,
 } from 'lucide-react'
 import { api, type PricePointRow } from '@/lib/api'
 import { ROUTES, brandSlug, phoneSlug, valueScoreColor } from '@/lib/config'
@@ -22,6 +22,23 @@ import Navbar from '@/app/components/Navbar'
 import { useToast } from '@/app/components/Toast'
 import CompareBar from '@/app/components/CompareBar'
 import Footer from '@/app/components/Footer'
+
+// ─── variant types ─────────────────────────────────────────────────────────
+
+type PhoneVariant = {
+  ram_gb: number | null
+  storage_gb: number
+  price: number
+  url: string
+}
+
+function formatStorage(gb: number): string {
+  return gb >= 1000 ? `${gb / 1000}TB` : `${gb}GB`
+}
+
+function isSameVariant(a: PhoneVariant | null, b: PhoneVariant): boolean {
+  return !!a && a.storage_gb === b.storage_gb && a.ram_gb === b.ram_gb
+}
 
 // ─── HTML / text helpers ──────────────────────────────────────────────────────
 
@@ -254,6 +271,77 @@ function QuickSpecCard({ icon, value, label }: { icon: React.ReactNode; value: s
       <div style={{ color: c.text3, display: 'flex', justifyContent: 'center', marginBottom: 8 }}>{icon}</div>
       <div style={{ fontSize: 16, fontWeight: 600, color: c.text1, marginBottom: 3, lineHeight: 1.2 }}>{value}</div>
       <div style={{ fontSize: 11, color: c.text3, textTransform: 'uppercase' as const, letterSpacing: '0.3px' }}>{label}</div>
+    </div>
+  )
+}
+
+// ─── variant picker ─────────────────────────────────────────────────────────
+
+function VariantPicker({
+  variants,
+  loading,
+  selected,
+  onSelect,
+}: {
+  variants: PhoneVariant[]
+  loading: boolean
+  selected: PhoneVariant | null
+  onSelect: (v: PhoneVariant) => void
+}) {
+  if (loading) {
+    return <div className="skeleton" style={{ height: 92, borderRadius: 'var(--r-lg)', marginBottom: 18 }} />
+  }
+  if (!variants.length) return null
+
+  const hasRam = variants.some(v => v.ram_gb != null)
+  const cheapest = Math.min(...variants.map(v => v.price))
+
+  return (
+    <div style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-lg)', padding: '18px 20px', marginBottom: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: c.text1 }}>Choose a configuration</span>
+        <span style={{ fontSize: 11, color: c.text3 }}>{variants.length} option{variants.length > 1 ? 's' : ''}</span>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 8 }}>
+        {variants.map((v, i) => {
+          const isSelected = isSameVariant(selected, v)
+          const isCheapest = v.price === cheapest
+          return (
+            <button
+              key={`${v.ram_gb ?? 'x'}-${v.storage_gb}-${i}`}
+              onClick={() => onSelect(v)}
+              style={{
+                position: 'relative',
+                display: 'flex', flexDirection: 'column', gap: 3,
+                padding: '10px 12px', textAlign: 'left',
+                borderRadius: 'var(--r-md)', cursor: 'pointer',
+                border: `1.5px solid ${isSelected ? c.accent : c.border}`,
+                background: isSelected ? `${c.accent}12` : c.bg,
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.borderColor = c.borderHover }}
+              onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.borderColor = c.border }}
+            >
+              <span style={{ fontSize: 12, fontWeight: 600, color: isSelected ? c.accent : c.text1 }}>
+                {hasRam && v.ram_gb ? `${v.ram_gb}/${formatStorage(v.storage_gb)}` : formatStorage(v.storage_gb)}
+              </span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: c.text1 }}>
+                ${v.price.toLocaleString()}
+              </span>
+              {isCheapest && variants.length > 1 && (
+                <span style={{ position: 'absolute', top: -7, right: 8, fontSize: 9, fontWeight: 700, letterSpacing: '0.3px', color: 'var(--green)', background: 'var(--green-light)', border: '1px solid var(--green-border)', borderRadius: 'var(--r-full)', padding: '1px 6px' }}>
+                  BEST PRICE
+                </span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+
+      <p style={{ fontSize: 11, color: c.text3, marginTop: 10, lineHeight: 1.5 }}>
+        Prices reflect the selected storage{hasRam ? ' and RAM' : ''} configuration and may differ from the base listing above.
+      </p>
     </div>
   )
 }
@@ -563,6 +651,9 @@ function PhoneDetailContent() {
   const [comparePhones, setComparePhones] = useState<Phone[]>([])
   const [priceHistoryPoints, setPriceHistoryPoints] = useState<PricePointRow[]>([])
   const [priceHistoryLoading, setPriceHistoryLoading] = useState(false)
+  const [variants, setVariants]                 = useState<PhoneVariant[]>([])
+  const [variantsLoading, setVariantsLoading]   = useState(false)
+  const [selectedVariant, setSelectedVariant]   = useState<PhoneVariant | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const handleTabChange = (newTab: TabType) => {
@@ -586,6 +677,8 @@ function PhoneDetailContent() {
     setPhone(null)
     setSimilar([])
     setPriceHistoryPoints([])
+    setVariants([])
+    setSelectedVariant(null)
 
     resolvePhone(brand, model, controller.signal)
       .then(async found => {
@@ -613,6 +706,28 @@ function PhoneDetailContent() {
       .then(res => { if (!controller.signal.aborted) setPriceHistoryPoints(res.price_points ?? []) })
       .catch(() => { if (!controller.signal.aborted) setPriceHistoryPoints([]) })
       .finally(() => { if (!controller.signal.aborted) setPriceHistoryLoading(false) })
+    return () => controller.abort()
+  }, [phone?.id])
+
+  // Fetch storage/RAM price variants for this phone. Backed by GET /phones/{id}/variants
+  // — add a matching `variants(id, signal)` method next to `priceHistory` in lib/api.ts:
+  //
+  //   variants: (id: number, signal?: AbortSignal) =>
+  //     fetchJson<{ phone_id: number; variants: PhoneVariant[] }>(`/phones/${id}/variants`, signal),
+  //
+  useEffect(() => {
+    if (!phone?.id) return
+    const controller = new AbortController()
+    setVariantsLoading(true)
+    api.phones.variants(phone.id, controller.signal)
+      .then(res => {
+        if (controller.signal.aborted) return
+        const vs = (res?.variants ?? []) as PhoneVariant[]
+        setVariants(vs)
+        setSelectedVariant(vs[0] ?? null)
+      })
+      .catch(() => { if (!controller.signal.aborted) { setVariants([]); setSelectedVariant(null) } })
+      .finally(() => { if (!controller.signal.aborted) setVariantsLoading(false) })
     return () => controller.abort()
   }, [phone?.id])
 
@@ -685,6 +800,12 @@ function PhoneDetailContent() {
 
   // ── derived ──────────────────────────────────────────────────────────────────
   const displayPrice = resolveDisplayPrice(phone, priceHistoryPoints)
+
+  // Effective price/link reflect the selected variant when one exists; otherwise fall
+  // back to the phone table's own price (which is what phones with no variants use).
+  const effectivePrice = selectedVariant ? selectedVariant.price : displayPrice
+  const buyUrl   = selectedVariant?.url || phone.amazon_link
+  const isAmazon = !!buyUrl && buyUrl.includes('amazon.')
 
   const quickSpecs = [
     phone.screen_size         ? { icon: <Monitor size={20} strokeWidth={1.5} />, value: `${phone.screen_size}"`,                label: 'Display'  } : null,
@@ -802,9 +923,15 @@ function PhoneDetailContent() {
               {phone.model_name}
             </h1>
             <div style={{ fontSize: 'clamp(20px,2.5vw,28px)', fontWeight: 600, color: c.text1, marginBottom: 4 }}>
-              {displayPrice != null ? `$${Math.round(displayPrice).toLocaleString()}` : 'Price TBA'}
+              {effectivePrice != null ? `$${Math.round(effectivePrice).toLocaleString()}` : 'Price TBA'}
             </div>
-            {displayPrice != null && <div style={{ fontSize: 13, color: c.text3, marginBottom: 18 }}>Starting price · US</div>}
+            {effectivePrice != null && (
+              <div style={{ fontSize: 13, color: c.text3, marginBottom: 18 }}>
+                {selectedVariant
+                  ? `${selectedVariant.ram_gb ? `${selectedVariant.ram_gb}GB + ` : ''}${formatStorage(selectedVariant.storage_gb)} · US`
+                  : 'Starting price · US'}
+              </div>
+            )}
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
               <span style={{ padding: '4px 12px', background: 'var(--green-light)', color: 'var(--green)', border: '1px solid var(--green-border)', borderRadius: 'var(--r-full)', fontSize: 12, fontWeight: 600 }}>
@@ -837,6 +964,13 @@ function PhoneDetailContent() {
               </div>
             )}
 
+            <VariantPicker
+              variants={variants}
+              loading={variantsLoading}
+              selected={selectedVariant}
+              onSelect={setSelectedVariant}
+            />
+
             <div className="hero-actions">
               <button
                 onClick={handleCompareToggle}
@@ -853,23 +987,23 @@ function PhoneDetailContent() {
                 {inCompare ? 'In Compare' : 'Add to Compare'}
               </button>
 
-              {phone.amazon_link && (
+              {buyUrl && (
                 <a
-                  href={phone.amazon_link}
+                  href={buyUrl}
                   target="_blank"
-                  rel="noopener noreferrer sponsored"
+                  rel={isAmazon ? 'noopener noreferrer sponsored' : 'noopener noreferrer'}
                   style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 20px', fontSize: 14, fontWeight: 600, color: '#fff', background: c.primary, borderRadius: 'var(--r-full)', textDecoration: 'none', justifyContent: 'center', flex: 1 }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#2A2A42' }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = c.primary }}
                 >
-                  <ShoppingCart size={15} strokeWidth={2} />
-                  Buy on Amazon
+                  {isAmazon ? <ShoppingCart size={15} strokeWidth={2} /> : <ExternalLink size={15} strokeWidth={2} />}
+                  {isAmazon ? 'Buy on Amazon' : 'View This Price'}
                 </a>
               )}
             </div>
-            {phone.amazon_link && (
+            {buyUrl && (
               <span style={{ fontSize: 10, color: c.text3, display: 'block', marginTop: 6 }}>
-                Affiliate link — we may earn a commission
+                {isAmazon ? 'Affiliate link — we may earn a commission' : 'Price shown by third-party retailer, may change'}
               </span>
             )}
 
