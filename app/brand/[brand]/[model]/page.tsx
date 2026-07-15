@@ -296,6 +296,15 @@ function VariantPicker({
   const hasRam = variants.some(v => v.ram_gb != null)
   const cheapest = Math.min(...variants.map(v => v.price))
 
+  // Helper to format storage cleanly (e.g., 1024 -> 1TB, 512 -> 512GB)
+  const formatSize = (s: number) => {
+    if (s >= 1000) {
+      // Rounds 1024 or 1000 to 1, 2048 to 2, etc.
+      return `${Math.round(s / 1000)}TB`
+    }
+    return `${s}GB`
+  }
+
   return (
     <div style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-lg)', padding: '18px 20px', marginBottom: 18 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
@@ -324,7 +333,7 @@ function VariantPicker({
               onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.borderColor = c.border }}
             >
               <span style={{ fontSize: 12, fontWeight: 600, color: isSelected ? c.accent : c.text1 }}>
-                {hasRam && v.ram_gb ? `${v.ram_gb}/${formatStorage(v.storage_gb)}` : formatStorage(v.storage_gb)}
+                {hasRam && v.ram_gb ? `${v.ram_gb}/${formatSize(v.storage_gb)}` : formatSize(v.storage_gb)}
               </span>
               <span style={{ fontSize: 14, fontWeight: 700, color: c.text1 }}>
                 ${v.price.toLocaleString()}
@@ -345,6 +354,7 @@ function VariantPicker({
     </div>
   )
 }
+
 
 function OverviewSection({ title, headline, specs }: { title: string; headline: string; specs: { label: string; value: string }[] }) {
   if (!specs.length) return null
