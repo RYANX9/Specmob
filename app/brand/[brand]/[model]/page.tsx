@@ -7,7 +7,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
 import {
-  ChevronRight, Share2, GitCompare, ShoppingCart,
+  ChevronRight, ChevronLeft, Share2, GitCompare, ShoppingCart,
   Check, Camera, Battery, Cpu, Monitor,
   Weight, Zap, Smartphone, ArrowRight, HardHat, ExternalLink,
 } from 'lucide-react'
@@ -571,7 +571,6 @@ function PriceHistoryChart({ points, loading }: { points: PricePointRow[]; loadi
 }
 
 function SimilarCard({ phone }: { phone: Phone }) {
-  const [imgErr, setImgErr] = useState(false)
   const displayPrice = resolveDisplayPrice(phone)
   return (
     <Link
@@ -594,6 +593,102 @@ function SimilarCard({ phone }: { phone: Phone }) {
         <div style={{ fontSize: 11, color: c.text3, marginTop: 3 }}>{phone.main_camera_mp}MP · {phone.battery_capacity ? `${phone.battery_capacity}mAh` : ''}</div>
       )}
     </Link>
+  )
+}
+
+function buildGalleryUrls(phone: Phone): string[] {
+  const extra = (phone.images ?? [])
+    .slice()
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map(img => img.image_url)
+    .filter(url => url !== phone.main_image_url)
+
+  const urls = phone.main_image_url ? [phone.main_image_url, ...extra] : extra
+  return urls.filter(Boolean)
+}
+
+function PhoneGallery({ phone }: { phone: Phone }) {
+  const gallery = buildGalleryUrls(phone)
+  const [index, setIndex] = useState(0)
+  const [failed, setFailed] = useState<Record<number, boolean>>({})
+
+  const current = gallery[index]
+  const hasMultiple = gallery.length > 1
+  const goTo = (i: number) => setIndex((i + gallery.length) % gallery.length)
+
+  return (
+    <div style={{
+      background: c.surface, border: `1px solid ${c.border}`,
+      borderRadius: 'var(--r-xl)', padding: 32,
+      display: 'flex', flexDirection: 'column', gap: 16,
+    }}>
+      <div style={{ position: 'relative', aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {current && !failed[index]
+          ? <img
+              src={current}
+              alt={`${phone.brand} ${phone.model_name}`}
+              onError={() => setFailed(prev => ({ ...prev, [index]: true }))}
+              style={{ maxWidth: '72%', maxHeight: '72%', objectFit: 'contain' }}
+            />
+          : <Smartphone size={100} color={c.border} strokeWidth={0.8} />}
+
+        {phone.release_year && (
+          <div style={{ position: 'absolute', top: 14, right: 14, background: c.bg, border: `1px solid ${c.border}`, borderRadius: 'var(--r-full)', padding: '4px 10px', fontSize: 11, fontWeight: 600, color: c.text3 }}>
+            {phone.release_year}
+          </div>
+        )}
+
+        {hasMultiple && (
+          <>
+            <button
+              onClick={() => goTo(index - 1)}
+              aria-label="Previous image"
+              style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', width: 32, height: 32, borderRadius: '50%', background: c.surface, border: `1px solid ${c.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.text2, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button
+              onClick={() => goTo(index + 1)}
+              aria-label="Next image"
+              style={{ position: 'absolute', right: 4, top: '50%', transform: 'translateY(-50%)', width: 32, height: 32, borderRadius: '50%', background: c.surface, border: `1px solid ${c.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.text2, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}
+            >
+              <ChevronRight size={16} />
+            </button>
+          </>
+        )}
+      </div>
+
+      {hasMultiple && (
+        <div className="scrollbar-none" style={{ display: 'flex', gap: 8, overflowX: 'auto' }}>
+          {gallery.map((url, i) => (
+            <button
+              key={`${url}-${i}`}
+              onClick={() => setIndex(i)}
+              aria-label={`View image ${i + 1}`}
+              aria-current={i === index}
+              style={{
+                flexShrink: 0, width: 56, height: 56, padding: 0,
+                borderRadius: 'var(--r-sm)',
+                border: `2px solid ${i === index ? c.accent : c.border}`,
+                background: c.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                overflow: 'hidden', cursor: 'pointer', transition: 'border-color 0.15s',
+              }}
+            >
+              {!failed[i]
+                ? <img
+                    src={url}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    onError={() => setFailed(prev => ({ ...prev, [i]: true }))}
+                    style={{ width: '80%', height: '80%', objectFit: 'contain' }}
+                  />
+                : <Smartphone size={20} color={c.border} strokeWidth={1} />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -909,20 +1004,7 @@ function PhoneDetailContent() {
         </nav>
 
         <div className="phone-hero-grid">
-          <div style={{
-            background: c.surface, border: `1px solid ${c.border}`,
-            borderRadius: 'var(--r-xl)', padding: 32,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            aspectRatio: '1', position: 'relative',
-          }}>
-            {phone.main_image_url && !imgErr
-              ? <img src={phone.main_image_url} alt={`${phone.brand} ${phone.model_name}`} onError={() => setImgErr(true)} style={{ maxWidth: '72%', maxHeight: '72%', objectFit: 'contain' }} />
-              : <Smartphone size={100} color={c.border} strokeWidth={0.8} />}
-            {phone.release_year && (
-              <div style={{ position: 'absolute', top: 14, right: 14, background: c.bg, border: `1px solid ${c.border}`, borderRadius: 'var(--r-full)', padding: '4px 10px', fontSize: 11, fontWeight: 600, color: c.text3 }}>
-                {phone.release_year}
-              </div>
-            )}
+            <PhoneGallery phone={phone} />
           </div>
 
           <div>
