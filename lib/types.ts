@@ -53,6 +53,12 @@ export interface PhoneVariant {
 
 }
 
+export interface PhoneImage {
+  id: number
+  image_url: string
+  sort_order: number
+}
+
 export interface SmartScore {
   overall_score: number | null
   camera_score: number | null
