@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Search, ArrowRight, Camera, Battery, Zap, Tag, Feather,
   Smartphone, ChevronLeft, ChevronRight, ChevronDown,
-  Gamepad2, Monitor, Bolt, BadgeDollarSign, Check, X, Sparkles,
+  Gamepad2, Monitor, Bolt, BadgeDollarSign, Check, X, RotateCcw,
 } from 'lucide-react'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
@@ -19,17 +19,16 @@ import { ROUTES, brandSlug, phoneSlug, PAGE_SIZE, MAX_COMPARE, CATEGORY_META } f
 import { c, f, z, mq } from '@/lib/tokens'
 import { PRICE_TIERS, type PriceTierId } from '@/lib/priceTiers'
 import type { Phone, SearchFilters } from '@/lib/types'
-import { formatDisplayPrice } from '@/lib/price'
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
-  'camera-phones':  <Camera size={20} strokeWidth={1.5} />,
-  'battery-life':   <Battery size={20} strokeWidth={1.5} />,
-  'gaming-phones':  <Zap size={20} strokeWidth={1.5} />,
-  'under-300':      <Tag size={20} strokeWidth={1.5} />,
-  'under-500':      <Tag size={20} strokeWidth={1.5} />,
-  'lightweight':    <Feather size={20} strokeWidth={1.5} />,
-  'compact-phones': <Smartphone size={20} strokeWidth={1.5} />,
-  'fast-charging':  <Zap size={20} strokeWidth={1.5} />,
+  'camera-phones':  <Camera size={18} strokeWidth={1.5} />,
+  'battery-life':   <Battery size={18} strokeWidth={1.5} />,
+  'gaming-phones':  <Zap size={18} strokeWidth={1.5} />,
+  'under-300':      <Tag size={18} strokeWidth={1.5} />,
+  'under-500':      <Tag size={18} strokeWidth={1.5} />,
+  'lightweight':    <Feather size={18} strokeWidth={1.5} />,
+  'compact-phones': <Smartphone size={18} strokeWidth={1.5} />,
+  'fast-charging':  <Zap size={18} strokeWidth={1.5} />,
 }
 
 const SORT_OPTIONS = [
@@ -43,28 +42,23 @@ const SORT_OPTIONS = [
 
 const EMPTY_FILTERS: SearchFilters = {}
 
-// Quick-pick priorities shown on the homepage launcher. Full 13-option list
-// still lives in /pick step 2 — this is a deliberately trimmed subset so the
-// hero card stays a single glance, not another form to fill out.
 const QUICK_PRIORITIES: { id: string; label: string; icon: React.ReactNode }[] = [
-  { id: 'camera',        label: 'Camera',        icon: <Camera size={17} strokeWidth={1.5} /> },
-  { id: 'battery',       label: 'Battery',       icon: <Battery size={17} strokeWidth={1.5} /> },
-  { id: 'performance',   label: 'Performance',   icon: <Zap size={17} strokeWidth={1.5} /> },
-  { id: 'gaming',        label: 'Gaming',        icon: <Gamepad2 size={17} strokeWidth={1.5} /> },
-  { id: 'display',       label: 'Display',       icon: <Monitor size={17} strokeWidth={1.5} /> },
-  { id: 'fast_charging', label: 'Fast Charging', icon: <Bolt size={17} strokeWidth={1.5} /> },
-  { id: 'compact',       label: 'Compact',       icon: <Smartphone size={17} strokeWidth={1.5} /> },
-  { id: 'lightweight',   label: 'Lightweight',   icon: <Feather size={17} strokeWidth={1.5} /> },
-  { id: 'value',         label: 'Best Value',    icon: <BadgeDollarSign size={17} strokeWidth={1.5} /> },
+  { id: 'camera',        label: 'Camera',        icon: <Camera size={14} strokeWidth={2} /> },
+  { id: 'battery',       label: 'Battery',       icon: <Battery size={14} strokeWidth={2} /> },
+  { id: 'performance',   label: 'Performance',   icon: <Zap size={14} strokeWidth={2} /> },
+  { id: 'gaming',        label: 'Gaming',        icon: <Gamepad2 size={14} strokeWidth={2} /> },
+  { id: 'display',       label: 'Display',       icon: <Monitor size={14} strokeWidth={2} /> },
+  { id: 'fast_charging', label: 'Fast Charging', icon: <Bolt size={14} strokeWidth={2} /> },
+  { id: 'compact',       label: 'Compact',       icon: <Smartphone size={14} strokeWidth={2} /> },
+  { id: 'lightweight',   label: 'Lightweight',   icon: <Feather size={14} strokeWidth={2} /> },
+  { id: 'value',         label: 'Best Value',    icon: <BadgeDollarSign size={14} strokeWidth={2} /> },
 ]
 
-const TIER_COLOR: Record<PriceTierId, string> = {
-  s: '#C9A84C',
-  a: 'var(--accent)',
-  b: 'var(--blue)',
-  c: 'var(--green)',
-  d: 'var(--text-2)',
-}
+const STEPS_COPY = [
+  { n: '01', title: 'Set your budget', desc: 'Five clear tiers, budget to ultra flagship.' },
+  { n: '02', title: 'Pick what matters', desc: 'Camera, battery, gaming — 2 or 3, no more.' },
+  { n: '03', title: 'Get your answer', desc: 'Five ranked phones. Reasoning included. Done.' },
+]
 
 function parseFiltersFromParams(sp: URLSearchParams): SearchFilters {
   return {
@@ -114,10 +108,17 @@ function hasActiveUrlState(sp: URLSearchParams): boolean {
   return false
 }
 
-// ─── Pick launcher: the actual homepage. Budget + priorities in, straight to
-// your 5 matches. This replaces "search bar + button" as the primary CTA. ───
+// ─── Hero: full-bleed dark editorial panel. Left = statement + sequence,
+// right = the picker itself, staged (step 2 doesn't exist until step 1 is
+// answered). Nothing here is a "card floating on the page" — it IS the page. ───
 
-function PickLauncher() {
+function Hero({ searchOpen, setSearchOpen, searchQuery, setSearchQuery, onSearchSubmit }: {
+  searchOpen: boolean
+  setSearchOpen: (v: boolean) => void
+  searchQuery: string
+  setSearchQuery: (v: string) => void
+  onSearchSubmit: (e: React.FormEvent) => void
+}) {
   const router = useRouter()
   const [tierId, setTierId] = useState<PriceTierId | null>(null)
   const [priorities, setPriorities] = useState<Set<string>>(new Set())
@@ -132,6 +133,7 @@ function PickLauncher() {
   }
 
   const ready = !!tierId && priorities.size >= 2
+  const activeTier = tierId ? PRICE_TIERS.find(t => t.id === tierId) : null
 
   const handleGo = () => {
     if (!ready) return
@@ -142,95 +144,209 @@ function PickLauncher() {
     router.push(`/pick?${params.toString()}`)
   }
 
+  const handleReset = () => { setTierId(null); setPriorities(new Set()) }
+
   return (
-    <div style={{
-      background: c.surface, border: `1px solid ${c.border}`,
-      borderRadius: 'var(--r-xl)', padding: '32px', boxShadow: 'var(--shadow-lg)',
-      maxWidth: 720, margin: '0 auto', textAlign: 'left',
-    }}>
-      <div style={{ marginBottom: 22 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: c.accent, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 8 }}>
-          Step 1 — Your budget
-        </div>
-        <div className="pick-tier-row" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {PRICE_TIERS.map(tier => {
-            const active = tierId === tier.id
-            const priceLabel = tier.max == null ? `$${tier.min.toLocaleString()}+` : `$${tier.min}–$${tier.max}`
-            return (
-              <button
-                key={tier.id}
-                onClick={() => setTierId(tier.id)}
-                style={{
-                  flex: '1 1 100px', padding: '10px 8px', textAlign: 'center',
-                  borderRadius: 'var(--r-md)', cursor: 'pointer', transition: 'all 0.15s',
-                  border: `2px solid ${active ? TIER_COLOR[tier.id] : c.border}`,
-                  background: active ? `${TIER_COLOR[tier.id]}12` : 'transparent',
-                }}
-              >
-                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.4px', color: TIER_COLOR[tier.id], marginBottom: 3 }}>
-                  {tier.label}
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: c.text1 }}>{priceLabel}</div>
-              </button>
-            )
-          })}
-        </div>
-      </div>
+    <section style={{ background: c.primary, position: 'relative', overflow: 'hidden' }}>
+      <div style={{
+        position: 'absolute', top: '-20%', right: '-8%', width: 520, height: 520,
+        borderRadius: '50%', background: 'radial-gradient(circle, rgba(230,57,70,0.16) 0%, transparent 70%)',
+        pointerEvents: 'none',
+      }} />
 
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: c.accent, textTransform: 'uppercase', letterSpacing: '0.6px' }}>
-            Step 2 — What matters most
+      <div className="hero-grid" style={{
+        maxWidth: 'var(--max-w)', margin: '0 auto', padding: '64px var(--page-px) 56px',
+        display: 'grid', gridTemplateColumns: '1fr 460px', gap: 56, alignItems: 'start',
+        position: 'relative',
+      }}>
+        {/* ── Left: the statement ── */}
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 26 }}>
+            <span style={{ width: 7, height: 7, background: c.accent, display: 'inline-block' }} />
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1.4px' }}>
+              No specs. No tabs. One answer.
+            </span>
           </div>
-          <span style={{ fontSize: 12, color: c.text3 }}>Pick 2–3 · {priorities.size} selected</span>
-        </div>
-        <div className="pick-priority-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-          {QUICK_PRIORITIES.map(p => {
-            const active = priorities.has(p.id)
-            const dimmed = priorities.size >= 3 && !active
-            return (
+
+          <h1 className="hero-headline" style={{
+            fontFamily: f.serif, letterSpacing: '-1.5px', lineHeight: 1.02, marginBottom: 24,
+          }}>
+            <span style={{ display: 'block', color: '#fff' }}>Stop comparing</span>
+            <span style={{ display: 'block', color: '#fff' }}>specs.</span>
+            <span style={{ display: 'block', color: c.accent, fontStyle: 'italic' }}>Start deciding.</span>
+          </h1>
+
+          <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.55)', lineHeight: 1.65, maxWidth: 400, marginBottom: 44 }}>
+            Budget in, priorities in, five phones out — ranked, reasoned, done. The full catalog is still here if you want it. You won't need it.
+          </p>
+
+          <div className="hero-steps" style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+            {STEPS_COPY.map(step => (
+              <div key={step.n} style={{ display: 'flex', alignItems: 'baseline', gap: 18 }}>
+                <span style={{ fontFamily: f.serif, fontSize: 34, color: 'rgba(255,255,255,0.14)', lineHeight: 1, minWidth: 44 }}>{step.n}</span>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', marginBottom: 2 }}>{step.title}</div>
+                  <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>{step.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ marginTop: 40 }}>
+            {!searchOpen ? (
               <button
-                key={p.id}
-                onClick={() => togglePriority(p.id)}
-                disabled={dimmed}
+                onClick={() => setSearchOpen(true)}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 7, padding: '9px 10px',
-                  borderRadius: 'var(--r-sm)', cursor: dimmed ? 'not-allowed' : 'pointer',
-                  border: `1.5px solid ${active ? c.primary : c.border}`,
-                  background: active ? 'rgba(26,26,46,0.05)' : 'transparent',
-                  opacity: dimmed ? 0.4 : 1, transition: 'all 0.15s',
+                  fontSize: 13, color: 'rgba(255,255,255,0.5)', background: 'none', border: 'none',
+                  cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
+                  paddingBottom: 2, borderBottom: '1px solid rgba(255,255,255,0.2)',
                 }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#fff' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.5)' }}
               >
-                <span style={{ color: active ? c.primary : c.text3, display: 'flex', flexShrink: 0 }}>{p.icon}</span>
-                <span style={{ fontSize: 12.5, fontWeight: 500, color: c.text1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.label}</span>
-                {active && <Check size={12} color={c.primary} strokeWidth={3} style={{ marginLeft: 'auto', flexShrink: 0 }} />}
+                <Search size={12} /> Already know the model? Search directly
               </button>
-            )
-          })}
+            ) : (
+              <form onSubmit={onSearchSubmit} style={{ position: 'relative', maxWidth: 340 }}>
+                <Search size={13} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.4)' }} />
+                <input
+                  autoFocus
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  placeholder="iPhone 17 Pro, Galaxy S26..."
+                  aria-label="Search phones directly"
+                  style={{
+                    width: '100%', height: 40, padding: '0 36px 0 36px',
+                    background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)',
+                    borderRadius: 'var(--r-full)', fontSize: 13, color: '#fff',
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => { setSearchOpen(false); setSearchQuery('') }}
+                  aria-label="Close search"
+                  style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.4)', display: 'flex', background: 'none', border: 'none', cursor: 'pointer', padding: 6 }}
+                >
+                  <X size={12} />
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+
+        {/* ── Right: the picker console ── */}
+        <div style={{
+          background: '#22223a', border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: 'var(--r-lg)', padding: '26px 26px 24px', position: 'relative',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+              Your budget
+            </span>
+            {(tierId || priorities.size > 0) && (
+              <button
+                onClick={handleReset}
+                style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'rgba(255,255,255,0.4)', background: 'none', border: 'none', cursor: 'pointer' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#fff' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.4)' }}
+              >
+                <RotateCcw size={10} /> Reset
+              </button>
+            )}
+          </div>
+
+          <div className="tier-segmented" style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.12)', marginBottom: 22 }}>
+            {PRICE_TIERS.map(tier => {
+              const active = tierId === tier.id
+              return (
+                <button
+                  key={tier.id}
+                  onClick={() => setTierId(tier.id)}
+                  style={{
+                    flex: 1, padding: '0 0 12px', background: 'none', border: 'none', cursor: 'pointer',
+                    borderBottom: `2px solid ${active ? c.accent : 'transparent'}`, marginBottom: -1,
+                    display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center',
+                  }}
+                >
+                  <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.5px', color: active ? '#fff' : 'rgba(255,255,255,0.35)' }}>
+                    {tier.label}
+                  </span>
+                  <span style={{ fontSize: 11, color: active ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.3)' }}>
+                    {tier.max == null ? `$${tier.min / 1000}k+` : `$${tier.min}–${tier.max}`}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+
+          {!tierId ? (
+            <div style={{ padding: '18px 4px 22px', fontSize: 13, color: 'rgba(255,255,255,0.35)', lineHeight: 1.6 }}>
+              Pick a budget above to see what's worth choosing between.
+            </div>
+          ) : (
+            <div style={{ animation: 'fadeIn 0.25s ease' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                  What matters most
+                </span>
+                <span style={{ fontSize: 11, color: priorities.size >= 2 ? c.accent : 'rgba(255,255,255,0.35)' }}>
+                  {priorities.size}/3
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 22 }}>
+                {QUICK_PRIORITIES.map(p => {
+                  const active = priorities.has(p.id)
+                  const dimmed = priorities.size >= 3 && !active
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => togglePriority(p.id)}
+                      disabled={dimmed}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px',
+                        borderRadius: 'var(--r-full)', cursor: dimmed ? 'not-allowed' : 'pointer',
+                        border: `1px solid ${active ? c.accent : 'rgba(255,255,255,0.16)'}`,
+                        background: active ? c.accent : 'transparent',
+                        opacity: dimmed ? 0.35 : 1, transition: 'all 0.12s',
+                      }}
+                    >
+                      <span style={{ color: active ? '#fff' : 'rgba(255,255,255,0.5)', display: 'flex' }}>{p.icon}</span>
+                      <span style={{ fontSize: 12, fontWeight: 500, color: active ? '#fff' : 'rgba(255,255,255,0.7)' }}>{p.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              <button
+                onClick={handleGo}
+                disabled={!ready}
+                style={{
+                  width: '100%', padding: '14px 18px', borderRadius: 'var(--r-md)',
+                  fontSize: 14, fontWeight: 700, border: 'none',
+                  background: ready ? c.accent : 'rgba(255,255,255,0.08)',
+                  color: ready ? '#fff' : 'rgba(255,255,255,0.35)',
+                  cursor: ready ? 'pointer' : 'not-allowed',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={e => { if (ready) (e.currentTarget as HTMLElement).style.background = '#D32F3E' }}
+                onMouseLeave={e => { if (ready) (e.currentTarget as HTMLElement).style.background = c.accent }}
+              >
+                <span>{ready ? 'Show my 5 matches' : `Pick ${2 - priorities.size} more`}</span>
+                <ArrowRight size={16} strokeWidth={2.4} />
+              </button>
+
+              {activeTier && (
+                <div style={{ marginTop: 12, fontSize: 11.5, color: 'rgba(255,255,255,0.35)' }}>
+                  {activeTier.name} · {priorities.size > 0 ? Array.from(priorities).map(id => QUICK_PRIORITIES.find(q => q.id === id)?.label).join(', ') : 'no priorities yet'}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
-
-      <button
-        onClick={handleGo}
-        disabled={!ready}
-        style={{
-          width: '100%', padding: '15px 0', borderRadius: 'var(--r-full)',
-          fontSize: 15, fontWeight: 700, border: 'none',
-          background: ready ? c.accent : '#E0E0DC',
-          color: ready ? '#fff' : c.text3,
-          cursor: ready ? 'pointer' : 'not-allowed',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          boxShadow: ready ? '0 4px 16px rgba(230,57,70,0.28)' : 'none',
-          transition: 'all 0.15s',
-        }}
-        onMouseEnter={e => { if (ready) (e.currentTarget as HTMLElement).style.background = '#D32F3E' }}
-        onMouseLeave={e => { if (ready) (e.currentTarget as HTMLElement).style.background = c.accent }}
-      >
-        {ready
-          ? <>Show My 5 Matches <ArrowRight size={17} strokeWidth={2.4} /></>
-          : `Select a budget and ${Math.max(2 - priorities.size, 0) > 0 ? `${2 - priorities.size} more priorit${2 - priorities.size === 1 ? 'y' : 'ies'}` : 'a budget'}`}
-      </button>
-    </div>
+    </section>
   )
 }
 
@@ -402,10 +518,6 @@ function HomeContent() {
   const [searchOpen, setSearchOpen]       = useState(!!searchParams.get('q'))
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
 
-  // Catalog (grid + filter sidebar) is collapsed by default. It's the
-  // "I already know what I want" escape hatch, not the landing experience —
-  // opens automatically only if the URL already encodes a search/filter/page
-  // state (e.g. someone bookmarked or shared a filtered link).
   const [catalogOpen, setCatalogOpen] = useState(() => hasActiveUrlState(new URLSearchParams(searchParams.toString())))
 
   const ownUpdate = useRef(false)
@@ -447,8 +559,6 @@ function HomeContent() {
     }
   }, [toast])
 
-  // Only hits the search endpoint once the catalog is actually opened —
-  // no point loading a full page grid nobody asked to see.
   useEffect(() => {
     if (!catalogOpen) return
     const controller = new AbortController()
@@ -507,89 +617,35 @@ function HomeContent() {
         onOpenCompare={() => comparePhones.length >= 2 && router.push(ROUTES.compare(...comparePhones.map(p => phoneSlug(p))))}
       />
 
-      {/* ── HERO: the Pick flow itself, not a link to it ─────────────────── */}
-      <section style={{ maxWidth: 900, margin: '0 auto', padding: '56px var(--page-px) 24px', textAlign: 'center' }}>
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 14px', background: 'var(--accent-light)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-full)', fontSize: 12, fontWeight: 700, color: c.accent, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 18 }}>
-          <Sparkles size={12} /> 30 seconds to your phone
-        </div>
-        <h1 style={{ fontFamily: f.serif, fontSize: 'clamp(34px, 5vw, 50px)', color: c.text1, letterSpacing: '-0.8px', lineHeight: 1.12, marginBottom: 14 }}>
-          Stop comparing specs.<br />Start deciding.
-        </h1>
-        <p style={{ fontSize: 'clamp(15px, 2vw, 17px)', color: c.text2, lineHeight: 1.6, marginBottom: 36, maxWidth: 520, margin: '0 auto 36px' }}>
-          Tell us your budget and what matters to you. We'll narrow the entire catalog down to 5 phones — no spec sheets, no tabs, no guessing.
-        </p>
+      <Hero
+        searchOpen={searchOpen}
+        setSearchOpen={setSearchOpen}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        onSearchSubmit={handleSearchSubmit}
+      />
 
-        <PickLauncher />
-
-        <div style={{ marginTop: 22 }}>
-          {!searchOpen ? (
-            <button
-              onClick={() => setSearchOpen(true)}
-              style={{ fontSize: 13, color: c.text3, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = c.text1 }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = c.text3 }}
-            >
-              Already know the model you want? Search directly →
-            </button>
-          ) : (
-            <form onSubmit={handleSearchSubmit} style={{ position: 'relative', maxWidth: 420, margin: '0 auto' }}>
-              <Search size={14} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: c.text3, pointerEvents: 'none' }} />
-              <input
-                autoFocus
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                placeholder="e.g. iPhone 17 Pro, Galaxy S26"
-                aria-label="Search phones directly"
-                style={{
-                  width: '100%', height: 42, padding: '0 40px 0 36px',
-                  background: c.surface, border: `1px solid ${c.border}`,
-                  borderRadius: 'var(--r-full)', fontSize: 14, color: c.text1,
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => { setSearchOpen(false); setSearchQuery('') }}
-                aria-label="Close search"
-                style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', color: c.text3, display: 'flex', background: 'none', border: 'none', cursor: 'pointer', padding: 6 }}
-              >
-                <X size={13} />
-              </button>
-            </form>
-          )}
+      {/* ── Rankings strip ── */}
+      <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '52px var(--page-px) 0' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 16 }}>
+          <span style={{ fontFamily: f.serif, fontSize: 20, color: c.text1 }}>Or jump straight to a ranking</span>
+          <span style={{ fontSize: 12, color: c.text3 }}>— pre-decided, updated daily</span>
         </div>
-      </section>
-
-      {/* ── How it works — reinforces the decision framing, not another search tool ── */}
-      <section style={{ maxWidth: 900, margin: '0 auto', padding: '20px var(--page-px) 56px' }}>
-        <div className="how-it-works-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
-          {[
-            { n: '01', title: 'Set your budget', desc: 'Five clear tiers, from budget to ultra flagship. Or enter your own range.' },
-            { n: '02', title: 'Pick what matters', desc: 'Camera, battery, gaming, whatever you actually care about — 2 or 3 max.' },
-            { n: '03', title: 'Get your answer', desc: 'Five ranked phones with the reasoning and trade-offs spelled out. Done.' },
-          ].map(step => (
-            <div key={step.n} style={{ textAlign: 'left' }}>
-              <div style={{ fontFamily: f.serif, fontSize: 26, color: 'var(--border-hover)', marginBottom: 6 }}>{step.n}</div>
-              <div style={{ fontSize: 15, fontWeight: 600, color: c.text1, marginBottom: 4 }}>{step.title}</div>
-              <div style={{ fontSize: 13, color: c.text3, lineHeight: 1.55 }}>{step.desc}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── Rankings strip — secondary, for people who want to browse a verdict instead of taking the quiz ── */}
-      <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 var(--page-px)', marginBottom: 48 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: c.text3, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 14 }}>
-          Or jump straight to a ranking
-        </div>
-        <div className="scrollbar-none" style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 4 }}>
-          {Object.entries(CATEGORY_META).map(([slug, meta]) => (
+        <div className="scrollbar-none" style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
+          {Object.entries(CATEGORY_META).map(([slug, meta], i) => (
             <Link
               key={slug} href={ROUTES.category(slug)}
-              style={{ flexShrink: 0, width: 138, padding: '18px 14px', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-lg)', textAlign: 'center', transition: 'all 0.15s', display: 'block' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-md)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-hover)' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'none'; (e.currentTarget as HTMLElement).style.boxShadow = 'none'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}
+              style={{
+                flexShrink: 0, width: 168, padding: '16px 16px 14px', background: c.surface,
+                border: `1px solid ${c.border}`, borderRadius: 'var(--r-md)', transition: 'all 0.15s', display: 'block',
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = c.accent }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = c.border }}
             >
-              <div style={{ color: c.text2, display: 'flex', justifyContent: 'center', marginBottom: 8 }}>{CATEGORY_ICONS[slug]}</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                <span style={{ color: c.text2, display: 'flex' }}>{CATEGORY_ICONS[slug]}</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: c.text3 }}>{String(i + 1).padStart(2, '0')}</span>
+              </div>
               <div style={{ fontSize: 13, fontWeight: 600, color: c.text1, marginBottom: 2 }}>{meta.title}</div>
               <div style={{ fontSize: 11, color: c.text3 }}>{meta.desc}</div>
             </Link>
@@ -598,24 +654,29 @@ function HomeContent() {
       </div>
 
       <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 var(--page-px)' }}>
-        <TrendingScroll phones={trending} />
+        <div style={{ marginTop: 48 }}>
+          <TrendingScroll phones={trending} />
+        </div>
       </div>
 
-      {/* ── Catalog — deliberately collapsed. This is the "more searching" path, not the front door. ── */}
+      {/* ── Catalog fallback — collapsed by default ── */}
       <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 var(--page-px) 24px' }}>
         {!catalogOpen ? (
           <button
             onClick={openCatalog}
             style={{
-              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              padding: '16px 0', background: c.surface, border: `1px dashed ${c.border}`,
-              borderRadius: 'var(--r-lg)', color: c.text2, fontSize: 14, fontWeight: 500,
+              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '18px 24px', background: c.primary, border: 'none',
+              borderRadius: 'var(--r-lg)', color: '#fff', fontSize: 14, fontWeight: 500,
               cursor: 'pointer', transition: 'all 0.15s',
             }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = c.primary; (e.currentTarget as HTMLElement).style.color = c.text1 }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = c.border; (e.currentTarget as HTMLElement).style.color = c.text2 }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#2A2A42' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = c.primary }}
           >
-            Prefer to browse the full catalog yourself? <ChevronDown size={15} />
+            <span>Prefer to browse the full catalog yourself?</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'rgba(255,255,255,0.6)', fontSize: 13 }}>
+              Open catalog <ChevronDown size={15} />
+            </span>
           </button>
         ) : (
           <div style={{ height: 1, background: c.border, marginBottom: 8 }} />
@@ -736,19 +797,24 @@ function HomeContent() {
       )}
 
       <style>{`
+        .hero-headline { font-size: clamp(40px, 4.6vw, 60px); }
         .phone-grid-layout { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+        ${mq.xl} {
+          .hero-grid { grid-template-columns: 1fr !important; }
+        }
         ${mq.lg} {
           #phone-grid { grid-template-columns: 1fr !important; }
           .filter-sidebar { display: none !important; }
           .mobile-filter-btn { display: flex !important; }
           .phone-grid-layout { grid-template-columns: repeat(4, 1fr); gap: 12px; }
-          .how-it-works-grid { grid-template-columns: 1fr !important; gap: 24px !important; }
         }
         @media (max-width: 860px) { .phone-grid-layout { grid-template-columns: repeat(3, 1fr); gap: 10px; } }
         ${mq.sm} {
+          .hero-headline { font-size: 34px !important; }
+          .hero-steps { display: none !important; }
           .phone-grid-layout { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-          .pick-priority-grid { grid-template-columns: repeat(2, 1fr) !important; }
-          .pick-tier-row > button { flex: 1 1 45% !important; }
+          .tier-segmented { flex-wrap: wrap; }
+          .tier-segmented > button { flex: 1 1 33%; }
         }
       `}</style>
     </div>
