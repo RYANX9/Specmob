@@ -1005,7 +1005,6 @@ function PhoneDetailContent() {
 
         <div className="phone-hero-grid">
             <PhoneGallery phone={phone} />
-          </div>
 
           <div>
             <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.6px', color: c.text3, marginBottom: 6 }}>
