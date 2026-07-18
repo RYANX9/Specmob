@@ -571,6 +571,7 @@ function PriceHistoryChart({ points, loading }: { points: PricePointRow[]; loadi
 }
 
 function SimilarCard({ phone }: { phone: Phone }) {
+  const [imgErr, setImgErr] = useState(false)
   const displayPrice = resolveDisplayPrice(phone)
   return (
     <Link
