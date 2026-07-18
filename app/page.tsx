@@ -4,9 +4,9 @@ import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
-  Search, ArrowRight, Camera, Battery, Zap, Tag, Feather,
+  Search, ArrowRight, ArrowUpRight, Camera, Battery, Zap, Tag, Feather,
   Smartphone, ChevronLeft, ChevronRight, ChevronDown,
-  Gamepad2, Monitor, Bolt, BadgeDollarSign, Check, X, RotateCcw,
+  Gamepad2, Monitor, Bolt, BadgeDollarSign, X, RotateCcw,
 } from 'lucide-react'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
@@ -21,14 +21,14 @@ import { PRICE_TIERS, type PriceTierId } from '@/lib/priceTiers'
 import type { Phone, SearchFilters } from '@/lib/types'
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
-  'camera-phones':  <Camera size={18} strokeWidth={1.5} />,
-  'battery-life':   <Battery size={18} strokeWidth={1.5} />,
-  'gaming-phones':  <Zap size={18} strokeWidth={1.5} />,
-  'under-300':      <Tag size={18} strokeWidth={1.5} />,
-  'under-500':      <Tag size={18} strokeWidth={1.5} />,
-  'lightweight':    <Feather size={18} strokeWidth={1.5} />,
-  'compact-phones': <Smartphone size={18} strokeWidth={1.5} />,
-  'fast-charging':  <Zap size={18} strokeWidth={1.5} />,
+  'camera-phones':  <Camera size={16} strokeWidth={1.5} />,
+  'battery-life':   <Battery size={16} strokeWidth={1.5} />,
+  'gaming-phones':  <Zap size={16} strokeWidth={1.5} />,
+  'under-300':      <Tag size={16} strokeWidth={1.5} />,
+  'under-500':      <Tag size={16} strokeWidth={1.5} />,
+  'lightweight':    <Feather size={16} strokeWidth={1.5} />,
+  'compact-phones': <Smartphone size={16} strokeWidth={1.5} />,
+  'fast-charging':  <Zap size={16} strokeWidth={1.5} />,
 }
 
 const SORT_OPTIONS = [
@@ -54,10 +54,10 @@ const QUICK_PRIORITIES: { id: string; label: string; icon: React.ReactNode }[] =
   { id: 'value',         label: 'Best Value',    icon: <BadgeDollarSign size={14} strokeWidth={2} /> },
 ]
 
-const STEPS_COPY = [
-  { n: '01', title: 'Set your budget', desc: 'Five clear tiers, budget to ultra flagship.' },
-  { n: '02', title: 'Pick what matters', desc: 'Camera, battery, gaming — 2 or 3, no more.' },
-  { n: '03', title: 'Get your answer', desc: 'Five ranked phones. Reasoning included. Done.' },
+const PROOF_STATS = [
+  { value: '12,000+', label: 'phones tracked' },
+  { value: 'Daily',   label: 'price refresh' },
+  { value: 'Zero',    label: 'sponsored picks' },
 ]
 
 function parseFiltersFromParams(sp: URLSearchParams): SearchFilters {
@@ -108,9 +108,26 @@ function hasActiveUrlState(sp: URLSearchParams): boolean {
   return false
 }
 
-// ─── Hero: full-bleed dark editorial panel. Left = statement + sequence,
-// right = the picker itself, staged (step 2 doesn't exist until step 1 is
-// answered). Nothing here is a "card floating on the page" — it IS the page. ───
+// Cheap SVG noise texture — no image asset, keeps the dark hero from
+// reading as a flat gradient.
+function GrainOverlay() {
+  return (
+    <svg
+      aria-hidden="true"
+      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.05, mixBlendMode: 'overlay', pointerEvents: 'none' }}
+    >
+      <filter id="home-grain">
+        <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch" />
+        <feColorMatrix type="saturate" values="0" />
+      </filter>
+      <rect width="100%" height="100%" filter="url(#home-grain)" />
+    </svg>
+  )
+}
+
+// ─── Hero ───────────────────────────────────────────────────────────────────
+// Full-bleed editorial cover. The picker console is the only real CTA on
+// the page — search is a demoted, understated fallback beneath it.
 
 function Hero({ searchOpen, setSearchOpen, searchQuery, setSearchQuery, onSearchSubmit }: {
   searchOpen: boolean
@@ -148,51 +165,74 @@ function Hero({ searchOpen, setSearchOpen, searchQuery, setSearchQuery, onSearch
 
   return (
     <section style={{ background: c.primary, position: 'relative', overflow: 'hidden' }}>
+      <GrainOverlay />
+
       <div style={{
-        position: 'absolute', top: '-20%', right: '-8%', width: 520, height: 520,
-        borderRadius: '50%', background: 'radial-gradient(circle, rgba(230,57,70,0.16) 0%, transparent 70%)',
+        position: 'absolute', top: '-24%', right: '-10%', width: 620, height: 620,
+        borderRadius: '50%', background: 'radial-gradient(circle, rgba(230,57,70,0.20) 0%, transparent 68%)',
+        pointerEvents: 'none',
+      }} />
+      <div style={{
+        position: 'absolute', bottom: '-30%', left: '-6%', width: 460, height: 460,
+        borderRadius: '50%', background: 'radial-gradient(circle, rgba(69,123,157,0.14) 0%, transparent 70%)',
+        pointerEvents: 'none',
+      }} />
+      <div style={{
+        position: 'absolute', inset: 0,
+        backgroundImage: 'linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px)',
+        backgroundSize: '64px 64px',
+        maskImage: 'linear-gradient(180deg, rgba(0,0,0,0.5), transparent 70%)',
         pointerEvents: 'none',
       }} />
 
+      {/* Oversized ghost numeral — cover-page signature mark */}
+      <div aria-hidden="true" className="hero-ghost-mark" style={{
+        position: 'absolute', top: -40, left: -10,
+        fontFamily: f.serif, fontSize: 360, lineHeight: 1, color: 'rgba(255,255,255,0.03)',
+        fontStyle: 'italic', letterSpacing: '-10px', pointerEvents: 'none', userSelect: 'none',
+      }}>
+        01
+      </div>
+
       <div className="hero-grid" style={{
-        maxWidth: 'var(--max-w)', margin: '0 auto', padding: '64px var(--page-px) 56px',
+        maxWidth: 'var(--max-w)', margin: '0 auto', padding: '76px var(--page-px) 64px',
         display: 'grid', gridTemplateColumns: '1fr 460px', gap: 56, alignItems: 'start',
         position: 'relative',
       }}>
         {/* ── Left: the statement ── */}
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 26 }}>
-            <span style={{ width: 7, height: 7, background: c.accent, display: 'inline-block' }} />
-            <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1.4px' }}>
-              No specs. No tabs. One answer.
+          <div className="hero-fade" style={{ animationDelay: '0ms', display: 'flex', alignItems: 'center', gap: 9, marginBottom: 28 }}>
+            <span className="pulse-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: c.accent, display: 'inline-block' }} />
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.55)', textTransform: 'uppercase', letterSpacing: '2.4px' }}>
+              An honest answer, not another list
             </span>
           </div>
 
-          <h1 className="hero-headline" style={{
-            fontFamily: f.serif, letterSpacing: '-1.5px', lineHeight: 1.02, marginBottom: 24,
+          <h1 className="hero-fade hero-headline" style={{
+            animationDelay: '70ms', fontFamily: f.serif, letterSpacing: '-2px', lineHeight: 0.98, marginBottom: 28,
           }}>
-            <span style={{ display: 'block', color: '#fff' }}>Stop comparing</span>
-            <span style={{ display: 'block', color: '#fff' }}>specs.</span>
-            <span style={{ display: 'block', color: c.accent, fontStyle: 'italic' }}>Start deciding.</span>
+            <span style={{ display: 'block', color: '#fff' }}>Stop comparing.</span>
+            <span style={{ display: 'block', color: '#fff' }}>Start <em style={{ color: c.accent, fontStyle: 'italic' }}>owning</em> it.</span>
           </h1>
 
-          <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.55)', lineHeight: 1.65, maxWidth: 400, marginBottom: 44 }}>
-            Budget in, priorities in, five phones out — ranked, reasoned, done. The full catalog is still here if you want it. You won't need it.
+          <p className="hero-fade" style={{ animationDelay: '130ms', fontSize: 17, color: 'rgba(255,255,255,0.55)', lineHeight: 1.7, maxWidth: 420, marginBottom: 40 }}>
+            Tell us your budget and what actually matters. We hand you five phones,
+            ranked and reasoned — no forty-tab spec crawl, no sponsored nudge.
           </p>
 
-          <div className="hero-steps" style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
-            {STEPS_COPY.map(step => (
-              <div key={step.n} style={{ display: 'flex', alignItems: 'baseline', gap: 18 }}>
-                <span style={{ fontFamily: f.serif, fontSize: 34, color: 'rgba(255,255,255,0.14)', lineHeight: 1, minWidth: 44 }}>{step.n}</span>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: '#fff', marginBottom: 2 }}>{step.title}</div>
-                  <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5 }}>{step.desc}</div>
-                </div>
+          <div className="hero-fade" style={{ animationDelay: '190ms', display: 'flex', gap: 0, marginBottom: 44, flexWrap: 'wrap' }}>
+            {PROOF_STATS.map((stat, i) => (
+              <div key={stat.label} style={{
+                paddingRight: 28, marginRight: 28,
+                borderRight: i < PROOF_STATS.length - 1 ? '1px solid rgba(255,255,255,0.14)' : 'none',
+              }}>
+                <div style={{ fontFamily: f.serif, fontSize: 26, color: '#fff', letterSpacing: '-0.5px', marginBottom: 2 }}>{stat.value}</div>
+                <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{stat.label}</div>
               </div>
             ))}
           </div>
 
-          <div style={{ marginTop: 40 }}>
+          <div className="hero-fade" style={{ animationDelay: '250ms' }}>
             {!searchOpen ? (
               <button
                 onClick={() => setSearchOpen(true)}
@@ -200,9 +240,10 @@ function Hero({ searchOpen, setSearchOpen, searchQuery, setSearchQuery, onSearch
                   fontSize: 13, color: 'rgba(255,255,255,0.5)', background: 'none', border: 'none',
                   cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
                   paddingBottom: 2, borderBottom: '1px solid rgba(255,255,255,0.2)',
+                  transition: 'color 150ms ease, border-color 150ms ease',
                 }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#fff' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.5)' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#fff'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.5)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.5)'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.2)' }}
               >
                 <Search size={12} /> Already know the model? Search directly
               </button>
@@ -234,14 +275,16 @@ function Hero({ searchOpen, setSearchOpen, searchQuery, setSearchQuery, onSearch
           </div>
         </div>
 
-        {/* ── Right: the picker console ── */}
-        <div style={{
-          background: '#22223a', border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: 'var(--r-lg)', padding: '26px 26px 24px', position: 'relative',
+        {/* ── Right: the decision console ── */}
+        <div className="hero-fade hero-console" style={{
+          animationDelay: '160ms',
+          background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 24px 64px rgba(0,0,0,0.35)',
+          borderRadius: 'var(--r-lg)', padding: '28px 28px 26px', position: 'relative',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1px' }}>
-              Your budget
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1.4px' }}>
+              01 · Budget — 02 · Priorities
             </span>
             {(tierId || priorities.size > 0) && (
               <button
@@ -266,6 +309,7 @@ function Hero({ searchOpen, setSearchOpen, searchQuery, setSearchQuery, onSearch
                     flex: 1, padding: '0 0 12px', background: 'none', border: 'none', cursor: 'pointer',
                     borderBottom: `2px solid ${active ? c.accent : 'transparent'}`, marginBottom: -1,
                     display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center',
+                    transition: 'border-color 150ms ease',
                   }}
                 >
                   <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.5px', color: active ? '#fff' : 'rgba(255,255,255,0.35)' }}>
@@ -280,13 +324,13 @@ function Hero({ searchOpen, setSearchOpen, searchQuery, setSearchQuery, onSearch
           </div>
 
           {!tierId ? (
-            <div style={{ padding: '18px 4px 22px', fontSize: 13, color: 'rgba(255,255,255,0.35)', lineHeight: 1.6 }}>
-              Pick a budget above to see what's worth choosing between.
+            <div style={{ padding: '18px 4px 22px', fontSize: 13, color: 'rgba(255,255,255,0.35)', lineHeight: 1.65 }}>
+              Pick a budget above — we'll immediately narrow the field to what's actually worth choosing between.
             </div>
           ) : (
-            <div style={{ animation: 'fadeIn 0.25s ease' }}>
+            <div style={{ animation: 'fadeIn 250ms ease' }}>
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1.4px' }}>
                   What matters most
                 </span>
                 <span style={{ fontSize: 11, color: priorities.size >= 2 ? c.accent : 'rgba(255,255,255,0.35)' }}>
@@ -308,7 +352,7 @@ function Hero({ searchOpen, setSearchOpen, searchQuery, setSearchQuery, onSearch
                         borderRadius: 'var(--r-full)', cursor: dimmed ? 'not-allowed' : 'pointer',
                         border: `1px solid ${active ? c.accent : 'rgba(255,255,255,0.16)'}`,
                         background: active ? c.accent : 'transparent',
-                        opacity: dimmed ? 0.35 : 1, transition: 'all 0.12s',
+                        opacity: dimmed ? 0.35 : 1, transition: 'all 120ms ease',
                       }}
                     >
                       <span style={{ color: active ? '#fff' : 'rgba(255,255,255,0.5)', display: 'flex' }}>{p.icon}</span>
@@ -321,30 +365,130 @@ function Hero({ searchOpen, setSearchOpen, searchQuery, setSearchQuery, onSearch
               <button
                 onClick={handleGo}
                 disabled={!ready}
+                className="hero-cta"
                 style={{
-                  width: '100%', padding: '14px 18px', borderRadius: 'var(--r-md)',
+                  width: '100%', padding: '15px 20px', borderRadius: 'var(--r-md)',
                   fontSize: 14, fontWeight: 700, border: 'none',
                   background: ready ? c.accent : 'rgba(255,255,255,0.08)',
                   color: ready ? '#fff' : 'rgba(255,255,255,0.35)',
                   cursor: ready ? 'pointer' : 'not-allowed',
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  transition: 'background 0.15s',
+                  transition: 'background 150ms ease',
                 }}
                 onMouseEnter={e => { if (ready) (e.currentTarget as HTMLElement).style.background = '#D32F3E' }}
                 onMouseLeave={e => { if (ready) (e.currentTarget as HTMLElement).style.background = c.accent }}
               >
                 <span>{ready ? 'Show my 5 matches' : `Pick ${2 - priorities.size} more`}</span>
-                <ArrowRight size={16} strokeWidth={2.4} />
+                <ArrowRight size={16} strokeWidth={2.4} className="hero-cta-arrow" />
               </button>
 
               {activeTier && (
-                <div style={{ marginTop: 12, fontSize: 11.5, color: 'rgba(255,255,255,0.35)' }}>
-                  {activeTier.name} · {priorities.size > 0 ? Array.from(priorities).map(id => QUICK_PRIORITIES.find(q => q.id === id)?.label).join(', ') : 'no priorities yet'}
+                <div style={{ marginTop: 14, fontSize: 11.5, color: 'rgba(255,255,255,0.35)', fontFamily: 'ui-monospace, monospace', letterSpacing: '0.2px' }}>
+                  {activeTier.name} · {priorities.size > 0 ? Array.from(priorities).map(id => QUICK_PRIORITIES.find(q => q.id === id)?.label).join(' + ') : 'awaiting priorities'}
                 </div>
               )}
             </div>
           )}
         </div>
+      </div>
+
+      <div className="hero-fade" style={{ animationDelay: '320ms', display: 'flex', justifyContent: 'center', paddingBottom: 28, position: 'relative' }}>
+        <ChevronDown size={16} color="rgba(255,255,255,0.25)" className="scroll-cue" />
+      </div>
+    </section>
+  )
+}
+
+// ─── Rankings rail — editorial index, not app tiles ────────────────────────
+
+function RankingsRail() {
+  return (
+    <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '64px var(--page-px) 0' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 22, flexWrap: 'wrap', gap: 8 }}>
+        <div>
+          <span style={{ fontFamily: f.serif, fontSize: 24, color: c.text1, fontStyle: 'italic' }}>Or take the shortcut —</span>
+          <span style={{ fontFamily: f.serif, fontSize: 24, color: c.text1, marginLeft: 8 }}>pre-decided rankings.</span>
+        </div>
+        <span style={{ fontSize: 12, color: c.text3 }}>Recomputed from live pricing every night</span>
+      </div>
+
+      <div className="rankings-rail" style={{ borderTop: `1px solid ${c.border}` }}>
+        {Object.entries(CATEGORY_META).map(([slug, meta], i) => (
+          <Link
+            key={slug}
+            href={ROUTES.category(slug)}
+            className="rankings-rail-item"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 18, padding: '16px 4px',
+              borderBottom: `1px solid ${c.border}`, position: 'relative', textDecoration: 'none',
+            }}
+          >
+            <span className="rankings-rail-bar" style={{ position: 'absolute', left: -1, top: 0, bottom: 0, width: 2, background: c.accent, transform: 'scaleY(0)', transformOrigin: 'center' }} />
+            <span style={{ fontFamily: f.serif, fontSize: 22, color: c.border, minWidth: 34, fontStyle: 'italic' }}>{String(i + 1).padStart(2, '0')}</span>
+            <span style={{ color: c.text3, display: 'flex', flexShrink: 0 }}>{CATEGORY_ICONS[slug]}</span>
+            <span className="rankings-rail-title" style={{ fontSize: 15, fontWeight: 600, color: c.text1, flexShrink: 0, transition: 'transform 150ms ease' }}>{meta.title}</span>
+            <span style={{ fontSize: 13, color: c.text3, flex: 1 }}>{meta.desc}</span>
+            <ArrowUpRight size={16} color={c.text3} className="rankings-rail-arrow" style={{ flexShrink: 0, transition: 'all 150ms ease' }} />
+          </Link>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Trending — same ghost-numeral editorial language as the rankings rail ─
+
+function TrendingScroll({ phones }: { phones: Phone[] }) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const router = useRouter()
+  if (phones.length === 0) return null
+  return (
+    <section style={{ marginBottom: 64 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 22 }}>
+        <span style={{ fontFamily: f.serif, fontSize: 24, color: c.text1 }}>This week's verdicts</span>
+        <span style={{ fontSize: 12, color: c.text3 }}>Most viewed, ranked by conviction</span>
+      </div>
+      <div style={{ position: 'relative' }}>
+        <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 60, background: 'linear-gradient(-90deg, var(--bg) 0%, transparent 100%)', pointerEvents: 'none', zIndex: z.badge }} />
+        <button
+          onClick={() => scrollRef.current?.scrollBy({ left: -240, behavior: 'smooth' })}
+          aria-label="Scroll left"
+          style={{ position: 'absolute', top: '50%', left: -14, transform: 'translateY(-50%)', width: 36, height: 36, background: c.surface, border: `1px solid ${c.border}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.text2, zIndex: z.badge, boxShadow: 'var(--shadow-sm)', transition: 'all 150ms ease' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-md)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-sm)' }}
+        >
+          <ChevronLeft size={16} />
+        </button>
+        <div ref={scrollRef} className="scrollbar-none" style={{ display: 'flex', gap: 4, overflowX: 'auto', scrollSnapType: 'x mandatory', paddingBottom: 4 }}>
+          {phones.map((phone, i) => (
+            <div
+              key={phone.id}
+              onClick={() => router.push(ROUTES.phone(brandSlug(phone.brand), phoneSlug(phone)))}
+              className="trending-item"
+              style={{ flexShrink: 0, width: 172, scrollSnapAlign: 'start', padding: '18px 16px', cursor: 'pointer', position: 'relative', textAlign: 'center' }}
+            >
+              <div aria-hidden="true" style={{ position: 'absolute', top: 2, left: 8, fontFamily: f.serif, fontSize: 44, color: c.bg, fontStyle: 'italic', zIndex: 0, lineHeight: 1 }}>
+                {String(i + 1).padStart(2, '0')}
+              </div>
+              <div style={{ position: 'relative', width: 76, height: 76, margin: '10px auto 12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {phone.main_image_url
+                  ? <img src={phone.main_image_url} alt={phone.model_name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                  : <Smartphone size={32} color={c.border} strokeWidth={1} />}
+              </div>
+              <div style={{ position: 'relative', fontFamily: f.serif, fontSize: 13, color: c.text1, marginBottom: 5, lineHeight: 1.3 }}>{phone.model_name}</div>
+              <div style={{ position: 'relative', fontSize: 12, fontWeight: 600, color: c.text2 }}>{phone.price_usd ? `$${phone.price_usd.toLocaleString()}` : 'Price TBA'}</div>
+            </div>
+          ))}
+        </div>
+        <button
+          onClick={() => scrollRef.current?.scrollBy({ left: 240, behavior: 'smooth' })}
+          aria-label="Scroll right"
+          style={{ position: 'absolute', top: '50%', right: -14, transform: 'translateY(-50%)', width: 36, height: 36, background: c.surface, border: `1px solid ${c.border}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.text2, zIndex: z.badge, boxShadow: 'var(--shadow-sm)', transition: 'all 150ms ease' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-md)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-sm)' }}
+        >
+          <ChevronRight size={16} />
+        </button>
       </div>
     </section>
   )
@@ -379,7 +523,7 @@ function FilterChips({ filters, onChange }: { filters: SearchFilters; onChange: 
           <button
             onClick={chip.clear}
             aria-label={`Remove ${chip.label} filter`}
-            style={{ color: c.text3, display: 'flex', transition: 'color 0.1s' }}
+            style={{ color: c.text3, display: 'flex', transition: 'color 100ms ease' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = c.accent }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = c.text3 }}
           >
@@ -391,7 +535,7 @@ function FilterChips({ filters, onChange }: { filters: SearchFilters; onChange: 
         onClick={() => onChange(EMPTY_FILTERS)}
         style={{
           fontSize: 12, fontWeight: 500, color: c.accent, padding: '4px 8px',
-          borderRadius: 'var(--r-full)', transition: 'background 0.1s',
+          borderRadius: 'var(--r-full)', transition: 'background 100ms ease',
         }}
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)' }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
@@ -420,7 +564,7 @@ function Pagination({ page, total, pageSize, onChange }: { page: number; total: 
     borderRadius: 'var(--r-sm)', fontSize: 14, fontWeight: active ? 600 : 400,
     color: active ? '#fff' : disabled ? c.border : c.text2,
     background: active ? c.primary : 'transparent',
-    cursor: disabled ? 'default' : 'pointer', transition: 'all 0.12s', border: 'none',
+    cursor: disabled ? 'default' : 'pointer', transition: 'all 120ms ease', border: 'none',
   })
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 40 }}>
@@ -441,61 +585,6 @@ function Pagination({ page, total, pageSize, onChange }: { page: number; total: 
       )}
       <button style={btn(false, page === totalPages)} onClick={() => page < totalPages && onChange(page + 1)} disabled={page === totalPages} aria-label="Next page"><ChevronRight size={16} /></button>
     </div>
-  )
-}
-
-function TrendingScroll({ phones }: { phones: Phone[] }) {
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const router = useRouter()
-  if (phones.length === 0) return null
-  return (
-    <section style={{ marginBottom: 64 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 24 }}>
-        <h2 style={{ fontFamily: f.serif, fontSize: 28, color: c.text1 }}>Trending This Week</h2>
-        <span style={{ fontSize: 14, color: c.text3 }}>Most viewed phones</span>
-      </div>
-      <div style={{ position: 'relative' }}>
-        <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 60, background: 'linear-gradient(-90deg, var(--bg) 0%, transparent 100%)', pointerEvents: 'none', zIndex: z.badge }} />
-        <button
-          onClick={() => scrollRef.current?.scrollBy({ left: -220, behavior: 'smooth' })}
-          aria-label="Scroll left"
-          style={{ position: 'absolute', top: '50%', left: -14, transform: 'translateY(-50%)', width: 36, height: 36, background: c.surface, border: `1px solid ${c.border}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.text2, zIndex: z.badge, boxShadow: 'var(--shadow-sm)', transition: 'all 0.15s' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-md)' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-sm)' }}
-        >
-          <ChevronLeft size={16} />
-        </button>
-        <div ref={scrollRef} className="scrollbar-none" style={{ display: 'flex', gap: 14, overflowX: 'auto', scrollSnapType: 'x mandatory', paddingBottom: 4 }}>
-          {phones.map((phone, i) => (
-            <div
-              key={phone.id}
-              onClick={() => router.push(ROUTES.phone(brandSlug(phone.brand), phoneSlug(phone)))}
-              style={{ flexShrink: 0, width: 148, scrollSnapAlign: 'start', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-lg)', padding: 12, cursor: 'pointer', transition: 'all 0.15s', textAlign: 'center' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-md)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-hover)' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'none'; (e.currentTarget as HTMLElement).style.boxShadow = 'none'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}
-            >
-              <div style={{ fontSize: 11, fontWeight: 700, color: c.text3, marginBottom: 8 }}>#{i + 1}</div>
-              <div style={{ width: 72, height: 72, margin: '0 auto 10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {phone.main_image_url
-                  ? <img src={phone.main_image_url} alt={phone.model_name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                  : <Smartphone size={32} color={c.border} strokeWidth={1} />}
-              </div>
-              <div style={{ fontFamily: f.serif, fontSize: 12, color: c.text1, marginBottom: 4, lineHeight: 1.3 }}>{phone.model_name}</div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: c.text1 }}>{phone.price_usd ? `$${phone.price_usd.toLocaleString()}` : '—'}</div>
-            </div>
-          ))}
-        </div>
-        <button
-          onClick={() => scrollRef.current?.scrollBy({ left: 220, behavior: 'smooth' })}
-          aria-label="Scroll right"
-          style={{ position: 'absolute', top: '50%', right: -14, transform: 'translateY(-50%)', width: 36, height: 36, background: c.surface, border: `1px solid ${c.border}`, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.text2, zIndex: z.badge, boxShadow: 'var(--shadow-sm)', transition: 'all 0.15s' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-md)' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-sm)' }}
-        >
-          <ChevronRight size={16} />
-        </button>
-      </div>
-    </section>
   )
 }
 
@@ -625,71 +714,48 @@ function HomeContent() {
         onSearchSubmit={handleSearchSubmit}
       />
 
-      {/* ── Rankings strip ── */}
-      <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '52px var(--page-px) 0' }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 16 }}>
-          <span style={{ fontFamily: f.serif, fontSize: 20, color: c.text1 }}>Or jump straight to a ranking</span>
-          <span style={{ fontSize: 12, color: c.text3 }}>— pre-decided, updated daily</span>
-        </div>
-        <div className="scrollbar-none" style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
-          {Object.entries(CATEGORY_META).map(([slug, meta], i) => (
-            <Link
-              key={slug} href={ROUTES.category(slug)}
-              style={{
-                flexShrink: 0, width: 168, padding: '16px 16px 14px', background: c.surface,
-                border: `1px solid ${c.border}`, borderRadius: 'var(--r-md)', transition: 'all 0.15s', display: 'block',
-              }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = c.accent }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = c.border }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                <span style={{ color: c.text2, display: 'flex' }}>{CATEGORY_ICONS[slug]}</span>
-                <span style={{ fontSize: 10, fontWeight: 700, color: c.text3 }}>{String(i + 1).padStart(2, '0')}</span>
-              </div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: c.text1, marginBottom: 2 }}>{meta.title}</div>
-              <div style={{ fontSize: 11, color: c.text3 }}>{meta.desc}</div>
-            </Link>
-          ))}
-        </div>
-      </div>
+      <RankingsRail />
 
       <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 var(--page-px)' }}>
-        <div style={{ marginTop: 48 }}>
+        <div style={{ marginTop: 56 }}>
           <TrendingScroll phones={trending} />
         </div>
       </div>
 
-      {/* ── Catalog fallback — collapsed by default ── */}
-      <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 var(--page-px) 24px' }}>
+      {/* Catalog fallback — deliberately understated, a footnote not a feature */}
+      <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 var(--page-px) 32px' }}>
         {!catalogOpen ? (
-          <button
-            onClick={openCatalog}
-            style={{
-              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '18px 24px', background: c.primary, border: 'none',
-              borderRadius: 'var(--r-lg)', color: '#fff', fontSize: 14, fontWeight: 500,
-              cursor: 'pointer', transition: 'all 0.15s',
-            }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#2A2A42' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = c.primary }}
-          >
-            <span>Prefer to browse the full catalog yourself?</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'rgba(255,255,255,0.6)', fontSize: 13 }}>
-              Open catalog <ChevronDown size={15} />
-            </span>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 18, paddingTop: 8 }}>
+            <div style={{ flex: 1, height: 1, background: c.border }} />
+            <button
+              onClick={openCatalog}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none',
+                cursor: 'pointer', fontSize: 12.5, fontWeight: 600, color: c.text3,
+                textTransform: 'uppercase', letterSpacing: '0.6px', padding: '6px 4px',
+                transition: 'color 150ms ease',
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = c.text1 }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = c.text3 }}
+            >
+              Prefer to browse the full catalog yourself <ChevronDown size={13} />
+            </button>
+            <div style={{ flex: 1, height: 1, background: c.border }} />
+          </div>
         ) : (
-          <div style={{ height: 1, background: c.border, marginBottom: 8 }} />
+          <div style={{ height: 1, background: c.border }} />
         )}
       </div>
 
       {catalogOpen && (
-        <div id="phone-grid" style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 var(--page-px) 64px', display: 'grid', gridTemplateColumns: 'var(--sidebar-w) 1fr', gap: 32, alignItems: 'start' }}>
+        <div id="phone-grid" style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '24px var(--page-px) 64px', display: 'grid', gridTemplateColumns: 'var(--sidebar-w) 1fr', gap: 32, alignItems: 'start' }}>
           <div className="filter-sidebar">
             <FilterPanel filters={filters} onChange={handleFiltersChange} onReset={handleReset} />
           </div>
 
           <div>
+            <div style={{ fontFamily: f.serif, fontSize: 20, color: c.text1, marginBottom: 16 }}>The full catalog</div>
+
             <FilterChips filters={filters} onChange={handleFiltersChange} />
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, gap: 12, flexWrap: 'wrap' }}>
@@ -750,7 +816,7 @@ function HomeContent() {
                 <p style={{ fontSize: 14, color: c.text3, marginBottom: 20 }}>Try adjusting your filters or search terms.</p>
                 <button
                   onClick={handleReset}
-                  style={{ padding: '9px 22px', background: c.primary, color: '#fff', borderRadius: 'var(--r-full)', fontSize: 14, fontWeight: 500, border: 'none', cursor: 'pointer', transition: 'background 0.15s' }}
+                  style={{ padding: '9px 22px', background: c.primary, color: '#fff', borderRadius: 'var(--r-full)', fontSize: 14, fontWeight: 500, border: 'none', cursor: 'pointer', transition: 'background 150ms ease' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#2A2A42' }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = c.primary }}
                 >
@@ -779,7 +845,7 @@ function HomeContent() {
           onClick={() => setMobileFiltersOpen(false)}
         >
           <div
-            style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: c.surface, borderRadius: 'var(--r-xl) var(--r-xl) 0 0', maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', animation: 'slideUp 0.25s ease' }}
+            style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: c.surface, borderRadius: 'var(--r-xl) var(--r-xl) 0 0', maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', animation: 'slideUp 250ms ease' }}
             onClick={e => e.stopPropagation()}
           >
             <div style={{ padding: '10px 0 0', display: 'flex', justifyContent: 'center' }}>
@@ -797,24 +863,61 @@ function HomeContent() {
       )}
 
       <style>{`
-        .hero-headline { font-size: clamp(40px, 4.6vw, 60px); }
+        @keyframes heroFadeUp {
+          from { opacity: 0; transform: translateY(14px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .hero-fade { opacity: 0; animation: heroFadeUp 620ms cubic-bezier(0.16,1,0.3,1) forwards; }
+
+        @keyframes pulseDot {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50%      { opacity: 0.4; transform: scale(0.7); }
+        }
+        .pulse-dot { animation: pulseDot 2.2s ease-in-out infinite; }
+
+        @keyframes scrollCue {
+          0%, 100% { transform: translateY(0); opacity: 0.25; }
+          50%      { transform: translateY(5px); opacity: 0.6; }
+        }
+        .scroll-cue { animation: scrollCue 1.8s ease-in-out infinite; }
+
+        .hero-cta:hover .hero-cta-arrow { transform: translateX(3px); }
+        .hero-cta-arrow { transition: transform 150ms ease; }
+
+        .rankings-rail-item:hover .rankings-rail-bar { transform: scaleY(1); transition: transform 180ms ease; }
+        .rankings-rail-item:hover .rankings-rail-title { transform: translateX(4px); }
+        .rankings-rail-item:hover .rankings-rail-arrow { color: ${c.accent}; transform: translate(2px,-2px); }
+        .rankings-rail-item .rankings-rail-bar { transition: transform 180ms ease; }
+
+        .trending-item { border-radius: var(--r-lg); transition: background 150ms ease; }
+        .trending-item:hover { background: var(--surface); box-shadow: var(--shadow-sm); }
+
+        .hero-headline { font-size: clamp(42px, 4.8vw, 66px); }
         .phone-grid-layout { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+
         ${mq.xl} {
           .hero-grid { grid-template-columns: 1fr !important; }
+          .hero-console { max-width: 460px; }
         }
         ${mq.lg} {
           #phone-grid { grid-template-columns: 1fr !important; }
           .filter-sidebar { display: none !important; }
           .mobile-filter-btn { display: flex !important; }
           .phone-grid-layout { grid-template-columns: repeat(4, 1fr); gap: 12px; }
+          .hero-ghost-mark { display: none; }
         }
         @media (max-width: 860px) { .phone-grid-layout { grid-template-columns: repeat(3, 1fr); gap: 10px; } }
         ${mq.sm} {
-          .hero-headline { font-size: 34px !important; }
-          .hero-steps { display: none !important; }
+          .hero-headline { font-size: 36px !important; }
           .phone-grid-layout { grid-template-columns: repeat(2, 1fr); gap: 8px; }
           .tier-segmented { flex-wrap: wrap; }
           .tier-segmented > button { flex: 1 1 33%; }
+          .rankings-rail-title { display: none; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .hero-fade { animation: none; opacity: 1; }
+          .pulse-dot, .scroll-cue { animation: none; }
         }
       `}</style>
     </div>
