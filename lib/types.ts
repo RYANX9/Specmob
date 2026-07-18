@@ -5,6 +5,7 @@ export interface Phone {
   brand: string
   price_usd: number | null
   main_image_url: string | null
+  images?: PhoneImage[] | null
   screen_size: number | null
   battery_capacity: number | null
   ram_options: number[] | null
