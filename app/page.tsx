@@ -5,7 +5,8 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Search, ArrowRight, Camera, Battery, Zap, Tag, Feather,
-  Smartphone, ChevronLeft, ChevronRight,
+  Smartphone, ChevronLeft, ChevronRight, ChevronDown,
+  Gamepad2, Monitor, Bolt, BadgeDollarSign, Check, X, Sparkles,
 } from 'lucide-react'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
@@ -16,18 +17,19 @@ import { useToast } from './components/Toast'
 import { api } from '@/lib/api'
 import { ROUTES, brandSlug, phoneSlug, PAGE_SIZE, MAX_COMPARE, CATEGORY_META } from '@/lib/config'
 import { c, f, z, mq } from '@/lib/tokens'
+import { PRICE_TIERS, type PriceTierId } from '@/lib/priceTiers'
 import type { Phone, SearchFilters } from '@/lib/types'
 import { formatDisplayPrice } from '@/lib/price'
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
-  'camera-phones':  <Camera size={22} strokeWidth={1.5} />,
-  'battery-life':   <Battery size={22} strokeWidth={1.5} />,
-  'gaming-phones':  <Zap size={22} strokeWidth={1.5} />,
-  'under-300':      <Tag size={22} strokeWidth={1.5} />,
-  'under-500':      <Tag size={22} strokeWidth={1.5} />,
-  'lightweight':    <Feather size={22} strokeWidth={1.5} />,
-  'compact-phones': <Smartphone size={22} strokeWidth={1.5} />,
-  'fast-charging':  <Zap size={22} strokeWidth={1.5} />,
+  'camera-phones':  <Camera size={20} strokeWidth={1.5} />,
+  'battery-life':   <Battery size={20} strokeWidth={1.5} />,
+  'gaming-phones':  <Zap size={20} strokeWidth={1.5} />,
+  'under-300':      <Tag size={20} strokeWidth={1.5} />,
+  'under-500':      <Tag size={20} strokeWidth={1.5} />,
+  'lightweight':    <Feather size={20} strokeWidth={1.5} />,
+  'compact-phones': <Smartphone size={20} strokeWidth={1.5} />,
+  'fast-charging':  <Zap size={20} strokeWidth={1.5} />,
 }
 
 const SORT_OPTIONS = [
@@ -39,8 +41,30 @@ const SORT_OPTIONS = [
   { label: 'Best Camera',        sort_by: 'main_camera_mp',   sort_order: 'desc' },
 ] as const
 
-const POPULAR = ['Galaxy S26 Ultra', 'iPhone 17 Pro', 'Pixel 10 Pro', 'Xiaomi 17 Ultra', 'OnePlus 13']
 const EMPTY_FILTERS: SearchFilters = {}
+
+// Quick-pick priorities shown on the homepage launcher. Full 13-option list
+// still lives in /pick step 2 — this is a deliberately trimmed subset so the
+// hero card stays a single glance, not another form to fill out.
+const QUICK_PRIORITIES: { id: string; label: string; icon: React.ReactNode }[] = [
+  { id: 'camera',        label: 'Camera',        icon: <Camera size={17} strokeWidth={1.5} /> },
+  { id: 'battery',       label: 'Battery',       icon: <Battery size={17} strokeWidth={1.5} /> },
+  { id: 'performance',   label: 'Performance',   icon: <Zap size={17} strokeWidth={1.5} /> },
+  { id: 'gaming',        label: 'Gaming',        icon: <Gamepad2 size={17} strokeWidth={1.5} /> },
+  { id: 'display',       label: 'Display',       icon: <Monitor size={17} strokeWidth={1.5} /> },
+  { id: 'fast_charging', label: 'Fast Charging', icon: <Bolt size={17} strokeWidth={1.5} /> },
+  { id: 'compact',       label: 'Compact',       icon: <Smartphone size={17} strokeWidth={1.5} /> },
+  { id: 'lightweight',   label: 'Lightweight',   icon: <Feather size={17} strokeWidth={1.5} /> },
+  { id: 'value',         label: 'Best Value',    icon: <BadgeDollarSign size={17} strokeWidth={1.5} /> },
+]
+
+const TIER_COLOR: Record<PriceTierId, string> = {
+  s: '#C9A84C',
+  a: 'var(--accent)',
+  b: 'var(--blue)',
+  c: 'var(--green)',
+  d: 'var(--text-2)',
+}
 
 function parseFiltersFromParams(sp: URLSearchParams): SearchFilters {
   return {
@@ -79,6 +103,135 @@ function buildSearchUrl(f: SearchFilters, p: number, sIdx: number): string {
   if (sIdx > 0) params.set('sort', String(sIdx))
   const str = params.toString()
   return str ? `/?${str}` : '/'
+}
+
+function hasActiveUrlState(sp: URLSearchParams): boolean {
+  for (const key of ['q', 'brand', 'min_price', 'max_price', 'min_ram', 'min_battery',
+    'min_camera_mp', 'min_screen_size', 'max_screen_size', 'min_year', 'max_weight',
+    'min_charging_w', 'chipset_tier', 'page', 'sort']) {
+    if (sp.get(key)) return true
+  }
+  return false
+}
+
+// ─── Pick launcher: the actual homepage. Budget + priorities in, straight to
+// your 5 matches. This replaces "search bar + button" as the primary CTA. ───
+
+function PickLauncher() {
+  const router = useRouter()
+  const [tierId, setTierId] = useState<PriceTierId | null>(null)
+  const [priorities, setPriorities] = useState<Set<string>>(new Set())
+
+  const togglePriority = (id: string) => {
+    setPriorities(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else if (next.size < 3) next.add(id)
+      return next
+    })
+  }
+
+  const ready = !!tierId && priorities.size >= 2
+
+  const handleGo = () => {
+    if (!ready) return
+    const params = new URLSearchParams()
+    params.set('step', '3')
+    params.set('tier', tierId as string)
+    params.set('p', Array.from(priorities).join(','))
+    router.push(`/pick?${params.toString()}`)
+  }
+
+  return (
+    <div style={{
+      background: c.surface, border: `1px solid ${c.border}`,
+      borderRadius: 'var(--r-xl)', padding: '32px', boxShadow: 'var(--shadow-lg)',
+      maxWidth: 720, margin: '0 auto', textAlign: 'left',
+    }}>
+      <div style={{ marginBottom: 22 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: c.accent, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 8 }}>
+          Step 1 — Your budget
+        </div>
+        <div className="pick-tier-row" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {PRICE_TIERS.map(tier => {
+            const active = tierId === tier.id
+            const priceLabel = tier.max == null ? `$${tier.min.toLocaleString()}+` : `$${tier.min}–$${tier.max}`
+            return (
+              <button
+                key={tier.id}
+                onClick={() => setTierId(tier.id)}
+                style={{
+                  flex: '1 1 100px', padding: '10px 8px', textAlign: 'center',
+                  borderRadius: 'var(--r-md)', cursor: 'pointer', transition: 'all 0.15s',
+                  border: `2px solid ${active ? TIER_COLOR[tier.id] : c.border}`,
+                  background: active ? `${TIER_COLOR[tier.id]}12` : 'transparent',
+                }}
+              >
+                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.4px', color: TIER_COLOR[tier.id], marginBottom: 3 }}>
+                  {tier.label}
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: c.text1 }}>{priceLabel}</div>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: c.accent, textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+            Step 2 — What matters most
+          </div>
+          <span style={{ fontSize: 12, color: c.text3 }}>Pick 2–3 · {priorities.size} selected</span>
+        </div>
+        <div className="pick-priority-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+          {QUICK_PRIORITIES.map(p => {
+            const active = priorities.has(p.id)
+            const dimmed = priorities.size >= 3 && !active
+            return (
+              <button
+                key={p.id}
+                onClick={() => togglePriority(p.id)}
+                disabled={dimmed}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 7, padding: '9px 10px',
+                  borderRadius: 'var(--r-sm)', cursor: dimmed ? 'not-allowed' : 'pointer',
+                  border: `1.5px solid ${active ? c.primary : c.border}`,
+                  background: active ? 'rgba(26,26,46,0.05)' : 'transparent',
+                  opacity: dimmed ? 0.4 : 1, transition: 'all 0.15s',
+                }}
+              >
+                <span style={{ color: active ? c.primary : c.text3, display: 'flex', flexShrink: 0 }}>{p.icon}</span>
+                <span style={{ fontSize: 12.5, fontWeight: 500, color: c.text1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.label}</span>
+                {active && <Check size={12} color={c.primary} strokeWidth={3} style={{ marginLeft: 'auto', flexShrink: 0 }} />}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <button
+        onClick={handleGo}
+        disabled={!ready}
+        style={{
+          width: '100%', padding: '15px 0', borderRadius: 'var(--r-full)',
+          fontSize: 15, fontWeight: 700, border: 'none',
+          background: ready ? c.accent : '#E0E0DC',
+          color: ready ? '#fff' : c.text3,
+          cursor: ready ? 'pointer' : 'not-allowed',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          boxShadow: ready ? '0 4px 16px rgba(230,57,70,0.28)' : 'none',
+          transition: 'all 0.15s',
+        }}
+        onMouseEnter={e => { if (ready) (e.currentTarget as HTMLElement).style.background = '#D32F3E' }}
+        onMouseLeave={e => { if (ready) (e.currentTarget as HTMLElement).style.background = c.accent }}
+      >
+        {ready
+          ? <>Show My 5 Matches <ArrowRight size={17} strokeWidth={2.4} /></>
+          : `Select a budget and ${Math.max(2 - priorities.size, 0) > 0 ? `${2 - priorities.size} more priorit${2 - priorities.size === 1 ? 'y' : 'ies'}` : 'a budget'}`}
+      </button>
+    </div>
+  )
 }
 
 function FilterChips({ filters, onChange }: { filters: SearchFilters; onChange: (f: SearchFilters) => void }) {
@@ -245,8 +398,15 @@ function HomeContent() {
   const [total, setTotal]                 = useState(0)
   const [loading, setLoading]             = useState(true)
   const [comparePhones, setComparePhones] = useState<Phone[]>([])
-  const [heroQuery, setHeroQuery]         = useState(searchParams.get('q') ?? '')
+  const [searchQuery, setSearchQuery]     = useState(searchParams.get('q') ?? '')
+  const [searchOpen, setSearchOpen]       = useState(!!searchParams.get('q'))
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
+
+  // Catalog (grid + filter sidebar) is collapsed by default. It's the
+  // "I already know what I want" escape hatch, not the landing experience —
+  // opens automatically only if the URL already encodes a search/filter/page
+  // state (e.g. someone bookmarked or shared a filtered link).
+  const [catalogOpen, setCatalogOpen] = useState(() => hasActiveUrlState(new URLSearchParams(searchParams.toString())))
 
   const ownUpdate = useRef(false)
   const activeFilterCount = Object.values(filters).filter(v => v !== undefined && v !== '').length
@@ -256,9 +416,10 @@ function HomeContent() {
     if (ownUpdate.current) { ownUpdate.current = false; return }
     const parsed = parseFiltersFromParams(new URLSearchParams(spString))
     setFilters(parsed)
-    setHeroQuery(parsed.q ?? '')
+    setSearchQuery(parsed.q ?? '')
     setPage(parseInt(searchParams.get('page') ?? '1', 10))
     setSortIdx(parseInt(searchParams.get('sort') ?? '0', 10))
+    if (hasActiveUrlState(new URLSearchParams(spString))) setCatalogOpen(true)
   }, [spString])
 
   const commit = useCallback((f: SearchFilters, p: number, s: number) => {
@@ -286,11 +447,14 @@ function HomeContent() {
     }
   }, [toast])
 
+  // Only hits the search endpoint once the catalog is actually opened —
+  // no point loading a full page grid nobody asked to see.
   useEffect(() => {
+    if (!catalogOpen) return
     const controller = new AbortController()
     fetchPhones(filters, page, sortIdx, controller.signal)
     return () => controller.abort()
-  }, [filters, page, sortIdx, fetchPhones])
+  }, [filters, page, sortIdx, fetchPhones, catalogOpen])
 
   useEffect(() => {
     api.phones.trending(10).then(d => setTrending(d.phones)).catch(() => {})
@@ -304,7 +468,7 @@ function HomeContent() {
   }, [mobileFiltersOpen])
 
   const handleFiltersChange = (f: SearchFilters) => { setFilters(f); setPage(1); commit(f, 1, sortIdx) }
-  const handleReset = () => { setFilters(EMPTY_FILTERS); setPage(1); setHeroQuery(''); commit(EMPTY_FILTERS, 1, sortIdx) }
+  const handleReset = () => { setFilters(EMPTY_FILTERS); setPage(1); setSearchQuery(''); commit(EMPTY_FILTERS, 1, sortIdx) }
   const handleSortChange = (idx: number) => { setSortIdx(idx); setPage(1); commit(filters, 1, idx) }
   const handlePageChange = (p: number) => {
     setPage(p)
@@ -312,18 +476,17 @@ function HomeContent() {
     document.getElementById('phone-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
-  const handleHeroSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!heroQuery.trim()) return
-    const f = { ...filters, q: heroQuery.trim() }
-    setFilters(f); setPage(1); commit(f, 1, sortIdx)
-    document.getElementById('phone-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  const openCatalog = () => {
+    setCatalogOpen(true)
+    setTimeout(() => document.getElementById('phone-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
   }
 
-  const handlePopularTag = (tag: string) => {
-    const f = { q: tag }
-    setFilters(f); setHeroQuery(tag); setPage(1); commit(f, 1, sortIdx)
-    document.getElementById('phone-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!searchQuery.trim()) return
+    const f = { ...filters, q: searchQuery.trim() }
+    setFilters(f); setPage(1); setCatalogOpen(true); commit(f, 1, sortIdx)
+    setTimeout(() => document.getElementById('phone-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
   }
 
   const handleCompareToggle = (phone: Phone) => {
@@ -344,110 +507,80 @@ function HomeContent() {
         onOpenCompare={() => comparePhones.length >= 2 && router.push(ROUTES.compare(...comparePhones.map(p => phoneSlug(p))))}
       />
 
-      <section style={{ maxWidth: 720, margin: '0 auto', padding: '72px var(--page-px) 48px', textAlign: 'center' }}>
-        <h1 style={{ fontFamily: f.serif, fontSize: 'clamp(36px, 5vw, 54px)', color: c.text1, letterSpacing: '-0.8px', lineHeight: 1.15, marginBottom: 16 }}>
-          Find your next phone.
-        </h1>
-        <p style={{ fontSize: 'clamp(15px, 2vw, 18px)', color: c.text2, lineHeight: 1.65, marginBottom: 32, maxWidth: 500, margin: '0 auto 32px' }}>
-          No clutter. No discontinued junk. Just phones you can actually buy today, compared honestly.
-        </p>
-
-        <form onSubmit={handleHeroSearch} style={{ position: 'relative', maxWidth: 560, margin: '0 auto 16px' }}>
-          <input
-            value={heroQuery}
-            onChange={e => setHeroQuery(e.target.value)}
-            placeholder='Search phones or ask "best camera under $500"'
-            aria-label="Search phones"
-            style={{
-              width: '100%', height: 56, padding: '0 56px 0 22px',
-              background: c.surface, border: `1px solid ${c.border}`,
-              borderRadius: 'var(--r-full)', fontSize: 16, color: c.text1,
-              boxShadow: 'var(--shadow-sm)', transition: 'all 0.15s',
-            }}
-            onFocus={e => { e.currentTarget.style.borderColor = c.primary; e.currentTarget.style.boxShadow = '0 0 0 4px rgba(26,26,46,0.07)' }}
-            onBlur={e => { e.currentTarget.style.borderColor = c.border; e.currentTarget.style.boxShadow = 'var(--shadow-sm)' }}
-          />
-          {heroQuery && (
-            <button
-              type="button"
-              aria-label="Clear search"
-              onClick={() => { setHeroQuery(''); handleFiltersChange({ ...filters, q: undefined }) }}
-              style={{ position: 'absolute', right: 54, top: '50%', transform: 'translateY(-50%)', color: c.text3, display: 'flex', background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-          )}
-          <button
-            type="submit"
-            aria-label="Search"
-            style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', width: 44, height: 44, background: c.primary, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', border: 'none', cursor: 'pointer', transition: 'background 0.15s' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#2A2A42' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = c.primary }}
-          >
-            <Search size={19} strokeWidth={2} />
-          </button>
-        </form>
-
-        <div className="hero-dual-cta">
-          <div style={{ flex: 1, height: 1, background: c.border }} />
-          <span style={{ fontSize: 12, fontWeight: 600, color: c.text3, textTransform: 'uppercase', letterSpacing: '0.6px' }}>or</span>
-          <div style={{ flex: 1, height: 1, background: c.border }} />
+      {/* ── HERO: the Pick flow itself, not a link to it ─────────────────── */}
+      <section style={{ maxWidth: 900, margin: '0 auto', padding: '56px var(--page-px) 24px', textAlign: 'center' }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 14px', background: 'var(--accent-light)', border: '1px solid var(--accent-border)', borderRadius: 'var(--r-full)', fontSize: 12, fontWeight: 700, color: c.accent, textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 18 }}>
+          <Sparkles size={12} /> 30 seconds to your phone
         </div>
-
-        <Link
-          href={ROUTES.pick}
-          className="hero-pick-cta"
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: 10,
-            padding: '15px 30px', background: c.accent, color: '#fff',
-            borderRadius: 'var(--r-full)', fontSize: 16, fontWeight: 600,
-            boxShadow: '0 4px 16px rgba(230,57,70,0.25)', transition: 'all 0.15s',
-          }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#D32F3E'; (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = c.accent; (e.currentTarget as HTMLElement).style.transform = 'none' }}
-        >
-          Not sure what to buy? Help Me Choose <ArrowRight size={18} strokeWidth={2.2} />
-        </Link>
-        <p style={{ fontSize: 13, color: c.text3, marginTop: 10 }}>
-          Tell us your budget and priorities — get your top 5 matches in 30 seconds.
+        <h1 style={{ fontFamily: f.serif, fontSize: 'clamp(34px, 5vw, 50px)', color: c.text1, letterSpacing: '-0.8px', lineHeight: 1.12, marginBottom: 14 }}>
+          Stop comparing specs.<br />Start deciding.
+        </h1>
+        <p style={{ fontSize: 'clamp(15px, 2vw, 17px)', color: c.text2, lineHeight: 1.6, marginBottom: 36, maxWidth: 520, margin: '0 auto 36px' }}>
+          Tell us your budget and what matters to you. We'll narrow the entire catalog down to 5 phones — no spec sheets, no tabs, no guessing.
         </p>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap', marginTop: 28 }}>
-          <span style={{ fontSize: 13, color: c.text3 }}>Popular:</span>
-          {POPULAR.map(tag => (
+        <PickLauncher />
+
+        <div style={{ marginTop: 22 }}>
+          {!searchOpen ? (
             <button
-              key={tag}
-              onClick={() => handlePopularTag(tag)}
-              style={{
-                fontSize: 13,
-                color: filters.q === tag ? c.primary : c.text2,
-                padding: '4px 12px',
-                background: filters.q === tag ? 'rgba(26,26,46,0.06)' : c.surface,
-                border: `1px solid ${filters.q === tag ? c.primary : c.border}`,
-                borderRadius: 'var(--r-full)',
-                transition: 'all 0.15s',
-                fontWeight: filters.q === tag ? 600 : 400,
-              }}
-              onMouseEnter={e => {
-                if (filters.q !== tag) {
-                  (e.currentTarget as HTMLElement).style.borderColor = c.primary
-                  ;(e.currentTarget as HTMLElement).style.color = c.text1
-                }
-              }}
-              onMouseLeave={e => {
-                if (filters.q !== tag) {
-                  (e.currentTarget as HTMLElement).style.borderColor = c.border
-                  ;(e.currentTarget as HTMLElement).style.color = c.text2
-                }
-              }}
+              onClick={() => setSearchOpen(true)}
+              style={{ fontSize: 13, color: c.text3, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = c.text1 }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = c.text3 }}
             >
-              {tag}
+              Already know the model you want? Search directly →
             </button>
+          ) : (
+            <form onSubmit={handleSearchSubmit} style={{ position: 'relative', maxWidth: 420, margin: '0 auto' }}>
+              <Search size={14} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: c.text3, pointerEvents: 'none' }} />
+              <input
+                autoFocus
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="e.g. iPhone 17 Pro, Galaxy S26"
+                aria-label="Search phones directly"
+                style={{
+                  width: '100%', height: 42, padding: '0 40px 0 36px',
+                  background: c.surface, border: `1px solid ${c.border}`,
+                  borderRadius: 'var(--r-full)', fontSize: 14, color: c.text1,
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => { setSearchOpen(false); setSearchQuery('') }}
+                aria-label="Close search"
+                style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', color: c.text3, display: 'flex', background: 'none', border: 'none', cursor: 'pointer', padding: 6 }}
+              >
+                <X size={13} />
+              </button>
+            </form>
+          )}
+        </div>
+      </section>
+
+      {/* ── How it works — reinforces the decision framing, not another search tool ── */}
+      <section style={{ maxWidth: 900, margin: '0 auto', padding: '20px var(--page-px) 56px' }}>
+        <div className="how-it-works-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
+          {[
+            { n: '01', title: 'Set your budget', desc: 'Five clear tiers, from budget to ultra flagship. Or enter your own range.' },
+            { n: '02', title: 'Pick what matters', desc: 'Camera, battery, gaming, whatever you actually care about — 2 or 3 max.' },
+            { n: '03', title: 'Get your answer', desc: 'Five ranked phones with the reasoning and trade-offs spelled out. Done.' },
+          ].map(step => (
+            <div key={step.n} style={{ textAlign: 'left' }}>
+              <div style={{ fontFamily: f.serif, fontSize: 26, color: 'var(--border-hover)', marginBottom: 6 }}>{step.n}</div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: c.text1, marginBottom: 4 }}>{step.title}</div>
+              <div style={{ fontSize: 13, color: c.text3, lineHeight: 1.55 }}>{step.desc}</div>
+            </div>
           ))}
         </div>
       </section>
 
+      {/* ── Rankings strip — secondary, for people who want to browse a verdict instead of taking the quiz ── */}
       <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 var(--page-px)', marginBottom: 48 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: c.text3, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 14 }}>
+          Or jump straight to a ranking
+        </div>
         <div className="scrollbar-none" style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 4 }}>
           {Object.entries(CATEGORY_META).map(([slug, meta]) => (
             <Link
@@ -464,79 +597,109 @@ function HomeContent() {
         </div>
       </div>
 
-      <div id="phone-grid" style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 var(--page-px) 64px', display: 'grid', gridTemplateColumns: 'var(--sidebar-w) 1fr', gap: 32, alignItems: 'start' }}>
-        <div className="filter-sidebar">
-          <FilterPanel filters={filters} onChange={handleFiltersChange} onReset={handleReset} />
-        </div>
-
-        <div>
-          <FilterChips filters={filters} onChange={handleFiltersChange} />
-
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, gap: 12, flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <button
-                onClick={() => setMobileFiltersOpen(true)}
-                style={{ display: 'none', alignItems: 'center', gap: 6, padding: '7px 14px', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-sm)', fontSize: 13, fontWeight: 500, color: c.text1 }}
-                className="mobile-filter-btn"
-                aria-label="Open filters"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="12" y1="18" x2="20" y2="18"/></svg>
-                Filters
-                {activeFilterCount > 0 && (
-                  <span style={{ background: c.accent, color: '#fff', fontSize: 10, fontWeight: 700, width: 16, height: 16, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {activeFilterCount}
-                  </span>
-                )}
-              </button>
-
-              <div style={{ position: 'relative' }}>
-                <select
-                  value={sortIdx}
-                  onChange={e => handleSortChange(Number(e.target.value))}
-                  aria-label="Sort phones"
-                  style={{ appearance: 'none', padding: '7px 30px 7px 12px', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-sm)', fontSize: 13, fontWeight: 500, color: c.text1, cursor: 'pointer' }}
-                >
-                  {SORT_OPTIONS.map((o, i) => <option key={i} value={i}>{o.label}</option>)}
-                </select>
-                <ChevronRight size={12} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%) rotate(90deg)', color: c.text3, pointerEvents: 'none' }} />
-              </div>
-
-              {!loading && <span style={{ fontSize: 13, color: c.text3 }}>{total.toLocaleString()} phone{total !== 1 ? 's' : ''}</span>}
-            </div>
-          </div>
-
-          {loading ? (
-            <div className="phone-grid-layout">
-              {Array.from({ length: PAGE_SIZE }).map((_, i) => <PhoneCardSkeleton key={i} />)}
-            </div>
-          ) : phones.length > 0 ? (
-            <>
-              <div className="phone-grid-layout">
-                {phones.map(phone => <PhoneCard key={phone.id} phone={phone} compareIds={compareIds} onCompareToggle={handleCompareToggle} />)}
-              </div>
-              <Pagination page={page} total={total} pageSize={PAGE_SIZE} onChange={handlePageChange} />
-            </>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '80px 0' }}>
-              <Smartphone size={56} color={c.border} strokeWidth={1.5} style={{ margin: '0 auto 16px' }} />
-              <h3 style={{ fontFamily: f.serif, fontSize: 22, color: c.text1, marginBottom: 8 }}>No phones found</h3>
-              <p style={{ fontSize: 14, color: c.text3, marginBottom: 20 }}>Try adjusting your filters or search terms.</p>
-              <button
-                onClick={handleReset}
-                style={{ padding: '9px 22px', background: c.primary, color: '#fff', borderRadius: 'var(--r-full)', fontSize: 14, fontWeight: 500, border: 'none', cursor: 'pointer', transition: 'background 0.15s' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#2A2A42' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = c.primary }}
-              >
-                Clear all filters
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
       <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 var(--page-px)' }}>
         <TrendingScroll phones={trending} />
       </div>
+
+      {/* ── Catalog — deliberately collapsed. This is the "more searching" path, not the front door. ── */}
+      <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 var(--page-px) 24px' }}>
+        {!catalogOpen ? (
+          <button
+            onClick={openCatalog}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              padding: '16px 0', background: c.surface, border: `1px dashed ${c.border}`,
+              borderRadius: 'var(--r-lg)', color: c.text2, fontSize: 14, fontWeight: 500,
+              cursor: 'pointer', transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = c.primary; (e.currentTarget as HTMLElement).style.color = c.text1 }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = c.border; (e.currentTarget as HTMLElement).style.color = c.text2 }}
+          >
+            Prefer to browse the full catalog yourself? <ChevronDown size={15} />
+          </button>
+        ) : (
+          <div style={{ height: 1, background: c.border, marginBottom: 8 }} />
+        )}
+      </div>
+
+      {catalogOpen && (
+        <div id="phone-grid" style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 var(--page-px) 64px', display: 'grid', gridTemplateColumns: 'var(--sidebar-w) 1fr', gap: 32, alignItems: 'start' }}>
+          <div className="filter-sidebar">
+            <FilterPanel filters={filters} onChange={handleFiltersChange} onReset={handleReset} />
+          </div>
+
+          <div>
+            <FilterChips filters={filters} onChange={handleFiltersChange} />
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <button
+                  onClick={() => setMobileFiltersOpen(true)}
+                  style={{ display: 'none', alignItems: 'center', gap: 6, padding: '7px 14px', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-sm)', fontSize: 13, fontWeight: 500, color: c.text1 }}
+                  className="mobile-filter-btn"
+                  aria-label="Open filters"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="12" y1="18" x2="20" y2="18"/></svg>
+                  Filters
+                  {activeFilterCount > 0 && (
+                    <span style={{ background: c.accent, color: '#fff', fontSize: 10, fontWeight: 700, width: 16, height: 16, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </button>
+
+                <div style={{ position: 'relative' }}>
+                  <select
+                    value={sortIdx}
+                    onChange={e => handleSortChange(Number(e.target.value))}
+                    aria-label="Sort phones"
+                    style={{ appearance: 'none', padding: '7px 30px 7px 12px', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-sm)', fontSize: 13, fontWeight: 500, color: c.text1, cursor: 'pointer' }}
+                  >
+                    {SORT_OPTIONS.map((o, i) => <option key={i} value={i}>{o.label}</option>)}
+                  </select>
+                  <ChevronRight size={12} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%) rotate(90deg)', color: c.text3, pointerEvents: 'none' }} />
+                </div>
+
+                {!loading && <span style={{ fontSize: 13, color: c.text3 }}>{total.toLocaleString()} phone{total !== 1 ? 's' : ''}</span>}
+              </div>
+
+              <Link
+                href={ROUTES.pick}
+                style={{ fontSize: 13, fontWeight: 600, color: c.accent, display: 'flex', alignItems: 'center', gap: 4 }}
+              >
+                Not sure? Take the 30s quiz instead <ArrowRight size={13} />
+              </Link>
+            </div>
+
+            {loading ? (
+              <div className="phone-grid-layout">
+                {Array.from({ length: PAGE_SIZE }).map((_, i) => <PhoneCardSkeleton key={i} />)}
+              </div>
+            ) : phones.length > 0 ? (
+              <>
+                <div className="phone-grid-layout">
+                  {phones.map(phone => <PhoneCard key={phone.id} phone={phone} compareIds={compareIds} onCompareToggle={handleCompareToggle} />)}
+                </div>
+                <Pagination page={page} total={total} pageSize={PAGE_SIZE} onChange={handlePageChange} />
+              </>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '80px 0' }}>
+                <Smartphone size={56} color={c.border} strokeWidth={1.5} style={{ margin: '0 auto 16px' }} />
+                <h3 style={{ fontFamily: f.serif, fontSize: 22, color: c.text1, marginBottom: 8 }}>No phones found</h3>
+                <p style={{ fontSize: 14, color: c.text3, marginBottom: 20 }}>Try adjusting your filters or search terms.</p>
+                <button
+                  onClick={handleReset}
+                  style={{ padding: '9px 22px', background: c.primary, color: '#fff', borderRadius: 'var(--r-full)', fontSize: 14, fontWeight: 500, border: 'none', cursor: 'pointer', transition: 'background 0.15s' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#2A2A42' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = c.primary }}
+                >
+                  Clear all filters
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <Footer />
 
@@ -573,18 +736,19 @@ function HomeContent() {
       )}
 
       <style>{`
-        .hero-dual-cta { display: flex; align-items: center; gap: 14px; max-width: 340px; margin: 0 auto 20px; }
         .phone-grid-layout { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
         ${mq.lg} {
           #phone-grid { grid-template-columns: 1fr !important; }
           .filter-sidebar { display: none !important; }
           .mobile-filter-btn { display: flex !important; }
           .phone-grid-layout { grid-template-columns: repeat(4, 1fr); gap: 12px; }
+          .how-it-works-grid { grid-template-columns: 1fr !important; gap: 24px !important; }
         }
         @media (max-width: 860px) { .phone-grid-layout { grid-template-columns: repeat(3, 1fr); gap: 10px; } }
         ${mq.sm} {
           .phone-grid-layout { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-          .hero-pick-cta { width: 100%; justify-content: center; }
+          .pick-priority-grid { grid-template-columns: repeat(2, 1fr) !important; }
+          .pick-tier-row > button { flex: 1 1 45% !important; }
         }
       `}</style>
     </div>
