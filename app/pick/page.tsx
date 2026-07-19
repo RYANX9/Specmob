@@ -311,14 +311,6 @@ function StepPriorities({ selected, onToggle }: { selected: Set<string>; onToggl
   )
 }
 
-// ResultCard shows the backend's per-phone match_line / tradeoff_line when
-// present (generated server-side from the shopper's actual tier +
-// priorities). Falls back to spec-derived copy only if the backend call
-// didn't return anything for this phone. A phone flagged in_requested_budget
-// === false was included only because a hard filter (e.g. foldable) needed
-// the price range widened to find enough matches — that always wins over
-// any other fallback tradeoff, and is never masked by the AI copy either
-// (see routes/recommend_copy.py's within_requested_budget instruction).
 function ResultCard({
   phone, rank, score, isBest, onCompare, isCompared, tier,
 }: {
@@ -733,6 +725,19 @@ function PickPageContent() {
     }
   }, [tierId, customMin, customMax, customRangeValid, priorities, toast])
 
+  // Fetch whenever step 3 is active, not only on the step2->3 transition.
+  // Covers direct links into results (?step=3&tier=...&p=...), refreshes,
+  // and browser back/forward landing on step 3 -- all of which previously
+  // left `results` empty and `loading` false with no fetch ever triggered,
+  // which is exactly the "stuck on loading" symptom coming from the home page.
+  useEffect(() => {
+    const canFetch = (tierId != null || customRangeValid) && priorities.size >= 2
+    if (step === 3 && canFetch && results.length === 0 && !loading) {
+      fetchResults()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step])
+
   const goNext = () => {
     const next = Math.min(step + 1, 3)
     if (step === 2) fetchResults()
@@ -819,6 +824,25 @@ function PickPageContent() {
               animation: 'spin 0.8s linear infinite', margin: '0 auto 12px',
             }} />
             <p style={{ fontSize: 14, color: c.text3 }}>Finding your perfect phone...</p>
+          </div>
+        )}
+
+        {step === 3 && !loading && results.length === 0 && !recommendMeta && (
+          <div style={{ textAlign: 'center', padding: '20px 0 0' }}>
+            <p style={{ fontSize: 13, color: c.text3, marginBottom: 12 }}>
+              Nothing to show yet for this combination.
+            </p>
+            <button
+              onClick={goBack}
+              style={{
+                padding: '10px 22px', borderRadius: 'var(--r-md)',
+                fontWeight: 500, fontSize: 13, cursor: 'pointer',
+                border: `1px solid ${c.border}`, background: 'transparent',
+                color: c.text2,
+              }}
+            >
+              Start over
+            </button>
           </div>
         )}
 
