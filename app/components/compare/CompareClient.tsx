@@ -87,51 +87,66 @@ interface SpecSectionDef {
   rows: SpecRowDef[]
 }
 
+import { getChipsetTierLabel } from '@/lib/tiers'
+
+function wirelessCharging(p: Phone): string {
+  if (p.has_wireless_charging == null) return '—'
+  if (!p.has_wireless_charging) return 'No'
+  return p.wireless_charging_w ? `${p.wireless_charging_w}W` : 'Yes'
+}
+
 const SPEC_SECTIONS: SpecSectionDef[] = [
   {
     title: 'Display', icon: <Monitor size={15} strokeWidth={1.5} />,
     rows: [
-      { label: 'Screen Size', getValue: p => fmt(p.screen_size, '"'), getRaw: p => p.screen_size },
-      { label: 'Resolution',  getValue: p => p.screen_resolution ?? '—' },
-      { label: 'Panel Type',  getValue: p => getPanelType(p) },
+      { label: 'Screen Size',      getValue: p => fmt(p.screen_size, '"'), getRaw: p => p.screen_size },
+      { label: 'Resolution',       getValue: p => p.screen_resolution ?? '—' },
+      { label: 'Panel Type',       getValue: p => p.display_type ?? getPanelType(p) },
+      { label: 'Refresh Rate',     getValue: p => fmt(p.refresh_rate_hz, 'Hz'), getRaw: p => p.refresh_rate_hz },
+      { label: 'Peak Brightness',  getValue: p => fmt(p.peak_brightness_nits, ' nits'), getRaw: p => p.peak_brightness_nits },
     ],
   },
   {
     title: 'Camera', icon: <Camera size={15} strokeWidth={1.5} />,
     rows: [
       { label: 'Main Camera',  getValue: p => fmt(p.main_camera_mp, ' MP'), getRaw: p => p.main_camera_mp },
+      { label: 'Camera Setup', getValue: p => p.camera_setup_type ? p.camera_setup_type[0].toUpperCase() + p.camera_setup_type.slice(1) : '—' },
+      { label: 'Optical Zoom', getValue: p => p.optical_zoom ?? '—' },
+      { label: 'OIS',          getValue: p => p.has_ois == null ? '—' : p.has_ois ? 'Yes' : 'No' },
       { label: 'Front Camera', getValue: p => getFrontCamera(p) },
-      { label: 'Features',     getValue: p => p.features?.join(', ') ?? '—' },
+      { label: 'Features',     getValue: p => p.features?.length ? p.features.join(', ') : '—' },
     ],
   },
   {
     title: 'Performance', icon: <Zap size={15} strokeWidth={1.5} />,
     rows: [
-      { label: 'Chipset', getValue: p => p.chipset ?? '—' },
-      { label: 'AnTuTu',  getValue: p => fmt(p.antutu_score), getRaw: p => p.antutu_score },
-      { label: 'RAM',     getValue: p => p.ram_options?.length ? `${Math.max(...p.ram_options)} GB` : '—', getRaw: p => p.ram_options?.length ? Math.max(...p.ram_options) : null },
-      { label: 'Storage', getValue: p => p.storage_options?.length ? `${Math.max(...p.storage_options)} GB` : '—', getRaw: p => p.storage_options?.length ? Math.max(...p.storage_options) : null },
+      { label: 'Chipset',   getValue: p => p.chipset ?? '—' },
+      { label: 'AnTuTu',    getValue: p => fmt(p.antutu_score), getRaw: p => p.antutu_score },
+      { label: 'Geekbench', getValue: p => fmt(p.geekbench_single), getRaw: p => p.geekbench_single },
+      { label: 'GPU Score', getValue: p => fmt(p.gpu_score), getRaw: p => p.gpu_score },
+      { label: 'RAM',       getValue: p => p.ram_options?.length ? `${Math.max(...p.ram_options)} GB` : '—', getRaw: p => p.ram_options?.length ? Math.max(...p.ram_options) : null },
+      { label: 'Storage',   getValue: p => p.storage_options?.length ? `${Math.max(...p.storage_options)} GB` : '—', getRaw: p => p.storage_options?.length ? Math.max(...p.storage_options) : null },
     ],
   },
   {
     title: 'Battery', icon: <Battery size={15} strokeWidth={1.5} />,
     rows: [
-      { label: 'Capacity',    getValue: p => fmt(p.battery_capacity, ' mAh'), getRaw: p => p.battery_capacity },
-      { label: 'Fast Charge', getValue: p => fmt(p.fast_charging_w, 'W'),     getRaw: p => p.fast_charging_w },
+      { label: 'Capacity',         getValue: p => fmt(p.battery_capacity, ' mAh'), getRaw: p => p.battery_capacity },
+      { label: 'Fast Charge',      getValue: p => fmt(p.fast_charging_w, 'W'),     getRaw: p => p.fast_charging_w },
+      { label: 'Wireless Charge',  getValue: wirelessCharging },
     ],
   },
   {
     title: 'Build', icon: <HardHat size={15} strokeWidth={1.5} />,
     rows: [
-      { label: 'Weight',       getValue: p => fmt(p.weight_g, 'g'),      getRaw: p => p.weight_g,     lower: true },
-      { label: 'Thickness',    getValue: p => fmt(p.thickness_mm, 'mm'), getRaw: p => p.thickness_mm, lower: true },
-      // chipset_tier arrives from the API as {id, label} already resolved
-      // server-side (smart_tier preferred over the chipset regex fallback).
-      { label: 'Chipset Tier', getValue: p => p.chipset_tier?.label ?? '—' },
+      { label: 'Weight',           getValue: p => fmt(p.weight_g, 'g'),      getRaw: p => p.weight_g,     lower: true },
+      { label: 'Thickness',        getValue: p => fmt(p.thickness_mm, 'mm'), getRaw: p => p.thickness_mm, lower: true },
+      { label: 'Build Material',   getValue: p => p.build_material ?? '—' },
+      { label: 'Water Resistance', getValue: p => p.water_resistance ?? '—' },
+      { label: 'Chipset Tier',     getValue: p => getChipsetTierLabel(p.chipset_tier) },
     ],
   },
 ]
-
 // ─── phone column ─────────────────────────────────────────────────────────────
 
 function PhoneColumn({ phone, onRemove, isWinner }: { phone: Phone; onRemove: () => void; isWinner: boolean }) {
