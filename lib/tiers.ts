@@ -1,9 +1,4 @@
-// Single source of truth for chipset/smart tier display. Both the AI
-// smart_score.tier (5 buckets: ultra_flagship, flagship, upper_mid_range,
-// mid_range, budget) and the regex-derived chipset_tier fallback
-// (flagship, mid, entry) resolve through this map, so every surface —
-// card, detail page, filters — renders the same label and color for a
-// given phone.
+import type { ChipsetTier } from './types'
 
 export const TIER_ORDER = [
   'ultra_flagship',
@@ -26,7 +21,6 @@ export const TIER_STYLE: Record<string, TierStyle> = {
   flagship:         { label: 'Flagship',         color: 'var(--accent)', bg: 'var(--accent-light)' },
   upper_mid_range:  { label: 'Upper Mid-Range',  color: 'var(--blue)',   bg: 'var(--blue-light)' },
   mid_range:        { label: 'Mid-Range',        color: 'var(--blue)',   bg: 'var(--blue-light)' },
-  // chipset_tier regex fallback only produces these three buckets
   mid:              { label: 'Mid-Range',        color: 'var(--blue)',   bg: 'var(--blue-light)' },
   entry:            { label: 'Budget',           color: 'var(--text-2)', bg: 'rgba(74,74,74,0.06)' },
   entry_level:      { label: 'Budget',           color: 'var(--text-2)', bg: 'rgba(74,74,74,0.06)' },
@@ -34,15 +28,18 @@ export const TIER_STYLE: Record<string, TierStyle> = {
 }
 
 /**
- * Resolves a phone's tier display, preferring the AI smart_score tier
- * (richer, 5-bucket vocabulary) and falling back to the regex-derived
- * chipset_tier when the phone hasn't been scored yet.
+ * chipset_tier comes back from the API already resolved server-side
+ * (shaping.py prefers smart_tier over the chipset regex fallback before
+ * this ever reaches the client). Do not re-resolve it against
+ * smart_score.tier here — that field is the same source, not a second
+ * signal. This is a pure id -> style lookup.
  */
-export function resolveTier(
-  smartTier: string | null | undefined,
-  chipsetTier: string | null | undefined,
-): TierStyle | null {
-  const raw = smartTier || chipsetTier
-  if (!raw || raw === 'unknown') return null
-  return TIER_STYLE[raw] ?? { label: raw.replace(/_/g, ' '), color: 'var(--text-2)', bg: 'rgba(74,74,74,0.06)' }
+export function getTierStyle(chipsetTier: ChipsetTier | null | undefined): TierStyle | null {
+  if (!chipsetTier || !chipsetTier.id || chipsetTier.id === 'unknown') return null
+  return TIER_STYLE[chipsetTier.id] ?? {
+    label: chipsetTier.label || chipsetTier.id.replace(/_/g, ' '),
+    color: 'var(--text-2)',
+    bg: 'rgba(74,74,74,0.06)',
+  }
 }
+
