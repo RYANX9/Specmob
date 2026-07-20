@@ -1,6 +1,7 @@
-export interface ChipsetTier {
-  id: string
-  label: string
+export type ChipsetTier = string | { id: string; label: string } | null
+
+export interface FullSpecifications {
+  [groupName: string]: Record<string, unknown>
 }
 
 export interface Phone {
@@ -9,45 +10,75 @@ export interface Phone {
   model_name: string
   brand: string
   price_usd: number | null
+  price_original?: number | null
+  currency?: string | null
+  availability_status?: string | null
   main_image_url: string | null
-  images?: PhoneImage[] | null
+
   screen_size: number | null
+  screen_resolution: string | null
+  display_type?: string | null
+  refresh_rate_hz?: number | null
+  peak_brightness_nits?: number | null
+  measured_brightness_nits?: number | null
+
   battery_capacity: number | null
+  battery_material?: string | null
+  fast_charging_w: number | null
+  has_wireless_charging?: boolean | null
+  wireless_charging_w?: number | null
+  has_reverse_wireless?: boolean | null
+
   ram_options: number[] | null
   storage_options: number[] | null
+
   main_camera_mp: number | null
+  camera_setup_type?: string | null
+  optical_zoom?: string | null
+  has_ois?: boolean | null
+  camera_summary?: string | null
+
   chipset: string | null
   antutu_score: number | null
+  geekbench_single?: number | null
+  geekbench_multi?: number | null
+  gpu_score?: number | null
+  is_premium_gaming?: boolean | null
+
+  water_resistance?: string | null
+  build_material?: string | null
+  design_form?: string | null
+  is_foldable?: boolean | null
+
+  sim_layout?: string | null
+  network_generation?: string | null
+  has_nfc?: boolean | null
+  has_headphone_jack?: boolean | null
+
   amazon_link: string | null
   release_year: number | null
   release_month: number | null
   release_day: number | null
   release_date_full: string | null
-  // Unix timestamp computed server-side: EXTRACT(EPOCH FROM MAKE_DATE(year, month, day))
   release_ts: number | null
-  // Detail-only (null on list endpoints)
-  chipset_tier?: ChipsetTier | null   // was: string | null
+
   weight_g: number | null
   thickness_mm: number | null
-  screen_resolution: string | null
-  fast_charging_w: number | null
   full_specifications: FullSpecifications | null
   features: string[] | null
+
   value_score?: number | null
-  chipset_tier?: string | null
+  chipset_tier?: ChipsetTier
   popularity?: number | null
   smart_score?: SmartScore | null
   price_updated_at?: string | null
   price_scope?: string | null
-  // Per-request personalized copy from /phones/recommend, generated from
-  // the shopper's actual budget + priorities. Present only when that call
-  // succeeded — always treat as optional.
+
+  variants?: PhoneVariant[]
+  images?: { id: number; image_url: string; sort_order: number }[]
+
   match_line?: string | null
   tradeoff_line?: string | null
-  // Only present on /phones/recommend results. False means this phone fell
-  // outside the shopper's requested price range and was included only
-  // because a hard filter (e.g. foldable) needed the budget widened to
-  // find enough matches.
   in_requested_budget?: boolean | null
   match_score?: number | null
 }
