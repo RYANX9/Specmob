@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { api, type PricePointRow } from '@/lib/api'
 import { ROUTES, brandSlug, phoneSlug, valueScoreColor } from '@/lib/config'
-import { resolveTier } from '@/lib/tiers'
+import { getTierStyle } from '@/lib/tiers'
 import { resolveDisplayPrice, withLaunchPrice } from '@/lib/price'
 import { getPanelType, getFrontCamera } from '@/lib/specs'
 import { c, f, z } from '@/lib/tokens'
@@ -296,10 +296,8 @@ function VariantPicker({
   const hasRam = variants.some(v => v.ram_gb != null)
   const cheapest = Math.min(...variants.map(v => v.price))
 
-  // Helper to format storage cleanly (e.g., 1024 -> 1TB, 512 -> 512GB)
   const formatSize = (s: number) => {
     if (s >= 1000) {
-      // Rounds 1024 or 1000 to 1, 2048 to 2, etc.
       return `${Math.round(s / 1000)}TB`
     }
     return `${s}GB`
@@ -354,7 +352,6 @@ function VariantPicker({
     </div>
   )
 }
-
 
 function OverviewSection({ title, headline, specs }: { title: string; headline: string; specs: { label: string; value: string }[] }) {
   if (!specs.length) return null
@@ -420,7 +417,10 @@ function WhyThisPhone({
     )
   }
 
-  const tier = resolveTier(smart.tier, phone.chipset_tier)
+  // chipset_tier arrives from the API already resolved (smart_tier preferred
+  // over the chipset regex fallback in shaping.py) — do not re-resolve
+  // against smart.tier here, that would be re-deriving the same value.
+  const tier = getTierStyle(phone.chipset_tier)
 
   const qualityFields: [string, number | null][] = [
     ['camera_score', smart.camera_score],
@@ -607,13 +607,6 @@ function buildGalleryUrls(phone: Phone): string[] {
   const urls = phone.main_image_url ? [phone.main_image_url, ...extra] : extra
   return urls.filter(Boolean)
 }
-// Fix: every image is forced into an identical fixed pixel box via
-// object-fit: contain. This normalizes apparent phone size across
-// images regardless of native resolution or baked-in source whitespace,
-// instead of relying on a percentage of a variable-content container.
-
-const GALLERY_MAIN_SIZE = 320   // px
-const GALLERY_THUMB_SIZE = 56   // px
 
 function PhoneGallery({ phone }: { phone: Phone }) {
   const gallery = buildGalleryUrls(phone)
@@ -630,22 +623,13 @@ function PhoneGallery({ phone }: { phone: Phone }) {
       borderRadius: 'var(--r-xl)', padding: 32,
       display: 'flex', flexDirection: 'column', gap: 16,
     }}>
-      <div style={{
-        position: 'relative', aspectRatio: '1',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
+      <div style={{ position: 'relative', aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {current && !failed[index]
           ? <img
               src={current}
               alt={`${phone.brand} ${phone.model_name}`}
               onError={() => setFailed(prev => ({ ...prev, [index]: true }))}
-              style={{
-                width: GALLERY_MAIN_SIZE,
-                height: GALLERY_MAIN_SIZE,
-                maxWidth: '72%',
-                maxHeight: '72%',
-                objectFit: 'contain',
-              }}
+              style={{ maxWidth: '72%', maxHeight: '72%', objectFit: 'contain' }}
             />
           : <Smartphone size={100} color={c.border} strokeWidth={0.8} />}
 
@@ -684,14 +668,10 @@ function PhoneGallery({ phone }: { phone: Phone }) {
               aria-label={`View image ${i + 1}`}
               aria-current={i === index}
               style={{
-                flexShrink: 0,
-                width: GALLERY_THUMB_SIZE,
-                height: GALLERY_THUMB_SIZE,
-                padding: 0,
+                flexShrink: 0, width: 56, height: 56, padding: 0,
                 borderRadius: 'var(--r-sm)',
                 border: `2px solid ${i === index ? c.accent : c.border}`,
-                background: c.bg,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: c.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
                 overflow: 'hidden', cursor: 'pointer', transition: 'border-color 0.15s',
               }}
             >
@@ -712,6 +692,7 @@ function PhoneGallery({ phone }: { phone: Phone }) {
     </div>
   )
 }
+
 // ─── JSON-LD builders ─────────────────────────────────────────────────────────
 
 function buildProductJsonLd(phone: Phone, brand: string, model: string, displayPrice: number | null): object {
@@ -834,12 +815,6 @@ function PhoneDetailContent() {
     return () => controller.abort()
   }, [phone?.id])
 
-  // Fetch storage/RAM price variants for this phone. Backed by GET /phones/{id}/variants
-  // — add a matching `variants(id, signal)` method next to `priceHistory` in lib/api.ts:
-  //
-  //   variants: (id: number, signal?: AbortSignal) =>
-  //     fetchJson<{ phone_id: number; variants: PhoneVariant[] }>(`/phones/${id}/variants`, signal),
-  //
   useEffect(() => {
     if (!phone?.id) return
     const controller = new AbortController()
@@ -926,8 +901,6 @@ function PhoneDetailContent() {
   // ── derived ──────────────────────────────────────────────────────────────────
   const displayPrice = resolveDisplayPrice(phone, priceHistoryPoints)
 
-  // Effective price/link reflect the selected variant when one exists; otherwise fall
-  // back to the phone table's own price (which is what phones with no variants use).
   const effectivePrice = selectedVariant ? selectedVariant.price : displayPrice
   const buyUrl   = selectedVariant?.url || phone.amazon_link
   const isAmazon = !!buyUrl && buyUrl.includes('amazon.')
@@ -947,7 +920,7 @@ function PhoneDetailContent() {
     phone,
   )
   const valueScore  = (phone as any).value_score as number | null
-  const tier        = resolveTier(phone.smart_score?.tier, phone.chipset_tier)
+  const tier        = getTierStyle(phone.chipset_tier)
 
   const overviewSections = [
     {
@@ -1099,7 +1072,7 @@ function PhoneDetailContent() {
               </button>
 
               {buyUrl && (
-                <a
+                
                   href={buyUrl}
                   target="_blank"
                   rel={isAmazon ? 'noopener noreferrer sponsored' : 'noopener noreferrer'}
