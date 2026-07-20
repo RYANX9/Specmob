@@ -29,7 +29,6 @@ function fmtPrice(v: number | null): string {
   return v == null ? 'Price TBA' : `$${v.toLocaleString()}`
 }
 
-// Client-side composite — only used when no server value_score exists
 function scoreComposite(p: Phone): number {
   let s = 0
   if (p.antutu_score)      s += Math.min(p.antutu_score / 2_000_000, 1) * 3
@@ -126,7 +125,9 @@ const SPEC_SECTIONS: SpecSectionDef[] = [
     rows: [
       { label: 'Weight',       getValue: p => fmt(p.weight_g, 'g'),      getRaw: p => p.weight_g,     lower: true },
       { label: 'Thickness',    getValue: p => fmt(p.thickness_mm, 'mm'), getRaw: p => p.thickness_mm, lower: true },
-      { label: 'Chipset Tier', getValue: p => p.chipset_tier ? p.chipset_tier[0].toUpperCase() + p.chipset_tier.slice(1) : '—' },
+      // chipset_tier arrives from the API as {id, label} already resolved
+      // server-side (smart_tier preferred over the chipset regex fallback).
+      { label: 'Chipset Tier', getValue: p => p.chipset_tier?.label ?? '—' },
     ],
   },
 ]
@@ -520,7 +521,6 @@ function BottomLine({ phones, verdict }: { phones: Phone[]; verdict: CompareVerd
     }
   }
 
-  // Fallback: spec-derived picks, used only when no verdict is available
   const getScore   = (p: Phone) => p.value_score ?? scoreComposite(p)
   const bestValue  = phones.reduce((a, b) => getScore(a) > getScore(b) ? a : b)
   const cheapest   = phones.reduce((a, b) => (a.price_usd ?? Infinity) < (b.price_usd ?? Infinity) ? a : b)
@@ -609,9 +609,6 @@ function CompareContent({ initialPhones }: { initialPhones: Phone[] }) {
     return () => { cancelled = true }
   }, [spString, initialPhones.length])
 
-  // Fetches the holistic verdict for whatever phone set is currently on
-  // screen — covers phones that arrived via initialPhones (server-resolved
-  // slugs) as well as phones added/removed client-side afterward.
   const phoneIdsKey = phones.map(p => p.id).join(',')
   useEffect(() => {
     if (phones.length < 2) { setVerdict(null); return }
@@ -663,7 +660,6 @@ function CompareContent({ initialPhones }: { initialPhones: Phone[] }) {
     toast('Comparison cleared', 'info')
   }
 
-  // Use server value_score when available; fall back to composite only when not
   const getDisplayScore = (p: Phone) => p.value_score ?? scoreComposite(p)
   const scores    = phones.map(getDisplayScore)
   const bestIdx   = phones.length >= 2 ? scores.indexOf(Math.max(...scores)) : -1
