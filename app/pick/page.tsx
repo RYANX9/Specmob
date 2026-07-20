@@ -334,9 +334,11 @@ function ResultCard({
     phone.battery_capacity && phone.battery_capacity >= 4500
       ? `${phone.battery_capacity.toLocaleString()}mAh battery — above average for this price bracket.`
       : null,
-    phone.chipset_tier === 'flagship'
+    // chipset_tier arrives from the API as {id, label} — compare against .id,
+    // not the object itself.
+    phone.chipset_tier?.id === 'flagship'
       ? `Flagship ${phone.chipset || 'chipset'} delivers top-tier performance.`
-      : `Reliable ${phone.chipset_tier || 'mid-range'} performance for everyday use.`,
+      : `Reliable ${phone.chipset_tier?.label || 'mid-range'} performance for everyday use.`,
     phone.fast_charging_w && phone.fast_charging_w >= 30
       ? `${phone.fast_charging_w}W fast charging.`
       : null,
@@ -458,7 +460,7 @@ function ResultCard({
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         {phone.amazon_link && (
-          <a
+          
             href={phone.amazon_link}
             target="_blank"
             rel="noopener noreferrer sponsored"
@@ -725,11 +727,6 @@ function PickPageContent() {
     }
   }, [tierId, customMin, customMax, customRangeValid, priorities, toast])
 
-  // Fetch whenever step 3 is active, not only on the step2->3 transition.
-  // Covers direct links into results (?step=3&tier=...&p=...), refreshes,
-  // and browser back/forward landing on step 3 -- all of which previously
-  // left `results` empty and `loading` false with no fetch ever triggered,
-  // which is exactly the "stuck on loading" symptom coming from the home page.
   useEffect(() => {
     const canFetch = (tierId != null || customRangeValid) && priorities.size >= 2
     if (step === 3 && canFetch && results.length === 0 && !loading) {
