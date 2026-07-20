@@ -1072,7 +1072,7 @@ function PhoneDetailContent() {
               </button>
 
               {buyUrl && (
-                
+                <a
                   href={buyUrl}
                   target="_blank"
                   rel={isAmazon ? 'noopener noreferrer sponsored' : 'noopener noreferrer'}
