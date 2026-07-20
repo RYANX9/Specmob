@@ -158,7 +158,7 @@ function getCategoryWhyPointsFallback(slug: string, phone: Phone & { category_sc
     case 'camera-phones':
       pts.push(
         phone.main_camera_mp ? { bold: `${phone.main_camera_mp}MP main sensor`, rest: 'with advanced computational photography and flagship-grade optics.' } : null,
-        phone.chipset ? { bold: phone.chipset, rest: `— ${phone.chipset_tier ?? 'high-end'} tier SoC accelerates image processing and video encoding.` } : null,
+        phone.chipset ? { bold: phone.chipset, rest: `— ${phone.chipset_tier?.label ?? 'high-end'} tier SoC accelerates image processing and video encoding.` } : null,
         phone.battery_capacity ? { bold: `${phone.battery_capacity.toLocaleString()}mAh battery`, rest: 'sustains extended shooting sessions and continuous 4K recording.' } : null,
         phone.fast_charging_w ? { bold: `${phone.fast_charging_w}W fast charging`, rest: 'gets you back to shooting quickly between sessions.' } : null,
       )
@@ -174,7 +174,7 @@ function getCategoryWhyPointsFallback(slug: string, phone: Phone & { category_sc
     case 'gaming-phones':
       pts.push(
         phone.antutu_score ? { bold: `${phone.antutu_score.toLocaleString()} AnTuTu`, rest: '— top-tier raw performance for demanding titles at maximum settings.' } : null,
-        phone.chipset ? { bold: phone.chipset, rest: `— ${phone.chipset_tier ?? 'flagship'} GPU handles any current game without thermal throttling.` } : null,
+        phone.chipset ? { bold: phone.chipset, rest: `— ${phone.chipset_tier?.label ?? 'flagship'} GPU handles any current game without thermal throttling.` } : null,
         phone.ram_options?.length ? { bold: `Up to ${Math.max(...phone.ram_options!)}GB RAM`, rest: 'keeps game assets resident and eliminates background eviction.' } : null,
         phone.fast_charging_w ? { bold: `${phone.fast_charging_w}W charging`, rest: 'gets you back in the game without lengthy waits.' } : null,
       )
@@ -216,7 +216,7 @@ function getCategoryWhyPointsFallback(slug: string, phone: Phone & { category_sc
       pts.push(
         phone.main_camera_mp ? { bold: `${phone.main_camera_mp}MP camera`, rest: 'strong imaging credentials.' } : null,
         phone.battery_capacity ? { bold: `${phone.battery_capacity.toLocaleString()}mAh battery`, rest: 'solid all-day endurance.' } : null,
-        phone.chipset ? { bold: phone.chipset, rest: `${phone.chipset_tier ?? 'capable'} tier performance.` } : null,
+        phone.chipset ? { bold: phone.chipset, rest: `${phone.chipset_tier?.label ?? 'capable'} tier performance.` } : null,
       )
   }
   return (pts.filter(Boolean) as WhyPoint[]).slice(0, 4)
@@ -244,7 +244,7 @@ function getCategoryTradeOffFallback(slug: string, phone: Phone & { category_sco
       return `Gaming-segment pricing commands a premium — if you do not need peak performance, check the mid-range options below.`
     case 'under-300':
     case 'under-500':
-      if (phone.chipset_tier === 'entry')
+      if (phone.chipset_tier?.id === 'entry')
         return `Entry-tier chipset — adequate for daily tasks but will struggle under sustained gaming and video workloads.`
       if (!phone.fast_charging_w || phone.fast_charging_w < 18)
         return `Slow charging is the clearest budget compromise — expect 90 minutes or more for a full charge.`
@@ -270,7 +270,7 @@ function getCategoryReasonFallback(slug: string, phone: Phone & { category_score
   const prefix = rank === 2 ? 'Runner-up by a narrow margin.' : 'A strong contender in this category.'
   switch (slug) {
     case 'camera-phones':
-      return `${prefix} ${phone.main_camera_mp ?? '---'}MP main with ${phone.chipset_tier ?? 'flagship'} tier processing.${phone.battery_capacity ? ` ${phone.battery_capacity.toLocaleString()}mAh for all-day shooting.` : ''}`
+      return `${prefix} ${phone.main_camera_mp ?? '---'}MP main with ${phone.chipset_tier?.label ?? 'flagship'} tier processing.${phone.battery_capacity ? ` ${phone.battery_capacity.toLocaleString()}mAh for all-day shooting.` : ''}`
     case 'battery-life':
       return `${prefix} ${phone.battery_capacity ? `${phone.battery_capacity.toLocaleString()}mAh` : '---'} keeps you unplugged through the longest days.${phone.fast_charging_w ? ` ${phone.fast_charging_w}W tops it up quickly.` : ''}`
     case 'gaming-phones':
@@ -289,8 +289,6 @@ function getCategoryReasonFallback(slug: string, phone: Phone & { category_score
   }
 }
 
-// Wrappers: prefer AI smart_score copy when the phone has been scored,
-// fall back to the per-category hardcoded generators otherwise.
 function getWhyPoints(slug: string, phone: Phone & { category_score: number }): WhyPoint[] {
   if (phone.smart_score?.strengths?.length) {
     return phone.smart_score.strengths.slice(0, 4).map(s => ({ bold: '', rest: s }))
@@ -361,7 +359,7 @@ function RankCardGold({ phone, score, rank, config, slug, onCompare, isCompared 
             {phone.model_name}
           </div>
           <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginBottom: 10 }}>
-            {phone.brand} · {phone.chipset_tier ?? 'Flagship'} · {phone.release_year}
+            {phone.brand} · {phone.chipset_tier?.label ?? 'Flagship'} · {phone.release_year}
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {phone.main_camera_mp && <span style={{ padding: '4px 10px', borderRadius: 'var(--r-full)', fontSize: 12, fontWeight: 500, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)' }}>{phone.main_camera_mp}MP main</span>}
@@ -471,7 +469,7 @@ function RankCardMedium({ phone, score, rank, variant, slug, onCompare, isCompar
 
       <div>
         <div style={{ fontFamily: 'var(--font-serif)', fontSize: 22, color: c.text1, marginBottom: 2, letterSpacing: '-0.3px' }}>{phone.model_name}</div>
-        <div style={{ fontSize: 13, color: c.text3, marginBottom: 10 }}>{phone.brand} · {phone.chipset_tier ?? 'Flagship'} · {phone.release_year}</div>
+        <div style={{ fontSize: 13, color: c.text3, marginBottom: 10 }}>{phone.brand} · {phone.chipset_tier?.label ?? 'Flagship'} · {phone.release_year}</div>
         <p style={{ fontSize: 14, color: c.text2, lineHeight: 1.6, marginBottom: 10, maxWidth: 520 }}>{reason}</p>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
           {phone.main_camera_mp && <span style={{ padding: '4px 10px', background: c.bg, border: `1px solid ${c.border}`, borderRadius: 'var(--r-full)', fontSize: 12, color: c.text2 }}>{phone.main_camera_mp}MP main</span>}
