@@ -88,13 +88,29 @@ const YEAR_OPTIONS = Array.from({ length: 7 }, (_, i) => CURRENT_YEAR - i).map(y
 
 const PRICE_DEBOUNCE_MS = 400
 
+// Boolean device-feature filters. Each key maps directly to a FilterParams
+// field the backend already supports (query.py's _BOOL list) but the UI
+// never exposed — these are exactly the "hard filter" priorities /pick
+// treats specially (HARD_FILTER_PRIORITIES in scoring.py), now available
+// directly on the catalog instead of only through the guided flow.
+const FEATURE_FILTERS: { key: keyof SearchFilters; label: string }[] = [
+  { key: 'is_foldable', label: 'Foldable' },
+  { key: 'water_resistant', label: 'Water/Dust Resistant' },
+  { key: 'has_headphone_jack', label: 'Headphone Jack' },
+  { key: 'has_nfc', label: 'NFC' },
+  { key: 'has_wireless_charging', label: 'Wireless Charging' },
+  { key: 'has_ois', label: 'Optical Image Stabilization' },
+]
+
 export default function FilterPanel({ filters, onChange, onReset, showBrandFilter = true }: FilterPanelProps) {
   const [mode, setMode] = useState<'simple' | 'expert'>('simple')
   const [stats, setStats] = useState<FilterStats | null>(null)
   const [brandsExpanded, setBrandsExpanded] = useState(false)
-  const [selectedBrands, setSelectedBrands] = useState<string[]>(
-    filters.brand ? [filters.brand] : []
-  )
+  const [selectedBrands, setSelectedBrands] = useState<string[]>(() => {
+    if (filters.brands) return filters.brands.split(',').filter(Boolean)
+    if (filters.brand) return [filters.brand]
+    return []
+  })
 
   // Local state for price inputs — debounced before propagating up
   const [localMin, setLocalMin] = useState(filters.min_price != null ? String(filters.min_price) : '')
@@ -115,8 +131,9 @@ export default function FilterPanel({ filters, onChange, onReset, showBrandFilte
 
   // Sync selectedBrands when parent resets filters externally
   useEffect(() => {
+    if (filters.brands) { setSelectedBrands(filters.brands.split(',').filter(Boolean)); return }
     setSelectedBrands(filters.brand ? [filters.brand] : [])
-  }, [filters.brand])
+  }, [filters.brand, filters.brands])
 
   // Sync price locals when parent resets filters externally
   useEffect(() => {
@@ -144,12 +161,24 @@ export default function FilterPanel({ filters, onChange, onReset, showBrandFilte
     }, PRICE_DEBOUNCE_MS)
   }
 
+  // Multi-brand: >1 selected sends `brands` (comma string, matches the
+  // backend's FilterParams.brands), exactly 1 sends `brand` (unchanged
+  // single-brand path), 0 clears both. Previously this collapsed to
+  // `next.length === 1 ? next[0] : undefined` — checking a second box
+  // silently discarded the whole selection.
   const toggleBrand = (brand: string) => {
     const next = selectedBrands.includes(brand)
       ? selectedBrands.filter(b => b !== brand)
       : [...selectedBrands, brand]
     setSelectedBrands(next)
-    set({ brand: next.length === 1 ? next[0] : undefined })
+    set({
+      brand: next.length === 1 ? next[0] : undefined,
+      brands: next.length > 1 ? next.join(',') : undefined,
+    })
+  }
+
+  const toggleFeature = (key: keyof SearchFilters, current: boolean | undefined) => {
+    set({ [key]: current === true ? undefined : true } as Partial<SearchFilters>)
   }
 
   const visibleBrands = stats
@@ -267,6 +296,17 @@ export default function FilterPanel({ filters, onChange, onReset, showBrandFilte
 
       {DIVIDER}
       <div>
+        <SectionTitle>Min Storage</SectionTitle>
+        <RangeSelect
+          label="Minimum storage"
+          value={filters.min_storage}
+          options={[64, 128, 256, 512, 1024].map(s => ({ label: s >= 1000 ? `${s / 1000}TB` : `${s} GB`, value: s }))}
+          onChange={v => set({ min_storage: v ? Number(v) : undefined })}
+        />
+      </div>
+
+      {DIVIDER}
+      <div>
         <SectionTitle>Min Battery</SectionTitle>
         <RangeSelect
           label="Minimum battery capacity"
@@ -285,6 +325,19 @@ export default function FilterPanel({ filters, onChange, onReset, showBrandFilte
           options={[12, 48, 50, 64, 108, 200].map(m => ({ label: `${m}+ MP`, value: m }))}
           onChange={v => set({ min_camera_mp: v ? Number(v) : undefined })}
         />
+      </div>
+
+      {DIVIDER}
+      <div>
+        <SectionTitle>Device Features</SectionTitle>
+        {FEATURE_FILTERS.map(({ key, label }) => (
+          <CheckItem
+            key={key}
+            label={label}
+            checked={filters[key] === true}
+            onChange={() => toggleFeature(key, filters[key] as boolean | undefined)}
+          />
+        ))}
       </div>
 
       {mode === 'expert' && (
@@ -340,6 +393,34 @@ export default function FilterPanel({ filters, onChange, onReset, showBrandFilte
               value={filters.min_charging_w}
               options={[18, 33, 45, 65, 100, 120].map(w => ({ label: `${w}W+`, value: w }))}
               onChange={v => set({ min_charging_w: v ? Number(v) : undefined })}
+            />
+          </div>
+
+          {DIVIDER}
+          <div>
+            <SectionTitle>
+              Refresh Rate{' '}
+              <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 600, color: c.accent, background: 'var(--accent-light)', padding: '1px 6px', borderRadius: 'var(--r-full)' }}>Expert</span>
+            </SectionTitle>
+            <RangeSelect
+              label="Minimum refresh rate"
+              value={filters.min_refresh_rate}
+              options={[90, 120, 144, 165].map(hz => ({ label: `${hz}Hz+`, value: hz }))}
+              onChange={v => set({ min_refresh_rate: v ? Number(v) : undefined })}
+            />
+          </div>
+
+          {DIVIDER}
+          <div>
+            <SectionTitle>
+              Performance (AnTuTu){' '}
+              <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 600, color: c.accent, background: 'var(--accent-light)', padding: '1px 6px', borderRadius: 'var(--r-full)' }}>Expert</span>
+            </SectionTitle>
+            <RangeSelect
+              label="Minimum AnTuTu score"
+              value={filters.min_antutu}
+              options={[500_000, 1_000_000, 1_500_000, 2_000_000].map(a => ({ label: `${(a / 1_000_000).toFixed(1)}M+`, value: a }))}
+              onChange={v => set({ min_antutu: v ? Number(v) : undefined })}
             />
           </div>
 
