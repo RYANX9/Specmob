@@ -607,6 +607,13 @@ function buildGalleryUrls(phone: Phone): string[] {
   const urls = phone.main_image_url ? [phone.main_image_url, ...extra] : extra
   return urls.filter(Boolean)
 }
+// Fix: every image is forced into an identical fixed pixel box via
+// object-fit: contain. This normalizes apparent phone size across
+// images regardless of native resolution or baked-in source whitespace,
+// instead of relying on a percentage of a variable-content container.
+
+const GALLERY_MAIN_SIZE = 320   // px
+const GALLERY_THUMB_SIZE = 56   // px
 
 function PhoneGallery({ phone }: { phone: Phone }) {
   const gallery = buildGalleryUrls(phone)
@@ -623,13 +630,22 @@ function PhoneGallery({ phone }: { phone: Phone }) {
       borderRadius: 'var(--r-xl)', padding: 32,
       display: 'flex', flexDirection: 'column', gap: 16,
     }}>
-      <div style={{ position: 'relative', aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{
+        position: 'relative', aspectRatio: '1',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
         {current && !failed[index]
           ? <img
               src={current}
               alt={`${phone.brand} ${phone.model_name}`}
               onError={() => setFailed(prev => ({ ...prev, [index]: true }))}
-              style={{ maxWidth: '72%', maxHeight: '72%', objectFit: 'contain' }}
+              style={{
+                width: GALLERY_MAIN_SIZE,
+                height: GALLERY_MAIN_SIZE,
+                maxWidth: '72%',
+                maxHeight: '72%',
+                objectFit: 'contain',
+              }}
             />
           : <Smartphone size={100} color={c.border} strokeWidth={0.8} />}
 
@@ -668,10 +684,14 @@ function PhoneGallery({ phone }: { phone: Phone }) {
               aria-label={`View image ${i + 1}`}
               aria-current={i === index}
               style={{
-                flexShrink: 0, width: 56, height: 56, padding: 0,
+                flexShrink: 0,
+                width: GALLERY_THUMB_SIZE,
+                height: GALLERY_THUMB_SIZE,
+                padding: 0,
                 borderRadius: 'var(--r-sm)',
                 border: `2px solid ${i === index ? c.accent : c.border}`,
-                background: c.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: c.bg,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
                 overflow: 'hidden', cursor: 'pointer', transition: 'border-color 0.15s',
               }}
             >
@@ -692,7 +712,6 @@ function PhoneGallery({ phone }: { phone: Phone }) {
     </div>
   )
 }
-
 // ─── JSON-LD builders ─────────────────────────────────────────────────────────
 
 function buildProductJsonLd(phone: Phone, brand: string, model: string, displayPrice: number | null): object {
