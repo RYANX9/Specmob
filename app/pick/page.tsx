@@ -460,7 +460,7 @@ function ResultCard({
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         {phone.amazon_link && (
-          
+          <a
             href={phone.amazon_link}
             target="_blank"
             rel="noopener noreferrer sponsored"
