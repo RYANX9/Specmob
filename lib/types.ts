@@ -122,9 +122,11 @@ export interface SearchResponse {
 export interface SearchFilters {
   q?: string
   brand?: string
+  brands?: string          // comma-separated, for multi-brand selection
   min_price?: number
   max_price?: number
   min_ram?: number
+  min_storage?: number
   min_battery?: number
   min_camera_mp?: number
   min_screen_size?: number
@@ -132,7 +134,17 @@ export interface SearchFilters {
   min_year?: number
   max_weight?: number
   min_charging_w?: number
+  min_refresh_rate?: number
+  min_antutu?: number
   chipset_tier?: string
+  has_nfc?: boolean
+  has_ois?: boolean
+  has_wireless_charging?: boolean
+  has_headphone_jack?: boolean
+  is_foldable?: boolean
+  is_premium_gaming?: boolean
+  water_resistant?: boolean
+  camera_setup_type?: string
   sort_by?: string
   sort_order?: 'asc' | 'desc'
   page?: number
