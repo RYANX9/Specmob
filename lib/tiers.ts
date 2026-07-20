@@ -54,6 +54,3 @@ export function getTierStyle(chipsetTier: RawTier): TierStyle | null {
   return resolveTier(null, chipsetTier)
 }
 
-export function getChipsetTierLabel(chipsetTier: RawTier): string {
-  return resolveTier(null, chipsetTier)?.label ?? '—'
-}
