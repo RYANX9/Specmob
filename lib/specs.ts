@@ -48,6 +48,45 @@ function specRoot(phone: { full_specifications?: any }): Record<string, any> | n
   return fs.specifications && typeof fs.specifications === 'object' ? fs.specifications : fs
 }
 
+
+export function getBuildMaterial(phone: { build_material?: string | null; full_specifications?: any }): string {
+  if (phone.build_material) return stripHtml(phone.build_material)
+  return findSpecValue(phone, ['Body'], ['Build']) ?? '—'
+}
+
+export function getWaterResistance(phone: { water_resistance?: string | null; full_specifications?: any }): string {
+  if (phone.water_resistance) return stripHtml(phone.water_resistance)
+  const build = findSpecValue(phone, ['Body'], ['Build'])
+  const match = build?.match(/IP\d{2}[A-Z]?/i)
+  return match ? match[0].toUpperCase() : '—'
+}
+
+export function getThicknessMm(phone: { thickness_mm?: number | null; full_specifications?: any }): number | null {
+  if (phone.thickness_mm != null) return phone.thickness_mm
+  const dims = findSpecValue(phone, ['Body'], ['Dimensions'])
+  const nums = dims?.match(/[\d.]+/g)
+  return nums && nums.length >= 3 ? parseFloat(nums[2]) : null
+}
+
+export function getPeakBrightnessNits(phone: { peak_brightness_nits?: number | null; full_specifications?: any }): number | null {
+  if (phone.peak_brightness_nits != null) return phone.peak_brightness_nits
+  const type = findSpecValue(phone, ['Display'], ['Type'])
+  const match = type?.match(/(\d{3,5})\s*nits?\s*\(peak\)/i)
+  return match ? parseInt(match[1], 10) : null
+}
+
+export function getGeekbenchSingle(phone: { geekbench_single?: number | null; full_specifications?: any }): number | null {
+  if (phone.geekbench_single != null) return phone.geekbench_single
+  const perf = findSpecValue(phone, ['Tests'], ['Performance'])
+  const match = perf?.match(/GeekBench:\s*(\d+)/i)
+  return match ? parseInt(match[1], 10) : null
+}
+
+export function getFeaturesText(phone: { features?: string[] | null; full_specifications?: any }): string {
+  if (phone.features?.length) return phone.features.join(', ')
+  return findSpecValue(phone, ['Features'], ['Sensors']) ?? '—'
+}
+
 /** Searches spec groups by name (substring match); within matched groups tries
  * each field name in priority order, returns the first hit. */
 export function findSpecValue(
