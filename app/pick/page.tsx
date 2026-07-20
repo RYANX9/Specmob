@@ -448,7 +448,7 @@ function ResultCard({
             fontSize: 13, color: 'var(--orange)', fontStyle: 'italic',
             marginBottom: 18, background: 'rgba(231,111,81,0.06)',
             padding: '10px 14px', borderRadius: 'var(--r-sm)',
-            display: 'inline-flex', alignItems: 'flex-start', gap: 8,
+            display: 'inline-flex', alignItems: 'flex-start', gap: 8, 
           }}>
             <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
             <span><strong>Trade-off:</strong> {tradeText}</span>
