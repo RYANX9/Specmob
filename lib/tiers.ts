@@ -44,6 +44,16 @@ export function resolveTier(smartTier: RawTier, chipsetTier: RawTier): TierStyle
   return { label: fallbackLabel, color: 'var(--text-2)', bg: 'rgba(74,74,74,0.06)' }
 }
 
+
+export function getChipsetTierLabel(chipsetTier: RawTier): string {
+  return resolveTier(null, chipsetTier)?.label ?? '—'
+}
+
+// chipset-only lookup for call sites without a smart_score tier available
+export function getTierStyle(chipsetTier: RawTier): TierStyle | null {
+  return resolveTier(null, chipsetTier)
+}
+
 export function getChipsetTierLabel(chipsetTier: RawTier): string {
   return resolveTier(null, chipsetTier)?.label ?? '—'
 }
