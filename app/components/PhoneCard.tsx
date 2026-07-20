@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Smartphone, Check } from 'lucide-react'
 import { ROUTES, brandSlug, phoneSlug, valueScoreColor } from '@/lib/config'
-import { resolveTier } from '@/lib/tiers'
+import { resolveTier, getTierStyle } from '@/lib/tiers'
 import { c, f } from '@/lib/tokens'
 import type { Phone } from '@/lib/types'
 import { formatDisplayPrice } from '@/lib/price'
@@ -16,9 +16,6 @@ interface PhoneCardProps {
   compact?: boolean
 }
 
-function tierDisplay(phone: Phone) {
- return resolveTier(phone.smart_score?.tier, phone.chipset_tier)
-}
 
 function isNewRelease(phone: Phone): boolean {
   const { release_year, release_month, release_day } = phone
