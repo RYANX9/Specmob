@@ -1,5 +1,3 @@
-import type { ChipsetTier } from './types'
-
 export const TIER_ORDER = [
   'ultra_flagship',
   'flagship',
@@ -17,29 +15,35 @@ interface TierStyle {
 }
 
 export const TIER_STYLE: Record<string, TierStyle> = {
-  ultra_flagship:   { label: 'Ultra Flagship',   color: '#C9A84C',       bg: 'rgba(201,168,76,0.12)' },
-  flagship:         { label: 'Flagship',         color: 'var(--accent)', bg: 'var(--accent-light)' },
-  upper_mid_range:  { label: 'Upper Mid-Range',  color: 'var(--blue)',   bg: 'var(--blue-light)' },
-  mid_range:        { label: 'Mid-Range',        color: 'var(--blue)',   bg: 'var(--blue-light)' },
-  mid:              { label: 'Mid-Range',        color: 'var(--blue)',   bg: 'var(--blue-light)' },
-  entry:            { label: 'Budget',           color: 'var(--text-2)', bg: 'rgba(74,74,74,0.06)' },
-  entry_level:      { label: 'Budget',           color: 'var(--text-2)', bg: 'rgba(74,74,74,0.06)' },
-  budget:           { label: 'Budget',           color: 'var(--text-2)', bg: 'rgba(74,74,74,0.06)' },
+  ultra_flagship:  { label: 'Ultra Flagship',  color: '#C9A84C',       bg: 'rgba(201,168,76,0.12)' },
+  flagship:        { label: 'Flagship',        color: 'var(--accent)', bg: 'var(--accent-light)' },
+  upper_mid_range: { label: 'Upper Mid-Range', color: 'var(--blue)',   bg: 'var(--blue-light)' },
+  mid_range:       { label: 'Mid-Range',       color: 'var(--blue)',   bg: 'var(--blue-light)' },
+  mid:             { label: 'Mid-Range',       color: 'var(--blue)',   bg: 'var(--blue-light)' },
+  entry:           { label: 'Budget',          color: 'var(--text-2)', bg: 'rgba(74,74,74,0.06)' },
+  entry_level:     { label: 'Budget',          color: 'var(--text-2)', bg: 'rgba(74,74,74,0.06)' },
+  budget:          { label: 'Budget',          color: 'var(--text-2)', bg: 'rgba(74,74,74,0.06)' },
 }
 
-/**
- * chipset_tier comes back from the API already resolved server-side
- * (shaping.py prefers smart_tier over the chipset regex fallback before
- * this ever reaches the client). Do not re-resolve it against
- * smart_score.tier here — that field is the same source, not a second
- * signal. This is a pure id -> style lookup.
- */
-export function getTierStyle(chipsetTier: ChipsetTier | null | undefined): TierStyle | null {
-  if (!chipsetTier || !chipsetTier.id || chipsetTier.id === 'unknown') return null
-  return TIER_STYLE[chipsetTier.id] ?? {
-    label: chipsetTier.label || chipsetTier.id.replace(/_/g, ' '),
-    color: 'var(--text-2)',
-    bg: 'rgba(74,74,74,0.06)',
-  }
+// chipset_tier comes back as a plain string on some endpoints and as
+// {id, label} on others. Normalise to an id before lookup instead of
+// assuming one shape.
+export type RawTier = string | { id: string; label?: string } | null | undefined
+
+function tierId(raw: RawTier): string | null {
+  if (!raw) return null
+  return typeof raw === 'string' ? raw : raw.id ?? null
 }
 
+export function resolveTier(smartTier: RawTier, chipsetTier: RawTier): TierStyle | null {
+  const raw = smartTier ?? chipsetTier
+  const id = tierId(raw)
+  if (!id || id === 'unknown') return null
+  if (TIER_STYLE[id]) return TIER_STYLE[id]
+  const fallbackLabel = typeof raw === 'object' && raw?.label ? raw.label : id.replace(/_/g, ' ')
+  return { label: fallbackLabel, color: 'var(--text-2)', bg: 'rgba(74,74,74,0.06)' }
+}
+
+export function getChipsetTierLabel(chipsetTier: RawTier): string {
+  return resolveTier(null, chipsetTier)?.label ?? '—'
+}
