@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Smartphone, Check } from 'lucide-react'
 import { ROUTES, brandSlug, phoneSlug, valueScoreColor } from '@/lib/config'
+import { getTierStyle } from '@/lib/tiers'
 import { c, f } from '@/lib/tokens'
 import type { Phone } from '@/lib/types'
 import { formatDisplayPrice } from '@/lib/price'
@@ -20,24 +21,7 @@ function isNewRelease(phone: Phone): boolean {
   if (!release_year) return false
   const released = new Date(release_year, (release_month ?? 1) - 1, release_day ?? 1)
   const now = Date.now()
-  // Released in the future (pre-announcement) or within the last 60 days
   return released.getTime() <= now && now - released.getTime() <= 60 * 24 * 60 * 60 * 1000
-}
-
-const TIER_STYLE: Record<string, { label: string; color: string; bg: string }> = {
-  ultra_flagship: { label: 'Ultra Flagship', color: '#C9A84C', bg: 'rgba(201,168,76,0.12)' },
-  flagship:       { label: 'Flagship',       color: 'var(--accent)', bg: 'var(--accent-light)' },
-  mid_range:      { label: 'Mid-Range',      color: 'var(--blue)', bg: 'var(--blue-light)' },
-  mid:            { label: 'Mid-Range',      color: 'var(--blue)', bg: 'var(--blue-light)' },
-  entry_level:    { label: 'Entry-Level',    color: 'var(--text-2)', bg: 'rgba(74,74,74,0.06)' },
-  entry:          { label: 'Entry-Level',    color: 'var(--text-2)', bg: 'rgba(74,74,74,0.06)' },
-  budget:         { label: 'Budget',         color: 'var(--text-2)', bg: 'rgba(74,74,74,0.06)' },
-}
-
-function tierDisplay(phone: Phone): { label: string; color: string; bg: string } | null {
-  const raw = phone.smart_score?.tier || phone.chipset_tier
-  if (!raw || raw === 'unknown') return null
-  return TIER_STYLE[raw] ?? { label: raw.replace(/_/g, ' '), color: 'var(--text-2)', bg: 'rgba(74,74,74,0.06)' }
 }
 
 export default function PhoneCard({ phone, compareIds, onCompareToggle, compact }: PhoneCardProps) {
@@ -45,7 +29,7 @@ export default function PhoneCard({ phone, compareIds, onCompareToggle, compact 
   const [hovered, setHovered] = useState(false)
   const inCompare = compareIds.includes(phone.id)
   const isNew = isNewRelease(phone)
-  const tier = tierDisplay(phone)
+  const tier = getTierStyle(phone.chipset_tier)
   const priceLabel = formatDisplayPrice(phone)
   const href = ROUTES.phone(brandSlug(phone.brand), phoneSlug(phone))
 
@@ -199,8 +183,6 @@ export default function PhoneCard({ phone, compareIds, onCompareToggle, compact 
   )
 }
 
-// Skeleton dimensions mirror the real card exactly so there's no layout shift on load.
-// Keep these in sync if card padding/aspect-ratio changes.
 const CARD_BODY_HEIGHT = {
   full: 112,
   compact: 86,
