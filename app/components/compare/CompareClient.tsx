@@ -11,7 +11,10 @@ import {
 import { c, f, r, z } from '@/lib/tokens'
 import { ROUTES, brandSlug, phoneSlug, MAX_COMPARE } from '@/lib/config'
 import { api } from '@/lib/api'
-import { getPanelType, getFrontCamera } from '@/lib/specs'
+import {
+  getPanelType, getFrontCamera, getBuildMaterial, getWaterResistance,
+  getThicknessMm, getPeakBrightnessNits, getGeekbenchSingle, getFeaturesText,
+} from '@/lib/specs'
 import Navbar from '../Navbar'
 import Footer from '../Footer'
 import { useToast } from '../Toast'
@@ -103,7 +106,7 @@ const SPEC_SECTIONS: SpecSectionDef[] = [
       { label: 'Resolution',       getValue: p => p.screen_resolution ?? '—' },
       { label: 'Panel Type',       getValue: p => p.display_type ?? getPanelType(p) },
       { label: 'Refresh Rate',     getValue: p => fmt(p.refresh_rate_hz, 'Hz'), getRaw: p => p.refresh_rate_hz },
-      { label: 'Peak Brightness',  getValue: p => fmt(p.peak_brightness_nits, ' nits'), getRaw: p => p.peak_brightness_nits },
+      { label: 'Peak Brightness',  getValue: p => fmt(getPeakBrightnessNits(p), ' nits'), getRaw: getPeakBrightnessNits },
     ],
   },
   {
@@ -113,8 +116,8 @@ const SPEC_SECTIONS: SpecSectionDef[] = [
       { label: 'Camera Setup', getValue: p => p.camera_setup_type ? p.camera_setup_type[0].toUpperCase() + p.camera_setup_type.slice(1) : '—' },
       { label: 'Optical Zoom', getValue: p => p.optical_zoom ?? '—' },
       { label: 'OIS',          getValue: p => p.has_ois == null ? '—' : p.has_ois ? 'Yes' : 'No' },
-      { label: 'Front Camera', getValue: p => getFrontCamera(p) },
-      { label: 'Features',     getValue: p => p.features?.length ? p.features.join(', ') : '—' },
+      { label: 'Front Camera', getValue: getFrontCamera },
+      { label: 'Features',     getValue: getFeaturesText },
     ],
   },
   {
@@ -122,7 +125,7 @@ const SPEC_SECTIONS: SpecSectionDef[] = [
     rows: [
       { label: 'Chipset',   getValue: p => p.chipset ?? '—' },
       { label: 'AnTuTu',    getValue: p => fmt(p.antutu_score), getRaw: p => p.antutu_score },
-      { label: 'Geekbench', getValue: p => fmt(p.geekbench_single), getRaw: p => p.geekbench_single },
+      { label: 'Geekbench', getValue: p => fmt(getGeekbenchSingle(p)), getRaw: getGeekbenchSingle },
       { label: 'GPU Score', getValue: p => fmt(p.gpu_score), getRaw: p => p.gpu_score },
       { label: 'RAM',       getValue: p => p.ram_options?.length ? `${Math.max(...p.ram_options)} GB` : '—', getRaw: p => p.ram_options?.length ? Math.max(...p.ram_options) : null },
       { label: 'Storage',   getValue: p => p.storage_options?.length ? `${Math.max(...p.storage_options)} GB` : '—', getRaw: p => p.storage_options?.length ? Math.max(...p.storage_options) : null },
@@ -139,14 +142,15 @@ const SPEC_SECTIONS: SpecSectionDef[] = [
   {
     title: 'Build', icon: <HardHat size={15} strokeWidth={1.5} />,
     rows: [
-      { label: 'Weight',           getValue: p => fmt(p.weight_g, 'g'),      getRaw: p => p.weight_g,     lower: true },
-      { label: 'Thickness',        getValue: p => fmt(p.thickness_mm, 'mm'), getRaw: p => p.thickness_mm, lower: true },
-      { label: 'Build Material',   getValue: p => p.build_material ?? '—' },
-      { label: 'Water Resistance', getValue: p => p.water_resistance ?? '—' },
+      { label: 'Weight',           getValue: p => fmt(p.weight_g, 'g'), getRaw: p => p.weight_g, lower: true },
+      { label: 'Thickness',        getValue: p => fmt(getThicknessMm(p), 'mm'), getRaw: getThicknessMm, lower: true },
+      { label: 'Build Material',   getValue: getBuildMaterial },
+      { label: 'Water Resistance', getValue: getWaterResistance },
       { label: 'Chipset Tier',     getValue: p => getChipsetTierLabel(p.chipset_tier) },
     ],
   },
 ]
+
 // ─── phone column ─────────────────────────────────────────────────────────────
 
 function PhoneColumn({ phone, onRemove, isWinner }: { phone: Phone; onRemove: () => void; isWinner: boolean }) {
