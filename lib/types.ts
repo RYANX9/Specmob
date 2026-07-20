@@ -1,3 +1,8 @@
+export interface ChipsetTier {
+  id: string
+  label: string
+}
+
 export interface Phone {
   id: number
   slug: string | null
@@ -21,6 +26,7 @@ export interface Phone {
   // Unix timestamp computed server-side: EXTRACT(EPOCH FROM MAKE_DATE(year, month, day))
   release_ts: number | null
   // Detail-only (null on list endpoints)
+  chipset_tier?: ChipsetTier | null   // was: string | null
   weight_g: number | null
   thickness_mm: number | null
   screen_resolution: string | null
