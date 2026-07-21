@@ -42,7 +42,7 @@ export default function PhoneGallery({ phone }: { phone: Phone }) {
               alt={`${phone.brand} ${phone.model_name}`}
               onError={() => setFailed(prev => ({ ...prev, [index]: true }))}
               style={{
-                width: '100%', height: '100%', objectFit: 'contain',
+                width: '100%', height: '100%', objectFit: 'contain', padding: '10%',
               }}
             />
           : <Smartphone size={100} color={c.border} strokeWidth={0.8} />}
@@ -91,7 +91,7 @@ export default function PhoneGallery({ phone }: { phone: Phone }) {
                     decoding="async"
                     onError={() => setFailed(prev => ({ ...prev, [i]: true }))}
                     style={{
-                      width: '100%', height: '100%', objectFit: 'contain',
+                      width: '100%', height: '100%', objectFit: 'contain', padding: '8%',
                     }}
                   />
                 : <Smartphone size={20} color={c.border} strokeWidth={1} />}
