@@ -19,14 +19,8 @@ export function buildGalleryUrls(phone: Phone): string[] {
 }
 
 // ─── image content normalization ────────────────────────────────────────────
-// Different sources ship product PNGs with wildly different amounts of
-// baked-in whitespace around the phone. object-fit: contain scales the
-// whole canvas, not the visible subject, so mismatched padding still reads
-// as "one phone is smaller than the other". This scans each image for the
-// actual non-transparent/non-white bounding box and returns a scale factor
-// that normalizes the subject to a consistent fraction of the frame.
 
-const TARGET_FILL = 0.86 // how much of the frame the phone should visually occupy
+const TARGET_FILL = 0.85
 const scaleCache: Record<string, number> = {}
 
 function measureContentScale(url: string): Promise<number> {
@@ -53,14 +47,16 @@ function measureContentScale(url: string): Promise<number> {
 
         let minX = w, minY = h, maxX = 0, maxY = 0
         let found = false
-        const step = 2 // sample every 2px, full scan is unnecessary and slow
+        const step = 2
 
         for (let y = 0; y < h; y += step) {
           for (let x = 0; x < w; x += step) {
             const idx = (y * w + x) * 4
             const alpha = data[idx + 3]
             const r = data[idx], g = data[idx + 1], b = data[idx + 2]
-            const isBackground = alpha < 10 || (r > 245 && g > 245 && b > 245)
+            
+            // broader tolerance for off-white backgrounds, shadows, and subtle compression artifacts
+            const isBackground = alpha < 15 || (r > 230 && g > 230 && b > 230)
             if (!isBackground) {
               found = true
               if (x < minX) minX = x
@@ -73,15 +69,17 @@ function measureContentScale(url: string): Promise<number> {
 
         if (!found) { scaleCache[url] = 1; return resolve(1) }
 
-        const contentFrac = Math.max((maxX - minX) / w, (maxY - minY) / h)
+        const contentWidth = maxX - minX
+        const contentHeight = maxY - minY
+        const contentFrac = Math.max(contentWidth / w, contentHeight / h)
+        
         const scale = contentFrac > 0
-          ? Math.min(Math.max(TARGET_FILL / contentFrac, 0.6), 1.8) // clamp so a bad read never wildly over/under-scales
+          ? Math.min(Math.max(TARGET_FILL / contentFrac, 0.8), 1.3)
           : 1
 
         scaleCache[url] = scale
         resolve(scale)
       } catch {
-        // canvas throws on CORS-tainted images (no Access-Control-Allow-Origin) — bail to no-op scale
         scaleCache[url] = 1
         resolve(1)
       }
@@ -105,7 +103,6 @@ function useContentScales(urls: string[]): Record<string, number> {
       })
     })
     return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key])
 
   return scales
@@ -136,7 +133,7 @@ export default function PhoneGallery({ phone }: { phone: Phone }) {
               alt={`${phone.brand} ${phone.model_name}`}
               onError={() => setFailed(prev => ({ ...prev, [index]: true }))}
               style={{
-                maxWidth: '72%', maxHeight: '72%', objectFit: 'contain',
+                width: '80%', height: '80%', objectFit: 'contain',
                 transform: `scale(${scales[current] ?? 1})`,
                 transition: 'transform 0.15s ease',
               }}
