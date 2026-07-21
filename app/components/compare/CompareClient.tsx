@@ -28,10 +28,6 @@ function fmt(v: number | null, suffix = ''): string {
   return `${v.toLocaleString()}${suffix}`
 }
 
-function fmtPrice(v: number | null): string {
-  return v == null ? 'Price TBA' : `$${v.toLocaleString()}`
-}
-
 function scoreComposite(p: Phone): number {
   let s = 0
   if (p.antutu_score)      s += Math.min(p.antutu_score / 2_000_000, 1) * 3
@@ -568,7 +564,7 @@ function BottomLine({ phones, verdict }: { phones: Phone[]; verdict: CompareVerd
 
 // ─── main content ─────────────────────────────────────────────────────────────
 
-function CompareContent({ initialPhones }: { initialPhones: Phone[] }) {
+function CompareContent({ initialPhones, initialVerdict }: { initialPhones: Phone[]; initialVerdict: CompareVerdict | null }) {
   const router       = useRouter()
   const searchParams = useSearchParams()
   const { toast }    = useToast()
@@ -577,10 +573,17 @@ function CompareContent({ initialPhones }: { initialPhones: Phone[] }) {
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState<string | null>(null)
   const [copied, setCopied]   = useState(false)
-  const [verdict, setVerdict] = useState<CompareVerdict | null>(null)
+  const [verdict, setVerdict] = useState<CompareVerdict | null>(initialVerdict)
 
   const ownUpdate = useRef(false)
   const spString  = searchParams.toString()
+
+  // Tracks the id set for which `phones` already holds full-detail data
+  // (server-hydrated initialPhones, or a prior /phones/compare fetch).
+  // Prevents the hydration effect below from re-fetching data it already has.
+  const hydratedKey = useRef<string | null>(
+    initialPhones.length > 0 ? initialPhones.map(p => p.id).join(',') : null,
+  )
 
   const initialKey = initialPhones.map(p => p.id).join(',')
   useEffect(() => {
@@ -613,6 +616,7 @@ function CompareContent({ initialPhones }: { initialPhones: Phone[] }) {
           const ordered = idList.map(id => byId.get(id)).filter((p): p is Phone => Boolean(p))
           setPhones(ordered.length ? ordered : data.phones)
           setVerdict(data.verdict ?? null)
+          hydratedKey.current = ordered.map(p => p.id).join(',')
         } else {
           setError('Could not find the requested phones.')
           setPhones([])
@@ -628,14 +632,31 @@ function CompareContent({ initialPhones }: { initialPhones: Phone[] }) {
     return () => { cancelled = true }
   }, [spString, initialPhones.length])
 
+  // Full-detail hydration. /phones/search (used by slug resolution and
+  // AddPhoneSlot) returns the light list projection — no full_specifications,
+  // thickness_mm, peak_brightness_nits, geekbench_single, water_resistance,
+  // build_material, or features. Whenever the id set changes and isn't
+  // already fully hydrated, re-fetch via /phones/compare (full detail
+  // projection) and merge the result back into `phones` by id, instead of
+  // discarding it and keeping the light objects.
   const phoneIdsKey = phones.map(p => p.id).join(',')
   useEffect(() => {
     if (phones.length < 2) { setVerdict(null); return }
+    if (hydratedKey.current === phoneIdsKey) return
+
     const ids = phones.map(p => p.id)
     let cancelled = false
 
     api.phones.compare(ids)
-      .then(data => { if (!cancelled) setVerdict(data.verdict ?? null) })
+      .then(data => {
+        if (cancelled) return
+        if (data.phones?.length) {
+          const byId = new Map(data.phones.map(p => [p.id, p]))
+          setPhones(prev => prev.map(p => byId.get(p.id) ?? p))
+        }
+        setVerdict(data.verdict ?? null)
+        hydratedKey.current = phoneIdsKey
+      })
       .catch(() => { if (!cancelled) setVerdict(null) })
 
     return () => { cancelled = true }
@@ -833,10 +854,16 @@ function CompareSkeleton() {
   )
 }
 
-export default function CompareClient({ initialPhones = [] }: { initialPhones?: Phone[] }) {
+export default function CompareClient({
+  initialPhones = [],
+  initialVerdict = null,
+}: {
+  initialPhones?: Phone[]
+  initialVerdict?: CompareVerdict | null
+}) {
   return (
     <Suspense fallback={<CompareSkeleton />}>
-      <CompareContent initialPhones={initialPhones} />
+      <CompareContent initialPhones={initialPhones} initialVerdict={initialVerdict} />
     </Suspense>
   )
 }
