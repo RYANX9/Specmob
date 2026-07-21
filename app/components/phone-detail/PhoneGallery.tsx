@@ -126,7 +126,7 @@ export default function PhoneGallery({ phone }: { phone: Phone }) {
   return (
     <div style={{
       background: c.surface, border: `1px solid ${c.border}`,
-      borderRadius: 'var(--r-xl)', padding: 32,
+      borderRadius: 'var(--r-xl)', padding: 20,
       display: 'flex', flexDirection: 'column', gap: 16,
     }}>
       <div style={{ position: 'relative', aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -136,7 +136,7 @@ export default function PhoneGallery({ phone }: { phone: Phone }) {
               alt={`${phone.brand} ${phone.model_name}`}
               onError={() => setFailed(prev => ({ ...prev, [index]: true }))}
               style={{
-                maxWidth: '72%', maxHeight: '72%', objectFit: 'contain',
+                maxWidth: '92%', maxHeight: '92%', objectFit: 'contain',
                 transform: `scale(${scales[current] ?? 1})`,
                 transition: 'transform 0.15s ease',
               }}
