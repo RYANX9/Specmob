@@ -608,10 +608,104 @@ function buildGalleryUrls(phone: Phone): string[] {
   return urls.filter(Boolean)
 }
 
+// ─── image content normalization ──────────────────────────────────────────
+// Different sources ship product PNGs with wildly different amounts of
+// baked-in whitespace around the phone. object-fit: contain scales the
+// whole canvas, not the visible subject, so mismatched padding still reads
+// as "one phone is smaller than the other". This scans each image for the
+// actual non-transparent/non-white bounding box and returns a scale factor
+// that normalizes the subject to a consistent fraction of the frame.
+
+const TARGET_FILL = 0.86 // how much of the frame the phone should visually occupy
+const scaleCache: Record<string, number> = {}
+
+function measureContentScale(url: string): Promise<number> {
+  if (scaleCache[url] !== undefined) return Promise.resolve(scaleCache[url])
+
+  return new Promise((resolve) => {
+    const img = new window.Image()
+    img.crossOrigin = 'anonymous'
+
+    img.onload = () => {
+      try {
+        const w = img.naturalWidth
+        const h = img.naturalHeight
+        if (!w || !h) return resolve(1)
+
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return resolve(1)
+
+        ctx.drawImage(img, 0, 0)
+        const { data } = ctx.getImageData(0, 0, w, h)
+
+        let minX = w, minY = h, maxX = 0, maxY = 0
+        let found = false
+        const step = 2 // sample every 2px, full scan is unnecessary and slow
+
+        for (let y = 0; y < h; y += step) {
+          for (let x = 0; x < w; x += step) {
+            const idx = (y * w + x) * 4
+            const alpha = data[idx + 3]
+            const r = data[idx], g = data[idx + 1], b = data[idx + 2]
+            const isBackground = alpha < 10 || (r > 245 && g > 245 && b > 245)
+            if (!isBackground) {
+              found = true
+              if (x < minX) minX = x
+              if (x > maxX) maxX = x
+              if (y < minY) minY = y
+              if (y > maxY) maxY = y
+            }
+          }
+        }
+
+        if (!found) { scaleCache[url] = 1; return resolve(1) }
+
+        const contentFrac = Math.max((maxX - minX) / w, (maxY - minY) / h)
+        const scale = contentFrac > 0
+          ? Math.min(Math.max(TARGET_FILL / contentFrac, 0.6), 1.8) // clamp so a bad read never wildly over/under-scales
+          : 1
+
+        scaleCache[url] = scale
+        resolve(scale)
+      } catch {
+        // canvas throws on CORS-tainted images (no Access-Control-Allow-Origin) — bail to no-op scale
+        scaleCache[url] = 1
+        resolve(1)
+      }
+    }
+
+    img.onerror = () => { scaleCache[url] = 1; resolve(1) }
+    img.src = url
+  })
+}
+
+function useContentScales(urls: string[]): Record<string, number> {
+  const [scales, setScales] = useState<Record<string, number>>({})
+  const key = urls.join('|')
+
+  useEffect(() => {
+    let cancelled = false
+    urls.forEach((url) => {
+      if (!url) return
+      measureContentScale(url).then((scale) => {
+        if (!cancelled) setScales((prev) => (prev[url] === scale ? prev : { ...prev, [url]: scale }))
+      })
+    })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key])
+
+  return scales
+}
+
 function PhoneGallery({ phone }: { phone: Phone }) {
   const gallery = buildGalleryUrls(phone)
   const [index, setIndex] = useState(0)
   const [failed, setFailed] = useState<Record<number, boolean>>({})
+  const scales = useContentScales(gallery)
 
   const current = gallery[index]
   const hasMultiple = gallery.length > 1
@@ -629,15 +723,13 @@ function PhoneGallery({ phone }: { phone: Phone }) {
               src={current}
               alt={`${phone.brand} ${phone.model_name}`}
               onError={() => setFailed(prev => ({ ...prev, [index]: true }))}
-              style={{ maxWidth: '72%', maxHeight: '72%', objectFit: 'contain' }}
+              style={{
+                maxWidth: '72%', maxHeight: '72%', objectFit: 'contain',
+                transform: `scale(${scales[current] ?? 1})`,
+                transition: 'transform 0.15s ease',
+              }}
             />
           : <Smartphone size={100} color={c.border} strokeWidth={0.8} />}
-
-        {phone.release_year && (
-          <div style={{ position: 'absolute', top: 14, right: 14, background: c.bg, border: `1px solid ${c.border}`, borderRadius: 'var(--r-full)', padding: '4px 10px', fontSize: 11, fontWeight: 600, color: c.text3 }}>
-            {phone.release_year}
-          </div>
-        )}
 
         {hasMultiple && (
           <>
@@ -682,7 +774,10 @@ function PhoneGallery({ phone }: { phone: Phone }) {
                     loading="lazy"
                     decoding="async"
                     onError={() => setFailed(prev => ({ ...prev, [i]: true }))}
-                    style={{ width: '80%', height: '80%', objectFit: 'contain' }}
+                    style={{
+                      width: '80%', height: '80%', objectFit: 'contain',
+                      transform: `scale(${scales[url] ?? 1})`,
+                    }}
                   />
                 : <Smartphone size={20} color={c.border} strokeWidth={1} />}
             </button>
@@ -1024,6 +1119,11 @@ function PhoneDetailContent() {
               {tier && (
                 <span style={{ padding: '4px 12px', background: tier.bg, color: tier.color, border: `1px solid ${tier.color}25`, borderRadius: 'var(--r-full)', fontSize: 12, fontWeight: 600 }}>
                   {tier.label}
+                </span>
+              )}
+              {phone.release_year && (
+                <span style={{ padding: '4px 12px', background: c.bg, color: c.text3, border: `1px solid ${c.border}`, borderRadius: 'var(--r-full)', fontSize: 12, fontWeight: 600 }}>
+                  {phone.release_year}
                 </span>
               )}
             </div>
