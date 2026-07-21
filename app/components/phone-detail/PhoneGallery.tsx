@@ -112,6 +112,19 @@ function useContentScales(urls: string[]): Record<string, number> {
 }
 
 // ─── gallery component ───────────────────────────────────────────────────────
+// Main image sits in a FIXED pixel box (width/height, not maxWidth/maxHeight
+// percentages). object-fit: contain then guarantees every source image —
+// regardless of its own native resolution — is placed into an identical
+// container size. The per-image scale factor from measureContentScale is
+// then applied on top of that fixed box to compensate for baked-in
+// whitespace differences between source assets. Fixed box first, content
+// scale second — percentages of a variable box were compounding with the
+// content-scale correction unpredictably, which is why different gallery
+// images (e.g. front vs back shot) were rendering at different apparent
+// sizes even after the scale factor was applied.
+
+const GALLERY_MAIN_SIZE = 340   // px, main image box (both width and height)
+const GALLERY_THUMB_SIZE = 56   // px, thumbnail box
 
 export default function PhoneGallery({ phone }: { phone: Phone }) {
   const gallery = buildGalleryUrls(phone)
@@ -136,7 +149,11 @@ export default function PhoneGallery({ phone }: { phone: Phone }) {
               alt={`${phone.brand} ${phone.model_name}`}
               onError={() => setFailed(prev => ({ ...prev, [index]: true }))}
               style={{
-                maxWidth: '92%', maxHeight: '92%', objectFit: 'contain',
+                width: GALLERY_MAIN_SIZE,
+                height: GALLERY_MAIN_SIZE,
+                maxWidth: '92%',
+                maxHeight: '92%',
+                objectFit: 'contain',
                 transform: `scale(${scales[current] ?? 1})`,
                 transition: 'transform 0.15s ease',
               }}
@@ -172,7 +189,7 @@ export default function PhoneGallery({ phone }: { phone: Phone }) {
               aria-label={`View image ${i + 1}`}
               aria-current={i === index}
               style={{
-                flexShrink: 0, width: 56, height: 56, padding: 0,
+                flexShrink: 0, width: GALLERY_THUMB_SIZE, height: GALLERY_THUMB_SIZE, padding: 0,
                 borderRadius: 'var(--r-sm)',
                 border: `2px solid ${i === index ? c.accent : c.border}`,
                 background: c.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
