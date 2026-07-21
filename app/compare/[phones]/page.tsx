@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import CompareClient from '@/app/components/compare/CompareClient'
 import { api } from '@/lib/api'
-import type { Phone } from '@/lib/types'
+import type { Phone, CompareVerdict } from '@/lib/types'
 
 export const revalidate = 3600
 
@@ -68,7 +68,8 @@ async function searchCandidates(slug: string): Promise<Phone[]> {
 }
 
 /**
- * Resolves each URL slug to a distinct Phone.
+ * Resolves each URL slug to a distinct Phone id, using the light
+ * /phones/search projection purely for matching.
  *
  * Pass 1 — exact match: checks both toSlug(model_name) and the DB slug field.
  *   The DB slug is what phoneSlug() uses when present, so the URL slug may not
@@ -77,7 +78,7 @@ async function searchCandidates(slug: string): Promise<Phone[]> {
  * Pass 2 — fuzzy match: uses the improved similarity function with a lower
  *   threshold so brand-prefixed slugs are not silently dropped.
  */
-async function resolvePhones(slugParts: string[]): Promise<Phone[]> {
+async function resolvePhoneIds(slugParts: string[]): Promise<number[]> {
   const candidateLists = await Promise.all(slugParts.map(searchCandidates))
   const claimed = new Set<number>()
   const resolved: (Phone | null)[] = new Array(slugParts.length).fill(null)
@@ -112,7 +113,33 @@ async function resolvePhones(slugParts: string[]): Promise<Phone[]> {
     }
   })
 
-  return resolved.filter((p): p is Phone => p !== null)
+  return resolved.filter((p): p is Phone => p !== null).map(p => p.id)
+}
+
+/**
+ * /phones/search (used above for slug matching) returns the light list
+ * projection — it omits full_specifications, thickness_mm,
+ * peak_brightness_nits, geekbench_single, water_resistance, build_material
+ * and features. The compare page needs the full detail projection, which
+ * only /phones/compare and /phones/{id} return. Re-fetch the resolved ids
+ * through /phones/compare so the client never has to fall back to a light
+ * phone object, and forward the verdict computed in that same call instead
+ * of making the client fetch it again on mount.
+ */
+async function resolveComparePhones(
+  slugParts: string[],
+): Promise<{ phones: Phone[]; verdict: CompareVerdict | null }> {
+  const ids = await resolvePhoneIds(slugParts)
+  if (ids.length === 0) return { phones: [], verdict: null }
+
+  try {
+    const { phones, verdict } = await api.phones.compare(ids)
+    const byId = new Map(phones.map(p => [p.id, p]))
+    const ordered = ids.map(id => byId.get(id)).filter((p): p is Phone => Boolean(p))
+    return { phones: ordered, verdict: verdict ?? null }
+  } catch {
+    return { phones: [], verdict: null }
+  }
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -142,7 +169,7 @@ export default async function CompareWithPhonesPage({ params }: PageProps) {
   const slugParts = parseCompareSlug(phonesSlug)
   if (slugParts.length === 0) return <CompareClient initialPhones={[]} />
 
-  const validPhones = await resolvePhones(slugParts)
+  const { phones: validPhones, verdict } = await resolveComparePhones(slugParts)
   if (validPhones.length === 0) notFound()
 
   const jsonLd = {
@@ -161,7 +188,7 @@ export default async function CompareWithPhonesPage({ params }: PageProps) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <CompareClient initialPhones={validPhones} />
+      <CompareClient initialPhones={validPhones} initialVerdict={verdict} />
     </>
   )
 }
