@@ -76,17 +76,4 @@ export function brandSlug(brand: string): string {
     .replace(/\s+/g, '-')
 }
 
-/**
- * Colour for the server-computed value_score displayed on phone detail
- * and compare pages. This is a peer-relative score (0–10).
- *
- * Note: pick/page.tsx has its own match-score colour function with
- * different thresholds — that score represents priority match quality,
- * not peer-relative value, so the two are intentionally separate.
- */
-export function valueScoreColor(score: number | null | undefined): string {
-  if (score == null) return 'var(--text-3)'
-  if (score >= 8)    return 'var(--green)'
-  if (score >= 6)    return 'var(--text-2)'
-  return 'var(--orange)'
-}
+
