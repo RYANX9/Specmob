@@ -1,62 +1,726 @@
-// Single source of truth for value_score math and presentation on the
-// frontend. Two jobs live here:
-//
-// 1. specComposite — the client-side fallback used only when a phone has
-//    no value_score from the server at all. Must produce the exact same
-//    0-10 scale as app/core/scoring.py:spec_composite, weight-for-weight,
-//    or a phone renders a different "~7.x" depending which component
-//    happened to draw it (this was bug #8 — the old CompareClient version
-//    was missing the screen_size term entirely and under-weighted RAM,
-//    capping out at 8.5 instead of 10).
-// 2. valueScoreColor — the one color scale for value_score everywhere.
-//    Previously lib/config.ts and app/pick/page.tsx each hand-rolled their
-//    own thresholds and disagreed (a 7.5 read as "good" on one page and
-//    "mediocre" on another). There is now exactly one scale.
+'use client'
 
-interface SpecCompositeInput {
-  antutu_score?: number | null
-  main_camera_mp?: number | null
-  battery_capacity?: number | null
-  ram_options?: number[] | null
-  fast_charging_w?: number | null
-  screen_size?: number | null
+import { useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
+import {
+  ChevronRight, ChevronLeft, Share2, GitCompare, ShoppingCart,
+  Check, Camera, Battery, Cpu, Monitor,
+  Weight, Zap, Smartphone, ArrowRight, ExternalLink,
+} from 'lucide-react'
+import { api, type PricePointRow } from '@/lib/api'
+import { ROUTES, brandSlug, phoneSlug } from '@/lib/config'
+import { getTierStyle } from '@/lib/tiers'
+import { resolveDisplayPrice, withLaunchPrice } from '@/lib/price'
+import { getPanelType, getFrontCamera, stripHtml } from '@/lib/specs'
+import { c, f, z } from '@/lib/tokens'
+import type { Phone } from '@/lib/types'
+import Navbar from '@/app/components/Navbar'
+import { useToast } from '@/app/components/Toast'
+import CompareBar from '@/app/components/CompareBar'
+import Footer from '@/app/components/Footer'
+import { WhyThisPhone, PriceHistoryChart, SimilarCard } from '@/app/components/phone-detail/PhoneOverview'
+import { valueScoreColor } from '@/lib/valueScore'
+
+type PhoneVariant = {
+  ram_gb: number | null
+  storage_gb: number
+  price: number
+  url: string
 }
 
-export function specComposite(p: SpecCompositeInput): number {
-  let s = 0
-  if (p.antutu_score)              s += Math.min(p.antutu_score / 2_000_000, 1) * 3.0
-  if (p.main_camera_mp)            s += Math.min(p.main_camera_mp / 200, 1) * 2.0
-  if (p.battery_capacity)          s += Math.min(p.battery_capacity / 7_000, 1) * 2.0
-  if (p.ram_options?.length)       s += Math.min(Math.max(...p.ram_options) / 16, 1) * 1.5
-  if (p.fast_charging_w)           s += Math.min(p.fast_charging_w / 100, 1) * 1.0
-  if (p.screen_size)               s += Math.min(p.screen_size / 7.0, 1) * 0.5
-  return s
+function formatStorage(gb: number): string {
+  return gb >= 1000 ? `${gb / 1000}TB` : `${gb}GB`
 }
 
-// One scale, four bands. Matches the richer of the two prior scales
-// (pick/page.tsx's) since it gives more useful separation than a flat
-// three-band split — applied identically wherever a value_score renders.
-// Maps value_score to Sofascore player rating scale and colors:
-// 9.0+ Exceptional (Blue), 8.0+ Great (Dark Green), 7.0+ Good (Light Green),
-// 6.5+ Average (Yellow/Orange), < 6.5 Poor (Red).
-export function valueScoreColor(score: number | null | undefined): string {
-  if (score == null)    return 'var(--text-3)'
-  if (score >= 9.0)     return '#2b80ff' // Sofascore Blue
-  if (score >= 8.0)     return '#00a651' // Sofascore Dark Green
-  if (score >= 7.0)     return '#7cb342' // Sofascore Light Green
-  if (score >= 6.5)     return '#ffb300' // Sofascore Yellow/Orange
-  return '#e53935'                       // Sofascore Red
+function isSameVariant(a: PhoneVariant | null, b: PhoneVariant): boolean {
+  return !!a && a.storage_gb === b.storage_gb && a.ram_gb === b.ram_gb
 }
 
+function specValueToString(v: unknown): string {
+  if (v === null || v === undefined) return '—'
+  if (typeof v === 'boolean') return v ? 'Yes' : 'No'
+  if (typeof v === 'number') return String(v)
+  if (typeof v === 'string') {
+    const stripped = stripHtml(v)
+    return stripped || '—'
+  }
+  if (Array.isArray(v)) {
+    return v.map(specValueToString).filter(s => s !== '—').join(', ') || '—'
+  }
+  if (typeof v === 'object') {
+    return Object.entries(v as Record<string, unknown>)
+      .filter(([, val]) => {
+        const s = String(val ?? '')
+        return !s.startsWith('http') && s !== 'null' && s !== ''
+      })
+      .map(([k, val]) => `${k}: ${specValueToString(val)}`)
+      .join(' · ') || '—'
+  }
+  return String(v)
+}
 
-// Resolves the display score for a phone: server value_score wins outright,
-// spec composite is the last-resort local estimate. Also reports which
-// source it came from, since UI that shows an estimated (~) badge needs to
-// know it's not the server-computed number.
-export function resolveValueScore(p: SpecCompositeInput & { value_score?: number | null }): {
-  score: number
-  isEstimate: boolean
-} {
-  if (p.value_score != null) return { score: p.value_score, isEstimate: false }
-  return { score: specComposite(p), isEstimate: true }
+const SKIP_SPEC_KEYS = new Set([
+  'metadata', 'media', 'benchmarks', 'price_info',
+  'quick_specs', 'processed_at', 'source_url', 'specifications',
+])
+
+function getSpecGroups(phone: Phone): Array<[string, Record<string, string>]> {
+  const fs = phone.full_specifications
+  if (!fs || typeof fs !== 'object') return []
+  const root: Record<string, unknown> =
+    (fs as any).specifications && typeof (fs as any).specifications === 'object'
+      ? (fs as any).specifications
+      : (fs as any)
+
+  const groups: Array<[string, Record<string, string>]> = []
+  for (const [groupName, groupVal] of Object.entries(root)) {
+    if (SKIP_SPEC_KEYS.has(groupName)) continue
+    if (!groupVal || typeof groupVal !== 'object' || Array.isArray(groupVal)) continue
+    const rows: Record<string, string> = {}
+    for (const [k, v] of Object.entries(groupVal as Record<string, unknown>)) {
+      if (k.toLowerCase().includes('url') && typeof v === 'string' && v.startsWith('http')) continue
+      const val = specValueToString(v)
+      if (val && val !== '—') rows[k] = val
+    }
+    if (Object.keys(rows).length > 0) groups.push([groupName, rows])
+  }
+  return groups
+}
+
+const SPEC_GROUP_ORDER = [
+  'launch', 'availability', 'status',
+  'network', 'sim',
+  'display', 'screen',
+  'platform', 'performance', 'chipset', 'processor',
+  'memory', 'storage',
+  'main camera', 'rear camera', 'camera',
+  'selfie', 'front camera', 'secondary camera',
+  'sound', 'audio',
+  'comms', 'connectivity', 'wlan', 'bluetooth', 'nfc',
+  'sensors', 'features',
+  'battery',
+  'body', 'build', 'design', 'dimensions',
+  'tests', 'misc', 'other',
+]
+
+function rankSpecGroup(name: string): number {
+  const lower = name.toLowerCase()
+  const idx = SPEC_GROUP_ORDER.findIndex(k => lower.includes(k))
+  return idx === -1 ? 998 : idx
+}
+
+type TabType = 'overview' | 'specs' | 'compare'
+
+function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button onClick={onClick} style={{
+      padding: '14px 20px', fontSize: 14, fontWeight: 500,
+      color: active ? c.text1 : c.text3,
+      borderBottom: `2px solid ${active ? c.accent : 'transparent'}`,
+      transition: 'all 0.15s', whiteSpace: 'nowrap',
+      background: 'none', border: 'none', cursor: 'pointer',
+    }}>
+      {children}
+    </button>
+  )
+}
+
+function SpecRow({ label, value, alt }: { label: string; value: string; alt: boolean }) {
+  const lines = value.split('\n').filter(Boolean)
+  return (
+    <div style={{
+      display: 'flex', gap: 0, padding: '7px 14px',
+      borderBottom: `1px solid ${c.border}`,
+      background: alt ? 'rgba(248,248,245,0.6)' : 'transparent',
+      alignItems: 'flex-start',
+    }}>
+      <div style={{ width: 130, minWidth: 130, flexShrink: 0, fontSize: 12, color: c.text3, fontWeight: 500, paddingTop: 1, paddingRight: 12, lineHeight: 1.4 }}>
+        {label}
+      </div>
+      <div style={{ flex: 1, fontSize: 13, color: c.text1, lineHeight: 1.5 }}>
+        {lines.length <= 1
+          ? value
+          : lines.map((line, i) => <div key={i} style={{ marginBottom: i < lines.length - 1 ? 3 : 0 }}>{line}</div>)
+        }
+      </div>
+    </div>
+  )
+}
+
+function SpecGroup({ title, specs }: { title: string; specs: Record<string, string> }) {
+  const entries = Object.entries(specs)
+  if (!entries.length) return null
+  return (
+    <div style={{ marginBottom: 6, borderRadius: 'var(--r-md)', overflow: 'hidden', border: `1px solid ${c.border}` }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '10px 14px', background: c.bg,
+        borderBottom: `1px solid ${c.border}`,
+      }}>
+        <span style={{ flex: 1, fontSize: 12, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.6px', color: c.text1 }}>
+          {title}
+        </span>
+        <span style={{ fontSize: 11, color: c.text3 }}>{entries.length} specs</span>
+      </div>
+      <div style={{ background: c.surface }}>
+        {entries.map(([k, v], i) => <SpecRow key={k} label={k} value={v} alt={i % 2 === 1} />)}
+      </div>
+    </div>
+  )
+}
+
+function QuickSpecCard({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
+  return (
+    <div style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-md)', padding: '16px 12px', textAlign: 'center' }}>
+      <div style={{ color: c.text3, display: 'flex', justifyContent: 'center', marginBottom: 8 }}>{icon}</div>
+      <div style={{ fontSize: 16, fontWeight: 600, color: c.text1, marginBottom: 3, lineHeight: 1.2 }}>{value}</div>
+      <div style={{ fontSize: 11, color: c.text3, textTransform: 'uppercase' as const, letterSpacing: '0.3px' }}>{label}</div>
+    </div>
+  )
+}
+
+function VariantPicker({
+  variants, loading, selected, onSelect,
+}: {
+  variants: PhoneVariant[]
+  loading: boolean
+  selected: PhoneVariant | null
+  onSelect: (v: PhoneVariant) => void
+}) {
+  if (loading) return <div className="skeleton" style={{ height: 92, borderRadius: 'var(--r-lg)', marginBottom: 18 }} />
+  if (!variants.length) return null
+
+  const hasRam = variants.some(v => v.ram_gb != null)
+  const cheapest = Math.min(...variants.map(v => v.price))
+  const formatSize = (s: number) => (s >= 1000 ? `${Math.round(s / 1000)}TB` : `${s}GB`)
+
+  return (
+    <div style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-lg)', padding: '18px 20px', marginBottom: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: c.text1 }}>Choose a configuration</span>
+        <span style={{ fontSize: 11, color: c.text3 }}>{variants.length} option{variants.length > 1 ? 's' : ''}</span>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 8 }}>
+        {variants.map((v, i) => {
+          const isSelected = isSameVariant(selected, v)
+          const isCheapest = v.price === cheapest
+          return (
+            <button
+              key={`${v.ram_gb ?? 'x'}-${v.storage_gb}-${i}`}
+              onClick={() => onSelect(v)}
+              style={{
+                position: 'relative',
+                display: 'flex', flexDirection: 'column', gap: 3,
+                padding: '10px 12px', textAlign: 'left',
+                borderRadius: 'var(--r-md)', cursor: 'pointer',
+                border: `1.5px solid ${isSelected ? c.accent : c.border}`,
+                background: isSelected ? `${c.accent}12` : c.bg,
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.borderColor = c.borderHover }}
+              onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.borderColor = c.border }}
+            >
+              <span style={{ fontSize: 12, fontWeight: 600, color: isSelected ? c.accent : c.text1 }}>
+                {hasRam && v.ram_gb ? `${v.ram_gb}/${formatSize(v.storage_gb)}` : formatSize(v.storage_gb)}
+              </span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: c.text1 }}>${v.price.toLocaleString()}</span>
+              {isCheapest && variants.length > 1 && (
+                <span style={{ position: 'absolute', top: -7, right: 8, fontSize: 9, fontWeight: 700, letterSpacing: '0.3px', color: 'var(--green)', background: 'var(--green-light)', border: '1px solid var(--green-border)', borderRadius: 'var(--r-full)', padding: '1px 6px' }}>
+                  BEST PRICE
+                </span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+
+      <p style={{ fontSize: 11, color: c.text3, marginTop: 10, lineHeight: 1.5 }}>
+        Prices reflect the selected storage{hasRam ? ' and RAM' : ''} configuration and may differ from the base listing above.
+      </p>
+    </div>
+  )
+}
+
+function buildGalleryUrls(phone: Phone): string[] {
+  const extra = (phone.images ?? [])
+    .slice()
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map(img => img.image_url)
+    .filter(url => url !== phone.main_image_url)
+
+  const urls = phone.main_image_url ? [phone.main_image_url, ...extra] : extra
+  return urls.filter(Boolean)
+}
+
+function PhoneGallery({ phone }: { phone: Phone }) {
+  const gallery = buildGalleryUrls(phone)
+  const [index, setIndex] = useState(0)
+  const [failed, setFailed] = useState<Record<number, boolean>>({})
+
+  const current = gallery[index]
+  const hasMultiple = gallery.length > 1
+  const goTo = (i: number) => setIndex((i + gallery.length) % gallery.length)
+
+  return (
+    <div style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-xl)', padding: 32, display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ position: 'relative', aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {current && !failed[index]
+          ? <img
+              src={current}
+              alt={`${phone.brand} ${phone.model_name}`}
+              onError={() => setFailed(prev => ({ ...prev, [index]: true }))}
+              style={{ maxWidth: '72%', maxHeight: '72%', objectFit: 'contain' }}
+            />
+          : <Smartphone size={100} color={c.border} strokeWidth={0.8} />}
+
+        {phone.release_year && (
+          <div style={{ position: 'absolute', top: 14, right: 14, background: c.bg, border: `1px solid ${c.border}`, borderRadius: 'var(--r-full)', padding: '4px 10px', fontSize: 11, fontWeight: 600, color: c.text3 }}>
+            {phone.release_year}
+          </div>
+        )}
+
+        {hasMultiple && (
+          <>
+            <button onClick={() => goTo(index - 1)} aria-label="Previous image" style={{ position: 'absolute', left: 4, top: '50%', transform: 'translateY(-50%)', width: 32, height: 32, borderRadius: '50%', background: c.surface, border: `1px solid ${c.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.text2, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}>
+              <ChevronLeft size={16} />
+            </button>
+            <button onClick={() => goTo(index + 1)} aria-label="Next image" style={{ position: 'absolute', right: 4, top: '50%', transform: 'translateY(-50%)', width: 32, height: 32, borderRadius: '50%', background: c.surface, border: `1px solid ${c.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.text2, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}>
+              <ChevronRight size={16} />
+            </button>
+          </>
+        )}
+      </div>
+
+      {hasMultiple && (
+        <div className="scrollbar-none" style={{ display: 'flex', gap: 8, overflowX: 'auto' }}>
+          {gallery.map((url, i) => (
+            <button
+              key={`${url}-${i}`}
+              onClick={() => setIndex(i)}
+              aria-label={`View image ${i + 1}`}
+              aria-current={i === index}
+              style={{
+                flexShrink: 0, width: 56, height: 56, padding: 0,
+                borderRadius: 'var(--r-sm)',
+                border: `2px solid ${i === index ? c.accent : c.border}`,
+                background: c.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                overflow: 'hidden', cursor: 'pointer', transition: 'border-color 0.15s',
+              }}
+            >
+              {!failed[i]
+                ? <img src={url} alt="" loading="lazy" decoding="async" onError={() => setFailed(prev => ({ ...prev, [i]: true }))} style={{ width: '80%', height: '80%', objectFit: 'contain' }} />
+                : <Smartphone size={20} color={c.border} strokeWidth={1} />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface PhoneDetailClientProps {
+  phone: Phone
+  similar: Phone[]
+}
+
+function PhoneDetailInner({ phone, similar }: PhoneDetailClientProps) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { toast } = useToast()
+
+  const [tab, setTab] = useState<TabType>(() => {
+    const t = searchParams.get('tab')
+    return (t === 'specs' || t === 'compare') ? t : 'overview'
+  })
+  const [copied, setCopied] = useState(false)
+  const [comparePhones, setComparePhones] = useState<Phone[]>([])
+  const [priceHistoryPoints, setPriceHistoryPoints] = useState<PricePointRow[]>([])
+  const [priceHistoryLoading, setPriceHistoryLoading] = useState(false)
+  const [variants, setVariants] = useState<PhoneVariant[]>([])
+  const [variantsLoading, setVariantsLoading] = useState(false)
+  const [selectedVariant, setSelectedVariant] = useState<PhoneVariant | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  const handleTabChange = (newTab: TabType) => {
+    setTab(newTab)
+    const p = new URLSearchParams(searchParams.toString())
+    if (newTab === 'overview') p.delete('tab')
+    else p.set('tab', newTab)
+    const str = p.toString()
+    router.replace(str ? `?${str}` : window.location.pathname, { scroll: false })
+  }
+
+  useEffect(() => {
+    const controller = new AbortController()
+    setPriceHistoryLoading(true)
+    api.phones.priceHistory(phone.id, { scope: 'global' }, controller.signal)
+      .then(res => { if (!controller.signal.aborted) setPriceHistoryPoints(res.price_points ?? []) })
+      .catch(() => { if (!controller.signal.aborted) setPriceHistoryPoints([]) })
+      .finally(() => { if (!controller.signal.aborted) setPriceHistoryLoading(false) })
+    return () => controller.abort()
+  }, [phone.id])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    setVariantsLoading(true)
+    api.phones.variants(phone.id, controller.signal)
+      .then(res => {
+        if (controller.signal.aborted) return
+        const vs = (res?.variants ?? []) as PhoneVariant[]
+        setVariants(vs)
+        setSelectedVariant(vs[0] ?? null)
+      })
+      .catch(() => { if (!controller.signal.aborted) { setVariants([]); setSelectedVariant(null) } })
+      .finally(() => { if (!controller.signal.aborted) setVariantsLoading(false) })
+    return () => controller.abort()
+  }, [phone.id])
+
+  const inCompare = comparePhones.some(p => p.id === phone.id)
+
+  const handleCompareToggle = () => {
+    setComparePhones(prev => {
+      if (prev.find(p => p.id === phone.id)) {
+        toast('Removed from compare', 'info')
+        return prev.filter(p => p.id !== phone.id)
+      }
+      if (prev.length >= 4) { toast('Maximum 4 phones', 'error'); return prev }
+      toast('Added to compare', 'success')
+      return [...prev, phone]
+    })
+  }
+
+  const handleShare = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href)
+      setCopied(true)
+      toast('Link copied!', 'success')
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      toast('Could not copy link — try copying from the address bar', 'error')
+    }
+  }
+
+  const displayPrice = resolveDisplayPrice(phone, priceHistoryPoints)
+  const effectivePrice = selectedVariant ? selectedVariant.price : displayPrice
+  const buyUrl = selectedVariant?.url || phone.amazon_link
+  const isAmazon = !!buyUrl && buyUrl.includes('amazon.')
+
+  const quickSpecs = [
+    phone.screen_size ? { icon: <Monitor size={20} strokeWidth={1.5} />, value: `${phone.screen_size}"`, label: 'Display' } : null,
+    phone.main_camera_mp ? { icon: <Camera size={20} strokeWidth={1.5} />, value: `${phone.main_camera_mp}MP`, label: 'Camera' } : null,
+    phone.battery_capacity ? { icon: <Battery size={20} strokeWidth={1.5} />, value: `${phone.battery_capacity.toLocaleString()}`, label: 'mAh' } : null,
+    phone.ram_options?.length ? { icon: <Cpu size={20} strokeWidth={1.5} />, value: `${Math.max(...phone.ram_options!)}GB`, label: 'Max RAM' } : null,
+    phone.fast_charging_w ? { icon: <Zap size={20} strokeWidth={1.5} />, value: `${phone.fast_charging_w}W`, label: 'Charging' } : null,
+    phone.weight_g ? { icon: <Weight size={20} strokeWidth={1.5} />, value: `${phone.weight_g}g`, label: 'Weight' } : null,
+  ].filter(Boolean) as { icon: React.ReactNode; value: string; label: string }[]
+
+  const specGroups = getSpecGroups(phone)
+  const sortedSpecGroups = withLaunchPrice(
+    [...specGroups].sort(([a], [b]) => rankSpecGroup(a) - rankSpecGroup(b)),
+    phone,
+  )
+  const valueScore = (phone as any).value_score as number | null
+  const tier = getTierStyle(phone.chipset_tier)
+
+  const overviewSections = [
+    {
+      title: 'Display', headline: phone.screen_size ? `${phone.screen_size}" Screen` : 'Display',
+      specs: [
+        phone.screen_size ? { label: 'Screen Size', value: `${phone.screen_size}"` } : null,
+        phone.screen_resolution ? { label: 'Resolution', value: phone.screen_resolution } : null,
+        getPanelType(phone) !== '—' ? { label: 'Type', value: getPanelType(phone) } : null,
+      ].filter(Boolean) as { label: string; value: string }[],
+    },
+    {
+      title: 'Camera', headline: phone.main_camera_mp ? `${phone.main_camera_mp}MP Main Camera` : 'Camera System',
+      specs: [
+        phone.main_camera_mp ? { label: 'Main Camera', value: `${phone.main_camera_mp} MP` } : null,
+        (phone.full_specifications as any)?.quick_specs?.cam1modules
+          ? { label: 'Rear System', value: stripHtml(String((phone.full_specifications as any).quick_specs.cam1modules)) } : null,
+        getFrontCamera(phone) !== '—' ? { label: 'Front Camera', value: getFrontCamera(phone) } : null,
+      ].filter(Boolean) as { label: string; value: string }[],
+    },
+    {
+      title: 'Performance', headline: phone.chipset || 'Processor',
+      specs: [
+        phone.chipset ? { label: 'Chipset', value: phone.chipset } : null,
+        phone.ram_options?.length ? { label: 'RAM', value: phone.ram_options!.map(r => `${r}GB`).join(' / ') } : null,
+        phone.storage_options?.length
+          ? { label: 'Storage', value: phone.storage_options!.map(s => s >= 1000 ? `${s / 1000}TB` : `${s}GB`).join(' / ') } : null,
+        phone.antutu_score ? { label: 'AnTuTu Score', value: phone.antutu_score.toLocaleString() } : null,
+      ].filter(Boolean) as { label: string; value: string }[],
+    },
+    {
+      title: 'Battery & Charging', headline: phone.battery_capacity ? `${phone.battery_capacity.toLocaleString()} mAh` : 'Battery',
+      specs: [
+        phone.battery_capacity ? { label: 'Capacity', value: `${phone.battery_capacity.toLocaleString()} mAh` } : null,
+        phone.fast_charging_w ? { label: 'Fast Charging', value: `${phone.fast_charging_w}W wired` } : null,
+      ].filter(Boolean) as { label: string; value: string }[],
+    },
+    {
+      title: 'Build & Design', headline: phone.weight_g ? `${phone.weight_g}g` : 'Build',
+      specs: [
+        phone.weight_g ? { label: 'Weight', value: `${phone.weight_g}g` } : null,
+        phone.thickness_mm ? { label: 'Thickness', value: `${phone.thickness_mm}mm` } : null,
+      ].filter(Boolean) as { label: string; value: string }[],
+    },
+  ].filter(s => s.specs.length > 0)
+
+  return (
+    <div style={{ minHeight: '100vh', background: c.bg }}>
+      <Navbar
+        compareCount={comparePhones.length}
+        onOpenCompare={() => {
+          if (comparePhones.length >= 2) router.push(ROUTES.compare(...comparePhones.map(p => phoneSlug(p))))
+        }}
+      />
+
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 var(--page-px)' }}>
+        <nav style={{ padding: '14px 0', fontSize: 13, color: c.text3, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <Link href={ROUTES.home} style={{ color: c.text2 }}>Home</Link>
+          <ChevronRight size={12} />
+          <Link href={ROUTES.brand(brandSlug(phone.brand))} style={{ color: c.text2 }}>{phone.brand}</Link>
+          <ChevronRight size={12} />
+          <span style={{ color: c.text3 }}>{phone.model_name}</span>
+        </nav>
+
+        <div className="phone-hero-grid">
+          <PhoneGallery phone={phone} />
+
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.6px', color: c.text3, marginBottom: 6 }}>
+              {phone.brand}
+            </div>
+            <h1 style={{ fontFamily: f.serif, fontSize: 'clamp(24px,3vw,36px)', color: c.text1, letterSpacing: '-0.4px', lineHeight: 1.15, marginBottom: 10 }}>
+              {phone.model_name}
+            </h1>
+            <div style={{ fontSize: 'clamp(20px,2.5vw,28px)', fontWeight: 600, color: c.text1, marginBottom: 4 }}>
+              {effectivePrice != null ? `$${Math.round(effectivePrice).toLocaleString()}` : 'Price TBA'}
+            </div>
+            {effectivePrice != null && (
+              <div style={{ fontSize: 13, color: c.text3, marginBottom: 18 }}>
+                {selectedVariant
+                  ? `${selectedVariant.ram_gb ? `${selectedVariant.ram_gb}GB + ` : ''}${formatStorage(selectedVariant.storage_gb)} · US`
+                  : 'Starting price · US'}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
+              <span style={{ padding: '4px 12px', background: 'var(--green-light)', color: 'var(--green)', border: '1px solid var(--green-border)', borderRadius: 'var(--r-full)', fontSize: 12, fontWeight: 600 }}>
+                Available
+              </span>
+              {tier && (
+                <span style={{ padding: '4px 12px', background: tier.bg, color: tier.color, border: `1px solid ${tier.color}25`, borderRadius: 'var(--r-full)', fontSize: 12, fontWeight: 600 }}>
+                  {tier.label}
+                </span>
+              )}
+              {phone.release_year && (
+                <span style={{ padding: '4px 12px', background: c.bg, color: c.text3, border: `1px solid ${c.border}`, borderRadius: 'var(--r-full)', fontSize: 12, fontWeight: 600 }}>
+                  {phone.release_year}
+                </span>
+              )}
+            </div>
+
+            {valueScore != null && (
+              <div style={{ padding: '14px 18px', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-md)', marginBottom: 18 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div style={{ fontSize: 30, fontWeight: 700, lineHeight: 1, color: valueScoreColor(valueScore) }}>
+                    {valueScore.toFixed(1)}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: c.text2, marginBottom: 5 }}>Overall Score</div>
+                    <div style={{ height: 5, background: c.bg, borderRadius: 3, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${valueScore * 10}%`, background: valueScoreColor(valueScore), borderRadius: 3, transition: 'width 0.6s ease' }} />
+                    </div>
+                  </div>
+                </div>
+                <p style={{ fontSize: 11, color: c.text3, marginTop: 10, lineHeight: 1.5 }}>
+                  Average of camera, performance, battery, display, build, and value — see the full breakdown below.
+                </p>
+              </div>
+            )}
+
+            <VariantPicker variants={variants} loading={variantsLoading} selected={selectedVariant} onSelect={setSelectedVariant} />
+
+            <div className="hero-actions">
+              <button
+                onClick={handleCompareToggle}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '11px 20px',
+                  fontSize: 14, fontWeight: 600, flex: 1,
+                  color: inCompare ? '#fff' : c.primary,
+                  background: inCompare ? c.primary : 'transparent',
+                  border: `1px solid ${c.primary}`, borderRadius: 'var(--r-full)',
+                  transition: 'all 0.15s', cursor: 'pointer',
+                }}
+              >
+                <GitCompare size={15} strokeWidth={2} />
+                {inCompare ? 'In Compare' : 'Add to Compare'}
+              </button>
+
+              {buyUrl && (
+                <a
+                  href={buyUrl}
+                  target="_blank"
+                  rel={isAmazon ? 'noopener noreferrer sponsored' : 'noopener noreferrer'}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 20px', fontSize: 14, fontWeight: 600, color: '#fff', background: c.primary, borderRadius: 'var(--r-full)', textDecoration: 'none', justifyContent: 'center', flex: 1 }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#2A2A42' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = c.primary }}
+                >
+                  {isAmazon ? <ShoppingCart size={15} strokeWidth={2} /> : <ExternalLink size={15} strokeWidth={2} />}
+                  {isAmazon ? 'Buy on Amazon' : 'View This Price'}
+                </a>
+              )}
+            </div>
+            {buyUrl && (
+              <span style={{ fontSize: 10, color: c.text3, display: 'block', marginTop: 6 }}>
+                {isAmazon ? 'Affiliate link — we may earn a commission' : 'Price shown by third-party retailer, may change'}
+              </span>
+            )}
+
+            <button
+              onClick={handleShare}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: copied ? 'var(--green)' : c.text3, transition: 'color 0.15s', marginTop: 14, background: 'none', border: 'none', cursor: 'pointer' }}
+            >
+              {copied ? <Check size={13} /> : <Share2 size={13} />}
+              {copied ? 'Link copied!' : 'Copy link'}
+            </button>
+          </div>
+        </div>
+
+        <div className="quick-specs-grid" style={{ marginBottom: 40 }}>
+          {quickSpecs.map((spec, i) => <QuickSpecCard key={i} {...spec} />)}
+        </div>
+
+        <div style={{
+          position: 'sticky', top: 'var(--nav-h)', zIndex: z.sticky,
+          background: 'rgba(248,248,245,0.95)', backdropFilter: 'blur(16px)',
+          borderBottom: `1px solid ${c.border}`, marginBottom: 28,
+          display: 'flex', overflowX: 'auto',
+        }}>
+          <TabButton active={tab === 'overview'} onClick={() => handleTabChange('overview')}>Overview</TabButton>
+          <TabButton active={tab === 'specs'} onClick={() => handleTabChange('specs')}>Full Specs</TabButton>
+          <TabButton active={tab === 'compare'} onClick={() => handleTabChange('compare')}>Compare</TabButton>
+        </div>
+
+        {tab === 'overview' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 48 }}>
+            <WhyThisPhone phone={phone} fallbackSections={overviewSections} />
+            <PriceHistoryChart points={priceHistoryPoints} loading={priceHistoryLoading} />
+          </div>
+        )}
+
+        {tab === 'specs' && (
+          <div style={{ marginBottom: 48 }}>
+            {sortedSpecGroups.length > 0
+              ? sortedSpecGroups.map(([name, specs]) => <SpecGroup key={name} title={name} specs={specs} />)
+              : (
+                <div style={{ textAlign: 'center', padding: '48px 0', color: c.text3 }}>
+                  <Smartphone size={48} color={c.border} strokeWidth={1} style={{ margin: '0 auto 12px' }} />
+                  <p>Detailed specifications not available for this model.</p>
+                </div>
+              )}
+          </div>
+        )}
+
+        {tab === 'compare' && (
+          <div style={{ maxWidth: 600, marginBottom: 48 }}>
+            <div style={{ fontFamily: f.serif, fontSize: 22, color: c.text1, marginBottom: 6 }}>
+              Compare {phone.model_name}
+            </div>
+            <p style={{ fontSize: 14, color: c.text3, marginBottom: 22 }}>
+              Pick any phone below for a full side-by-side spec comparison.
+            </p>
+
+            {similar.length === 0 ? (
+              <div style={{ padding: '32px 20px', textAlign: 'center', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-md)', color: c.text3 }}>
+                <Smartphone size={36} color={c.border} strokeWidth={1} style={{ margin: '0 auto 10px' }} />
+                <p style={{ fontSize: 14 }}>No similar phones found at this price range.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {similar.slice(0, 8).map(p => (
+                  <Link
+                    key={p.id}
+                    href={ROUTES.compare(phoneSlug(phone), phoneSlug(p))}
+                    style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-md)', transition: 'all 0.15s', textDecoration: 'none' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = c.primary; (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-sm)' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = c.border; (e.currentTarget as HTMLElement).style.boxShadow = 'none' }}
+                  >
+                    <div style={{ width: 44, height: 44, background: c.bg, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {p.main_image_url
+                        ? <img src={p.main_image_url} alt="" loading="lazy" decoding="async" style={{ width: 36, height: 36, objectFit: 'contain' }} />
+                        : <Smartphone size={20} color={c.border} strokeWidth={1} />}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: c.text1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.model_name}</div>
+                      <div style={{ fontSize: 12, color: c.text3, marginTop: 2 }}>
+                        {(() => { const dp = resolveDisplayPrice(p); return dp != null ? `$${Math.round(dp).toLocaleString()}` : '—' })()}
+                        {p.main_camera_mp ? ` · ${p.main_camera_mp}MP` : ''}
+                        {p.battery_capacity ? ` · ${p.battery_capacity.toLocaleString()}mAh` : ''}
+                        {p.antutu_score ? ` · ${(p.antutu_score / 1_000_000).toFixed(1)}M AnTuTu` : ''}
+                      </div>
+                    </div>
+                    <ArrowRight size={15} color={c.text3} strokeWidth={2} />
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <section style={{ marginTop: 8, marginBottom: 64 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 20 }}>
+            <h2 style={{ fontFamily: f.serif, fontSize: 24, color: c.text1 }}>Similar Phones</h2>
+            <span style={{ fontSize: 13, color: c.text3 }}>Price · Size · Performance</span>
+          </div>
+
+          {similar.length === 0 ? (
+            <div style={{ padding: '32px 20px', textAlign: 'center', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-md)', color: c.text3 }}>
+              <p style={{ fontSize: 14 }}>No similar phones found at a comparable price range.</p>
+            </div>
+          ) : (
+            <div style={{ position: 'relative' }}>
+              <div ref={scrollRef} className="scrollbar-none" style={{ display: 'flex', gap: 14, overflowX: 'auto', scrollSnapType: 'x mandatory', paddingBottom: 4 }}>
+                {similar.map(p => <SimilarCard key={p.id} phone={p} />)}
+              </div>
+              <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 56, background: 'linear-gradient(-90deg,var(--bg) 0%,transparent 100%)', pointerEvents: 'none' }} />
+            </div>
+          )}
+        </section>
+      </div>
+
+      <Footer />
+
+      <CompareBar
+        phones={comparePhones}
+        onRemove={id => setComparePhones(prev => prev.filter(p => p.id !== id))}
+        onClear={() => setComparePhones([])}
+      />
+
+      <style>{`
+        .phone-hero-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; padding-bottom: 40px; align-items: start; }
+        .quick-specs-grid { display: grid; grid-template-columns: repeat(6,1fr); gap: 12px; }
+        .specs-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 4px; }
+        .hero-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+        @media (max-width: 1023px) {
+          .phone-hero-grid { grid-template-columns: 1fr; gap: 28px; }
+          .phone-hero-grid > div:first-child { max-width: 400px; margin: 0 auto; width: 100%; }
+          .quick-specs-grid { grid-template-columns: repeat(3,1fr); }
+        }
+        @media (max-width: 640px) {
+          .quick-specs-grid { grid-template-columns: repeat(2,1fr); gap: 8px; }
+          .specs-2col { grid-template-columns: 1fr; }
+          .hero-actions { flex-direction: column; }
+          .hero-actions a, .hero-actions button { justify-content: center; }
+        }
+      `}</style>
+    </div>
+  )
+}
+
+export default function PhoneDetailClient(props: PhoneDetailClientProps) {
+  return <PhoneDetailInner {...props} />
 }
