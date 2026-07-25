@@ -56,12 +56,13 @@ const QUALITY_LABEL: Record<string, string> = {
 }
 
 function QualityBar({ field, score }: { field: string; score: number }) {
+  const color = valueScoreColor(score)
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <span style={{ color: c.text3, display: 'flex', flexShrink: 0, width: 16 }}>{QUALITY_ICON[field]}</span>
+      <span style={{ color, display: 'flex', flexShrink: 0, width: 16 }}>{QUALITY_ICON[field]}</span>
       <span style={{ width: 84, fontSize: 12, color: c.text2, flexShrink: 0 }}>{QUALITY_LABEL[field]}</span>
       <div style={{ flex: 1, height: 6, background: c.bg, borderRadius: 3, overflow: 'hidden' }}>
-        <div style={{ height: '100%', borderRadius: 3, width: `${score * 10}%`, background: valueScoreColor(score), transition: 'width 0.6s ease' }} />
+        <div style={{ height: '100%', borderRadius: 3, width: `${score * 10}%`, background: color, transition: 'width 0.6s ease' }} />
       </div>
       <span style={{ width: 28, fontSize: 12, fontWeight: 600, color: c.text1, textAlign: 'right', flexShrink: 0 }}>{score.toFixed(1)}</span>
     </div>
