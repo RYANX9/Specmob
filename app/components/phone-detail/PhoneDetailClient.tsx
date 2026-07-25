@@ -533,7 +533,7 @@ function PhoneDetailInner({ phone, similar }: PhoneDetailClientProps) {
                   Average of camera, performance, battery, display, build, and value — see the full breakdown below.
                 </p>
               </div>
-            )}
+            )}            
 
             <VariantPicker variants={variants} loading={variantsLoading} selected={selectedVariant} onSelect={setSelectedVariant} />
 
