@@ -516,19 +516,12 @@ function PhoneDetailInner({ phone, similar }: PhoneDetailClientProps) {
                   {tier.label}
                 </span>
               )}
-              {phone.release_year && (
-                <span style={{ padding: '4px 12px', background: c.bg, color: c.text3, border: `1px solid ${c.border}`, borderRadius: 'var(--r-full)', fontSize: 12, fontWeight: 600 }}>
-                  {phone.release_year}
-                </span>
-              )}
             </div>
 
             {valueScore != null && (
               <div style={{ padding: '14px 18px', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-md)', marginBottom: 18 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <div style={{ fontSize: 30, fontWeight: 700, lineHeight: 1, color: valueScoreColor(valueScore) }}>
-                    {valueScore.toFixed(1)}
-                  </div>
+                  <div style={{ fontSize: 30, fontWeight: 700, lineHeight: 1, color: valueScoreColor(valueScore) }}>{valueScore.toFixed(1)}</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: c.text2, marginBottom: 5 }}>Overall Score</div>
                     <div style={{ height: 5, background: c.bg, borderRadius: 3, overflow: 'hidden' }}>
@@ -540,7 +533,7 @@ function PhoneDetailInner({ phone, similar }: PhoneDetailClientProps) {
                   Average of camera, performance, battery, display, build, and value — see the full breakdown below.
                 </p>
               </div>
-            )}
+            )}            
 
             <VariantPicker variants={variants} loading={variantsLoading} selected={selectedVariant} onSelect={setSelectedVariant} />
 
@@ -561,7 +554,7 @@ function PhoneDetailInner({ phone, similar }: PhoneDetailClientProps) {
               </button>
 
               {buyUrl && (
-                <a
+                
                   href={buyUrl}
                   target="_blank"
                   rel={isAmazon ? 'noopener noreferrer sponsored' : 'noopener noreferrer'}
