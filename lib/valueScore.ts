@@ -36,12 +36,18 @@ export function specComposite(p: SpecCompositeInput): number {
 // One scale, four bands. Matches the richer of the two prior scales
 // (pick/page.tsx's) since it gives more useful separation than a flat
 // three-band split — applied identically wherever a value_score renders.
+// Maps value_score directly to the official EU Energy Label 7-tier scale (A-G).
+// Uses exact hex equivalents for official EU energy compliance colors:
+// A (#00833e), B (#4cb848), C (#c0d731), D (#ffed00), E (#f39200), F (#e84e0f), G (#e30613).
 export function valueScoreColor(score: number | null | undefined): string {
   if (score == null)    return 'var(--text-3)'
-  if (score >= 9)       return 'var(--green)'
-  if (score >= 7.5)     return 'var(--blue)'
-  if (score >= 6)       return 'var(--text-2)'
-  return 'var(--orange)'
+  if (score >= 9.0)     return '#00833e' // Class A: Dark Green
+  if (score >= 8.0)     return '#4cb848' // Class B: Light Green
+  if (score >= 7.0)     return '#c0d731' // Class C: Lime Green
+  if (score >= 6.0)     return '#ffed00' // Class D: Yellow
+  if (score >= 5.0)     return '#f39200' // Class E: Light Orange
+  if (score >= 3.5)     return '#e84e0f' // Class F: Dark Orange
+  return '#e30613'                       // Class G: Red
 }
 
 // Resolves the display score for a phone: server value_score wins outright,
