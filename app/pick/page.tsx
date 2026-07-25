@@ -20,6 +20,9 @@ import { c, z } from '@/lib/tokens'
 import type { Phone } from '@/lib/types'
 import { formatDisplayPrice } from '@/lib/price'
 
+// add this import at the top instead:
+import { valueScoreColor } from '@/lib/valueScore'
+
 const STEPS = [
   { num: 1, label: 'Tier' },
   { num: 2, label: 'Priorities' },
@@ -58,12 +61,6 @@ const PRIORITIES = [
   { id: 'value',              label: 'Best Value',          desc: 'Most specs per dollar',         icon: <BadgeDollarSign size={24} strokeWidth={1.5} /> },
 ]
 
-function scoreColor(score: number): string {
-  if (score >= 9)   return 'var(--green)'
-  if (score >= 7.5) return 'var(--blue)'
-  if (score >= 6)   return 'var(--text-2)'
-  return 'var(--orange)'
-}
 
 function ProgressDots({ current }: { current: number }) {
   return (
