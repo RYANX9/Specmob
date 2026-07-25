@@ -41,16 +41,11 @@ export function specComposite(p: SpecCompositeInput): number {
 // 6.5+ Average (Yellow/Orange), < 6.5 Poor (Red).
 export function valueScoreColor(score: number | null | undefined): string {
   if (score == null)    return 'var(--text-3)'
-  if (score >= 9.0)     return '
-#2b80ff' // Sofascore Blue
-  if (score >= 8.0)     return '
-#00a651' // Sofascore Dark Green
-  if (score >= 7.0)     return '
-#7cb342' // Sofascore Light Green
-  if (score >= 6.5)     return '
-#ffb300' // Sofascore Yellow/Orange
-  return '
-#e53935'                       // Sofascore Red
+  if (score >= 9.0)     return '#2b80ff' // Sofascore Blue
+  if (score >= 8.0)     return '#00a651' // Sofascore Dark Green
+  if (score >= 7.0)     return '#7cb342' // Sofascore Light Green
+  if (score >= 6.5)     return '#ffb300' // Sofascore Yellow/Orange
+  return '#e53935'                       // Sofascore Red
 }
 
 // Resolves the display score for a phone: server value_score wins outright,
