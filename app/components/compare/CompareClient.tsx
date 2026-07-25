@@ -20,6 +20,7 @@ import Footer from '../Footer'
 import { useToast } from '../Toast'
 import type { Phone, CompareVerdict } from '@/lib/types'
 import { formatDisplayPrice } from '@/lib/price'
+import { specComposite, resolveValueScore } from '@/lib/valueScore'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -28,15 +29,6 @@ function fmt(v: number | null, suffix = ''): string {
   return `${v.toLocaleString()}${suffix}`
 }
 
-function scoreComposite(p: Phone): number {
-  let s = 0
-  if (p.antutu_score)      s += Math.min(p.antutu_score / 2_000_000, 1) * 3
-  if (p.main_camera_mp)    s += Math.min(p.main_camera_mp / 200, 1) * 2
-  if (p.battery_capacity)  s += Math.min(p.battery_capacity / 7000, 1) * 2
-  if (p.fast_charging_w)   s += Math.min(p.fast_charging_w / 100, 1)
-  if (p.ram_options?.length) s += Math.min(Math.max(...p.ram_options) / 16, 1) * 0.5
-  return s
-}
 
 function getBestIdx(phones: Phone[], getter: (p: Phone) => number | null, lower = false): number {
   const values = phones.map(getter)
@@ -152,7 +144,7 @@ const SPEC_SECTIONS: SpecSectionDef[] = [
 function PhoneColumn({ phone, onRemove, isWinner }: { phone: Phone; onRemove: () => void; isWinner: boolean }) {
   const [imgErr, setImgErr] = useState(false)
   const hasServerScore = phone.value_score != null
-  const displayScore   = hasServerScore ? phone.value_score! : scoreComposite(phone)
+  const { score: displayScore, isEstimate } = resolveValueScore(phone)
 
   return (
     <div style={{
@@ -536,7 +528,7 @@ function BottomLine({ phones, verdict }: { phones: Phone[]; verdict: CompareVerd
     }
   }
 
-  const getScore   = (p: Phone) => p.value_score ?? scoreComposite(p)
+  const getScore = (p: Phone) => resolveValueScore(p).score
   const bestValue  = phones.reduce((a, b) => getScore(a) > getScore(b) ? a : b)
   const cheapest   = phones.reduce((a, b) => (a.price_usd ?? Infinity) < (b.price_usd ?? Infinity) ? a : b)
   const bestCamera = phones.reduce((a, b) => (a.main_camera_mp ?? 0) > (b.main_camera_mp ?? 0) ? a : b)
@@ -700,7 +692,7 @@ function CompareContent({ initialPhones, initialVerdict }: { initialPhones: Phon
     toast('Comparison cleared', 'info')
   }
 
-  const getDisplayScore = (p: Phone) => p.value_score ?? scoreComposite(p)
+  const getDisplayScore = (p: Phone) => resolveValueScore(p).score
   const scores    = phones.map(getDisplayScore)
   const bestIdx   = phones.length >= 2 ? scores.indexOf(Math.max(...scores)) : -1
   const hasPhones  = phones.length > 0
