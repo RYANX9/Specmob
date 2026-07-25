@@ -20,6 +20,7 @@ import { useToast } from '@/app/components/Toast'
 import CompareBar from '@/app/components/CompareBar'
 import Footer from '@/app/components/Footer'
 import { WhyThisPhone, PriceHistoryChart, SimilarCard } from '@/app/components/phone-detail/PhoneOverview'
+import { valueScoreColor } from '@/lib/valueScore'
 
 type PhoneVariant = {
   ram_gb: number | null
@@ -520,14 +521,13 @@ function PhoneDetailInner({ phone, similar }: PhoneDetailClientProps) {
             {valueScore != null && (
               <div style={{ padding: '14px 18px', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-md)', marginBottom: 18 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <div style={{ fontSize: 30, fontWeight: 700, lineHeight: 1, color: c.accent }}>{valueScore.toFixed(1)}</div>
+                  <div style={{ fontSize: 30, fontWeight: 700, lineHeight: 1, color: valueScoreColor(valueScore) }}>{valueScore.toFixed(1)}</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: c.text2, marginBottom: 5 }}>Overall Score</div>
                     <div style={{ height: 5, background: c.bg, borderRadius: 3, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${valueScore * 10}%`, background: c.accent, borderRadius: 3, transition: 'width 0.6s ease' }} />
+                      <div style={{ height: '100%', width: `${valueScore * 10}%`, background: valueScoreColor(valueScore), borderRadius: 3, transition: 'width 0.6s ease' }} />
                     </div>
                   </div>
-                  <div style={{ fontSize: 11, color: c.text3 }}>vs peers</div>
                 </div>
                 <p style={{ fontSize: 11, color: c.text3, marginTop: 10, lineHeight: 1.5 }}>
                   Average of camera, performance, battery, display, build, and value — see the full breakdown below.
