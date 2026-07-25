@@ -320,7 +320,7 @@ function ResultCard({
   tier: ReturnType<typeof getPriceTier>
 }) {
   const router = useRouter()
-  const color = scoreColor(score)
+  const color = valueScoreColor(score)
   const displayPrice = resolveDisplayPrice(phone)
   const outOfBudget = phone.in_requested_budget === false
 
