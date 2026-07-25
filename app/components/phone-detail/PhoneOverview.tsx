@@ -15,23 +15,6 @@ import { c, f } from '@/lib/tokens'
 import type { Phone } from '@/lib/types'
 
 
-const QUALITY_ICON: Record<string, React.ReactNode> = {
-  camera_score: <Camera size={14} strokeWidth={1.5} />,
-  performance_score: <Cpu size={14} strokeWidth={1.5} />,
-  battery_score: <Battery size={14} strokeWidth={1.5} />,
-  display_score: <Monitor size={14} strokeWidth={1.5} />,
-  build_score: <HardHat size={14} strokeWidth={1.5} />,
-  value_score: <BadgeDollarSign size={14} strokeWidth={1.5} />,
-}
-
-const QUALITY_LABEL: Record<string, string> = {
-  camera_score: 'Camera',
-  performance_score: 'Performance',
-  battery_score: 'Battery',
-  display_score: 'Display',
-  build_score: 'Build',
-  value_score: 'Value',
-}
 // ─── fallback overview section (used when no AI smart_score exists) ─────────
 
 export function OverviewSection({ title, headline, specs }: { title: string; headline: string; specs: { label: string; value: string }[] }) {
@@ -60,6 +43,7 @@ const QUALITY_ICON: Record<string, React.ReactNode> = {
   battery_score: <Battery size={14} strokeWidth={1.5} />,
   display_score: <Monitor size={14} strokeWidth={1.5} />,
   build_score: <HardHat size={14} strokeWidth={1.5} />,
+  value_score: <BadgeDollarSign size={14} strokeWidth={1.5} />,
 }
 
 const QUALITY_LABEL: Record<string, string> = {
@@ -68,6 +52,7 @@ const QUALITY_LABEL: Record<string, string> = {
   battery_score: 'Battery',
   display_score: 'Display',
   build_score: 'Build',
+  value_score: 'Value',
 }
 
 function QualityBar({ field, score }: { field: string; score: number }) {
