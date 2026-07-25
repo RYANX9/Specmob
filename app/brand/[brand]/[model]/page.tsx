@@ -19,7 +19,7 @@ import Navbar from '@/app/components/Navbar'
 import { useToast } from '@/app/components/Toast'
 import CompareBar from '@/app/components/CompareBar'
 import Footer from '@/app/components/Footer'
-
+import { valueScoreColor } from '@/lib/valueScore'
 import PhoneGallery from '@/app/components/phone-detail/PhoneGallery'
 import {
   TabButton, SpecGroup, QuickSpecCard, VariantPicker,
