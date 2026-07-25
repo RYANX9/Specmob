@@ -436,19 +436,19 @@ function PhoneDetailContent() {
             {valueScore != null && (
               <div style={{ padding: '14px 18px', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-md)', marginBottom: 18 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <div style={{ fontSize: 30, fontWeight: 700, lineHeight: 1, color: c.accent }}>
+                  <div style={{ fontSize: 30, fontWeight: 700, lineHeight: 1, color: valueScoreColor(valueScore) }}>
                     {valueScore.toFixed(1)}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: c.text2, marginBottom: 5 }}>Value Score</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: c.text2, marginBottom: 5 }}>Overall Score</div>
                     <div style={{ height: 5, background: c.bg, borderRadius: 3, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${valueScore * 10}%`, background: c.accent, borderRadius: 3, transition: 'width 0.6s ease' }} />
+                      <div style={{ height: '100%', width: `${valueScore * 10}%`, background: valueScoreColor(valueScore), borderRadius: 3, transition: 'width 0.6s ease' }} />
                     </div>
                   </div>
                   <div style={{ fontSize: 11, color: c.text3 }}>vs peers</div>
                 </div>
                 <p style={{ fontSize: 11, color: c.text3, marginTop: 10, lineHeight: 1.5 }}>
-                  Hardware-per-dollar vs similarly priced phones. Not a quality rating — see Hardware Quality below for that.
+                  Average of camera, performance, battery, display, build, and value — see the full breakdown below.
                 </p>
               </div>
             )}
