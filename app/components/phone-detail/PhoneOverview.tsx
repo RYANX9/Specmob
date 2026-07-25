@@ -5,7 +5,7 @@ import Link from 'next/link'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
-import { Camera, Battery, Cpu, Monitor, HardHat, Smartphone } from 'lucide-react'
+import { Camera, Battery, Cpu, Monitor, HardHat, BadgeDollarSign, Smartphone } from 'lucide-react'
 import type { PricePointRow } from '@/lib/api'
 import { ROUTES, brandSlug, phoneSlug } from '@/lib/config'
 import { valueScoreColor } from '@/lib/valueScore'
@@ -14,6 +14,24 @@ import { resolveDisplayPrice } from '@/lib/price'
 import { c, f } from '@/lib/tokens'
 import type { Phone } from '@/lib/types'
 
+
+const QUALITY_ICON: Record<string, React.ReactNode> = {
+  camera_score: <Camera size={14} strokeWidth={1.5} />,
+  performance_score: <Cpu size={14} strokeWidth={1.5} />,
+  battery_score: <Battery size={14} strokeWidth={1.5} />,
+  display_score: <Monitor size={14} strokeWidth={1.5} />,
+  build_score: <HardHat size={14} strokeWidth={1.5} />,
+  value_score: <BadgeDollarSign size={14} strokeWidth={1.5} />,
+}
+
+const QUALITY_LABEL: Record<string, string> = {
+  camera_score: 'Camera',
+  performance_score: 'Performance',
+  battery_score: 'Battery',
+  display_score: 'Display',
+  build_score: 'Build',
+  value_score: 'Value',
+}
 // ─── fallback overview section (used when no AI smart_score exists) ─────────
 
 export function OverviewSection({ title, headline, specs }: { title: string; headline: string; specs: { label: string; value: string }[] }) {
@@ -93,6 +111,7 @@ export function WhyThisPhone({
     ['battery_score', smart.battery_score],
     ['display_score', smart.display_score],
     ['build_score', smart.build_score],
+    ['value_score', smart.value_score],
   ]
   const availableQuality = qualityFields.filter(([, v]) => v != null) as [string, number][]
 
@@ -119,7 +138,7 @@ export function WhyThisPhone({
             Hardware Quality by Category
           </div>
           <p style={{ fontSize: 11, color: c.text3, lineHeight: 1.5, marginBottom: 12 }}>
-            Independent of price. For price-adjusted comparison, see Value Score above.
+            The hero score above is the average of these six components.
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {availableQuality.map(([field, score]) => <QualityBar key={field} field={field} score={score} />)}
