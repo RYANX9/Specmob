@@ -1,3 +1,4 @@
+// app/components/CompareBar.tsx
 'use client'
 
 import { useEffect } from 'react'
@@ -5,26 +6,21 @@ import { useRouter } from 'next/navigation'
 import { X, GitCompare } from 'lucide-react'
 import { ROUTES, phoneSlug } from '@/lib/config'
 import { c, z, ease } from '@/lib/tokens'
-import type { Phone } from '@/lib/types'
+import { useCompare } from '@/lib/compareStore'
 
-interface CompareBarProps {
-  phones: Phone[]
-  onRemove: (id: number) => void
-  onClear: () => void
-}
-
-export default function CompareBar({ phones, onRemove, onClear }: CompareBarProps) {
+export default function CompareBar() {
   const router = useRouter()
+  const { phones, remove, clear } = useCompare()
 
   // Allow keyboard users to dismiss with Escape
   useEffect(() => {
     if (phones.length === 0) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClear()
+      if (e.key === 'Escape') clear()
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [phones.length, onClear])
+  }, [phones.length, clear])
 
   if (phones.length === 0) return null
 
@@ -109,7 +105,7 @@ export default function CompareBar({ phones, onRemove, onClear }: CompareBarProp
           {phones.map(p => (
             <button
               key={p.id}
-              onClick={() => onRemove(p.id)}
+              onClick={() => remove(p.id)}
               aria-label={`Remove ${p.model_name} from comparison`}
               style={{
                 display: 'flex', alignItems: 'center', gap: 4,
@@ -135,7 +131,7 @@ export default function CompareBar({ phones, onRemove, onClear }: CompareBarProp
 
         {/* Clear all */}
         <button
-          onClick={onClear}
+          onClick={clear}
           aria-label="Clear all phones from comparison"
           style={{
             fontSize: 13,
