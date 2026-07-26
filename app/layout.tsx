@@ -1,6 +1,12 @@
+// app/layout.tsx
 import type { Metadata, Viewport } from 'next'
+import { Suspense } from 'react'
 import { Geist, Instrument_Serif } from 'next/font/google'
 import { ToastProvider } from '@/app/components/Toast'
+import { CompareProvider } from '@/lib/compareStore'
+import Navbar from '@/app/components/Navbar'
+import Footer from '@/app/components/Footer'
+import CompareBar from '@/app/components/CompareBar'
 import './globals.css'
 
 const geist = Geist({
@@ -92,7 +98,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className={`${geist.variable} ${instrumentSerif.variable}`}>
-        <ToastProvider>{children}</ToastProvider>
+        <ToastProvider>
+          <CompareProvider>
+            {/* Navbar uses useSearchParams, which requires a Suspense boundary
+                on the segment that renders it. Previously each page supplied
+                this implicitly (Navbar was rendered inside that page's own
+                Suspense wrapper). Now that Navbar sits above {children} in
+                the tree, it needs its own boundary here. */}
+            <Suspense fallback={<div style={{ height: 'var(--nav-h)' }} />}>
+              <Navbar />
+            </Suspense>
+            {children}
+            <Footer />
+            <CompareBar />
+          </CompareProvider>
+        </ToastProvider>
       </body>
     </html>
   )
