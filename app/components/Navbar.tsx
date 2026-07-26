@@ -1,3 +1,4 @@
+// app/components/Navbar.tsx
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
@@ -9,17 +10,22 @@ import { ROUTES, brandSlug, phoneSlug } from '@/lib/config'
 import { c, f, z } from '@/lib/tokens'
 import type { Phone } from '@/lib/types'
 import { formatDisplayPrice } from '@/lib/price'
+import { useCompare } from '@/lib/compareStore'
 
-interface NavbarProps {
-  compareCount?: number
-  onOpenCompare?: () => void
-}
+// Module scope, not a ref: survives regardless of when/how Navbar mounts.
+// The old useRef cache was dead on arrival because every route change used
+// to remount Navbar — a "1-hour TTL" that never outlived a single nav.
+const BRANDS_CACHE_TTL = 60 * 60 * 1000
+let brandsCache: { data: { brand: string; count: number }[]; ts: number } | null = null
 
-export default function Navbar({ compareCount = 0, onOpenCompare }: NavbarProps) {
+export default function Navbar() {
   const router       = useRouter()
   const pathname     = usePathname()
   const searchParams = useSearchParams()
   const urlQ         = searchParams.get('q') ?? ''
+
+  const { phones: comparePhones } = useCompare()
+  const compareCount = comparePhones.length
 
   const [query, setQuery]           = useState(urlQ)
   const [results, setResults]       = useState<Phone[]>([])
@@ -35,21 +41,17 @@ export default function Navbar({ compareCount = 0, onOpenCompare }: NavbarProps)
   const brandsRef = useRef<HTMLDivElement>(null)
   const timerRef  = useRef<ReturnType<typeof setTimeout>>()
 
-  // Module-level brand cache: avoid re-fetching on every page navigation
-  const brandsCache = useRef<{ data: { brand: string; count: number }[]; ts: number } | null>(null)
-
   useEffect(() => { setQuery(urlQ) }, [urlQ])
 
   useEffect(() => {
-    const CACHE_TTL = 60 * 60 * 1000 // 1 hour
     const now = Date.now()
-    if (brandsCache.current && now - brandsCache.current.ts < CACHE_TTL) {
-      setBrands(brandsCache.current.data.slice(0, 24))
+    if (brandsCache && now - brandsCache.ts < BRANDS_CACHE_TTL) {
+      setBrands(brandsCache.data.slice(0, 24))
       return
     }
     api.brands.list().then(d => {
       const sliced = d.brands.slice(0, 24)
-      brandsCache.current = { data: sliced, ts: now }
+      brandsCache = { data: sliced, ts: now }
       setBrands(sliced)
     }).catch(() => {})
   }, [])
@@ -160,11 +162,13 @@ export default function Navbar({ compareCount = 0, onOpenCompare }: NavbarProps)
     if (pathname === '/') router.replace('/')
   }
 
-  // Always navigate: open /compare directly when <2 phones,
-  // or call onOpenCompare callback (which scrolls/routes) when >=2
+  // Always navigate: open /compare directly when <2 phones, or jump straight
+  // to the compare page with the current tray when >=2. No callback prop
+  // needed — Navbar reads the tray from context, it doesn't need the page
+  // to hand it one.
   const handleCompareClick = () => {
-    if (compareCount >= 2 && onOpenCompare) {
-      onOpenCompare()
+    if (compareCount >= 2) {
+      router.push(ROUTES.compare(...comparePhones.map(phoneSlug)))
     } else {
       router.push('/compare')
     }
@@ -429,7 +433,7 @@ export default function Navbar({ compareCount = 0, onOpenCompare }: NavbarProps)
             </Link>
 
             {/* Compare button: always navigates — to /compare when <2 phones selected,
-                or triggers the onOpenCompare callback when >=2 */}
+                or straight into the compare page with the tray when >=2 */}
             <button
               onClick={handleCompareClick}
               aria-label={
