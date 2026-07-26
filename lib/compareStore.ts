@@ -38,11 +38,7 @@ export function CompareProvider({ children }: { children: React.ReactNode }) {
     [phones, ids, add, remove, clear]
   )
 
-  return (
-    <CompareContext.Provider value={value}>
-      {children}
-    </CompareContext.Provider>
-  )
+  return React.createElement(CompareContext.Provider, { value }, children)
 }
 
 export function useCompare() {
