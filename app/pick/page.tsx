@@ -20,7 +20,6 @@ import { c, z } from '@/lib/tokens'
 import type { Phone } from '@/lib/types'
 import { formatDisplayPrice } from '@/lib/price'
 
-// add this import at the top instead:
 import { valueScoreColor } from '@/lib/valueScore'
 
 const STEPS = [
@@ -308,19 +307,39 @@ function StepPriorities({ selected, onToggle }: { selected: Set<string>; onToggl
   )
 }
 
+function ScoreBadge({ score, isMatchScore }: { score: number; isMatchScore: boolean }) {
+  const color = valueScoreColor(score)
+  return (
+    <div
+      title={isMatchScore ? 'How well this fits the priorities you picked' : "This phone's overall hardware score"}
+      style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
+        padding: '5px 12px', background: `${color}10`,
+        borderRadius: 'var(--r-md)', border: `1px solid ${color}25`,
+      }}
+    >
+      <span style={{ fontSize: 13, fontWeight: 600, color }}>{score.toFixed(1)}/10</span>
+      <span style={{ fontSize: 9, fontWeight: 600, color: c.text3, textTransform: 'uppercase' as const, letterSpacing: '0.3px' }}>
+        {isMatchScore ? 'Match' : 'Overall'}
+      </span>
+    </div>
+  )
+}
+
 function ResultCard({
-  phone, rank, score, isBest, onCompare, isCompared, tier,
+  phone, rank, score, isMatchScore, secondaryScore, isBest, onCompare, isCompared, tier,
 }: {
   phone: Phone & { match_score?: number; in_requested_budget?: boolean | null }
   rank: number
   score: number
+  isMatchScore: boolean
+  secondaryScore: number | null
   isBest: boolean
   onCompare: (p: Phone) => void
   isCompared: boolean
   tier: ReturnType<typeof getPriceTier>
 }) {
   const router = useRouter()
-  const color = valueScoreColor(score)
   const displayPrice = resolveDisplayPrice(phone)
   const outOfBudget = phone.in_requested_budget === false
 
@@ -331,8 +350,6 @@ function ResultCard({
     phone.battery_capacity && phone.battery_capacity >= 4500
       ? `${phone.battery_capacity.toLocaleString()}mAh battery — above average for this price bracket.`
       : null,
-    // chipset_tier arrives from the API as {id, label} — compare against .id,
-    // not the object itself.
     phone.chipset_tier?.id === 'flagship'
       ? `Flagship ${phone.chipset || 'chipset'} delivers top-tier performance.`
       : `Reliable ${phone.chipset_tier?.label || 'mid-range'} performance for everyday use.`,
@@ -415,12 +432,11 @@ function ResultCard({
           </div>
         </div>
 
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          padding: '6px 12px', background: `${color}10`,
-          borderRadius: 'var(--r-md)', border: `1px solid ${color}25`,
-        }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color }}>{score.toFixed(1)}/10</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <ScoreBadge score={score} isMatchScore={isMatchScore} />
+          {secondaryScore != null && (
+            <ScoreBadge score={secondaryScore} isMatchScore={!isMatchScore} />
+          )}
         </div>
       </div>
 
@@ -556,6 +572,15 @@ function StepResults({
         <span><strong style={{ color: c.text1 }}>{tier.name}</strong> · {priorityLabels.join(' · ')}</span>
       </div>
 
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 14px', background: 'var(--blue-light)', border: '1px solid rgba(69,123,157,0.15)', borderRadius: 'var(--r-md)', marginBottom: 16, fontSize: 12.5, color: c.text2, lineHeight: 1.5 }}>
+        <Info size={14} color="var(--blue)" style={{ flexShrink: 0, marginTop: 1 }} />
+        <span>
+          <strong>Match</strong> scores rank how well a phone fits the priorities you picked.
+          <strong> Overall</strong> scores (shown on each phone's detail page) rate its all-round hardware quality.
+          A phone can score high on one and lower on the other — that's expected, not an error.
+        </span>
+      </div>
+
       {meta?.insufficientMatches && phones.length > 0 && (
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 16px', background: 'rgba(231,111,81,0.06)', border: '1px solid rgba(231,111,81,0.15)', borderRadius: 'var(--r-md)', marginBottom: 16 }}>
           <AlertTriangle size={15} color="var(--orange)" style={{ flexShrink: 0, marginTop: 1 }} />
@@ -583,18 +608,27 @@ function StepResults({
           <p style={{ fontSize: 14, color: c.text3 }}>Try a different tier or fewer priorities.</p>
         </div>
       ) : (
-        phones.map((phone, i) => (
-          <ResultCard
-            key={phone.id}
-            phone={phone}
-            rank={i + 1}
-            score={phone.match_score ?? phone.value_score ?? 7.5}
-            isBest={i === 0}
-            onCompare={onCompare}
-            isCompared={compareIds.includes(phone.id)}
-            tier={tier}
-          />
-        ))
+        phones.map((phone, i) => {
+          const hasMatchScore = phone.match_score != null
+          const primary = phone.match_score ?? phone.value_score ?? 7.5
+          const secondary = hasMatchScore
+            ? (phone.value_score ?? null)
+            : null
+          return (
+            <ResultCard
+              key={phone.id}
+              phone={phone}
+              rank={i + 1}
+              score={primary}
+              isMatchScore={hasMatchScore}
+              secondaryScore={secondary}
+              isBest={i === 0}
+              onCompare={onCompare}
+              isCompared={compareIds.includes(phone.id)}
+              tier={tier}
+            />
+          )
+        })
       )}
     </div>
   )
