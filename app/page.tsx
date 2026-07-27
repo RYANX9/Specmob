@@ -4,7 +4,12 @@ import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 
-import { Search, ArrowRight, Camera, Battery, Zap, Tag, Feather, Smartphone, ChevronRight, Gamepad2, Monitor, Bolt, BadgeDollarSign, Layers, Droplets, Waves } from 'lucide-react';
+import {
+  Search, ArrowRight, ArrowUpRight, Camera, Battery, Zap, Tag, Feather,
+  Smartphone, ChevronLeft, ChevronRight, ChevronDown,
+  Gamepad2, Monitor, Bolt, BadgeDollarSign, X, RotateCcw,
+  Layers, Droplets,
+} from 'lucide-react'
 
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
