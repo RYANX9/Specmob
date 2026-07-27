@@ -7,6 +7,7 @@ import {
   ChevronLeft, ChevronRight, Star, Clock, Smartphone,
   TrendingUp, Info, ArrowRight, ChevronDown,
   Camera, Battery, Zap, Tag, Feather, Bolt, Crosshair, BarChart3,
+  Layers,
 } from 'lucide-react'
 import Navbar from '../../components/Navbar'
 import CompareBar from '../../components/CompareBar'
@@ -97,6 +98,14 @@ const CATEGORY_CONFIG: Record<string, {
     icon: <Feather size={22} strokeWidth={1.5} />,
     weights: [{ label: 'Weight (ascending)', pct: 100 }],
   },
+  'foldables': {
+    title: 'Best Foldable Phones',
+    minYear: 2015,
+    desc: 'Every foldable currently tracked, ranked by our smart overall score where available, falling back to raw AnTuTu for unscored phones.',
+    scoring: 'Overall score (100%). Foldable form factor required.',
+    icon: <Layers size={22} strokeWidth={1.5} />,
+    weights: [{ label: 'Overall Score', pct: 100 }],
+  },
   'compact-phones': {
     title: 'Best Compact Phones',
     scoreLabel: 'Performance Score',
@@ -115,6 +124,7 @@ const CATEGORY_CONFIG: Record<string, {
     icon: <Bolt size={22} strokeWidth={1.5} />,
     weights: [{ label: 'Charging Wattage', pct: 100 }],
   },
+
 }
 
 const ALL_CATEGORIES = [
@@ -124,6 +134,7 @@ const ALL_CATEGORIES = [
   { slug: 'under-300',      icon: <Tag size={18} strokeWidth={1.5} />,       label: 'Under $300'    },
   { slug: 'under-500',      icon: <Tag size={18} strokeWidth={1.5} />,       label: 'Under $500'    },
   { slug: 'lightweight',    icon: <Feather size={18} strokeWidth={1.5} />,   label: 'Lightweight'   },
+  { slug: 'foldables',       icon: <Layers size={18} strokeWidth={1.5} />,     label: 'Foldables'      },
   { slug: 'compact-phones', icon: <Smartphone size={18} strokeWidth={1.5} />, label: 'Compact'      },
   { slug: 'fast-charging',  icon: <Bolt size={18} strokeWidth={1.5} />,      label: 'Fast Charging' },
 ]
