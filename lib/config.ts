@@ -37,6 +37,7 @@ export const CATEGORY_META: Record<string, { title: string; icon: string; desc: 
   'lightweight':    { title: 'Lightweight',   icon: 'feather',    desc: 'Under 185g'     },
   'compact-phones': { title: 'Compact',       icon: 'smartphone', desc: 'Under 6.3"'     },
   'fast-charging':  { title: 'Fast Charge',   icon: 'bolt',       desc: '65W+'           },
+  'foldables':        { title: 'Foldables',      icon: 'layers',     desc: 'Fold & flip'    },
 }
 
 export const MAX_COMPARE    = 4
