@@ -20,6 +20,8 @@ import CompareBar from '@/app/components/CompareBar'
 import FilterPanel from '@/app/components/FilterPanel'
 import PhoneCard, { PhoneCardSkeleton } from '@/app/components/PhoneCard'
 import { formatDisplayPrice } from '@/lib/price'
+import { parseFilterParams, serializeFilterParams } from '@/lib/filterParams'
+
 
 interface BrandStats {
   brand: string
@@ -45,40 +47,21 @@ const SORT_OPTIONS: SortOption[] = [
 const PAGE_SIZE = 24
 const EMPTY_FILTERS: SearchFilters = {}
 
+import { parseFilterParams, serializeFilterParams } from '@/lib/filterParams'
+
 function parseFiltersFromParams(sp: URLSearchParams): SearchFilters {
-  return {
-    min_price:       sp.get('min_price')       ? Number(sp.get('min_price'))       : undefined,
-    max_price:       sp.get('max_price')       ? Number(sp.get('max_price'))       : undefined,
-    min_ram:         sp.get('min_ram')         ? Number(sp.get('min_ram'))         : undefined,
-    min_battery:     sp.get('min_battery')     ? Number(sp.get('min_battery'))     : undefined,
-    min_camera_mp:   sp.get('min_camera_mp')   ? Number(sp.get('min_camera_mp'))   : undefined,
-    min_screen_size: sp.get('min_screen_size') ? Number(sp.get('min_screen_size')) : undefined,
-    max_screen_size: sp.get('max_screen_size') ? Number(sp.get('max_screen_size')) : undefined,
-    min_year:        sp.get('min_year')        ? Number(sp.get('min_year'))        : undefined,
-    max_weight:      sp.get('max_weight')      ? Number(sp.get('max_weight'))      : undefined,
-    min_charging_w:  sp.get('min_charging_w')  ? Number(sp.get('min_charging_w'))  : undefined,
-    chipset_tier:    sp.get('chipset_tier')    || undefined,
-  }
+  return parseFilterParams(sp)
 }
 
 function buildUrl(base: string, filters: SearchFilters, page: number, sortIdx: number): string {
   const p = new URLSearchParams()
-  if (filters.min_price)       p.set('min_price',       String(filters.min_price))
-  if (filters.max_price)       p.set('max_price',       String(filters.max_price))
-  if (filters.min_ram)         p.set('min_ram',         String(filters.min_ram))
-  if (filters.min_battery)     p.set('min_battery',     String(filters.min_battery))
-  if (filters.min_camera_mp)   p.set('min_camera_mp',   String(filters.min_camera_mp))
-  if (filters.min_screen_size) p.set('min_screen_size', String(filters.min_screen_size))
-  if (filters.max_screen_size) p.set('max_screen_size', String(filters.max_screen_size))
-  if (filters.min_year)        p.set('min_year',        String(filters.min_year))
-  if (filters.max_weight)      p.set('max_weight',      String(filters.max_weight))
-  if (filters.min_charging_w)  p.set('min_charging_w',  String(filters.min_charging_w))
-  if (filters.chipset_tier)    p.set('chipset_tier',    filters.chipset_tier)
-  if (page > 1)    p.set('page', String(page))
+  serializeFilterParams(p, filters)
+  if (page > 1) p.set('page', String(page))
   if (sortIdx > 0) p.set('sort', String(sortIdx))
   const str = p.toString()
   return str ? `${base}?${str}` : base
 }
+
 
 function isRecentRelease(phone: Phone): boolean {
   if (!phone.release_year) return false
