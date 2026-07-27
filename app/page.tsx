@@ -26,9 +26,9 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   'under-300':      <Tag size={15} strokeWidth={1.5} />,
   'under-500':      <Tag size={15} strokeWidth={1.5} />,
   'lightweight':    <Feather size={15} strokeWidth={1.5} />,
+  'foldables':      <Layers size={16} strokeWidth={1.5} />,
   'compact-phones': <Smartphone size={15} strokeWidth={1.5} />,
   'fast-charging':  <Bolt size={15} strokeWidth={1.5} />,
-  'foldables':      <Layers size={16} strokeWidth={1.5} />,
 }
 
 const QUICK_PRIORITIES: { id: string; label: string; icon: React.ReactNode }[] = [
