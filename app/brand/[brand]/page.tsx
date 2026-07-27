@@ -21,7 +21,7 @@ import FilterPanel from '@/app/components/FilterPanel'
 import PhoneCard, { PhoneCardSkeleton } from '@/app/components/PhoneCard'
 import { formatDisplayPrice } from '@/lib/price'
 import { parseFilterParams, serializeFilterParams } from '@/lib/filterParams'
-
+import { featureTagLabel } from '@/lib/featureTags'
 
 interface BrandStats {
   brand: string
@@ -235,6 +235,23 @@ function FilterChips({ filters, onChange }: { filters: SearchFilters; onChange: 
   if (filters.chipset_tier)    chips.push({ label: filters.chipset_tier, clear: () => onChange({ ...filters, chipset_tier: undefined }) })
   if (filters.min_charging_w)  chips.push({ label: `${filters.min_charging_w}W+`, clear: () => onChange({ ...filters, min_charging_w: undefined }) })
   if (filters.max_weight)      chips.push({ label: `Under ${filters.max_weight}g`, clear: () => onChange({ ...filters, max_weight: undefined }) })
+  if (filters.min_storage)      chips.push({ label: `${filters.min_storage >= 1000 ? filters.min_storage / 1000 + 'TB' : filters.min_storage + 'GB'}+ Storage`, clear: () => onChange({ ...filters, min_storage: undefined }) })
+  if (filters.min_refresh_rate) chips.push({ label: `${filters.min_refresh_rate}Hz+`, clear: () => onChange({ ...filters, min_refresh_rate: undefined }) })
+  if (filters.min_antutu)       chips.push({ label: `${(filters.min_antutu / 1_000_000).toFixed(1)}M+ AnTuTu`, clear: () => onChange({ ...filters, min_antutu: undefined }) })
+  if (filters.max_year)         chips.push({ label: `Up to ${filters.max_year}`, clear: () => onChange({ ...filters, max_year: undefined }) })
+  if (filters.camera_setup_type) chips.push({ label: `${filters.camera_setup_type[0].toUpperCase()}${filters.camera_setup_type.slice(1)} Camera`, clear: () => onChange({ ...filters, camera_setup_type: undefined }) })
+  if (filters.is_premium_gaming) chips.push({ label: 'Gaming Optimized', clear: () => onChange({ ...filters, is_premium_gaming: undefined }) })
+  if (filters.features) {
+    for (const tag of filters.features.split(',').filter(Boolean)) {
+      chips.push({
+        label: featureTagLabel(tag),
+        clear: () => onChange({
+          ...filters,
+          features: filters.features!.split(',').filter(t => t !== tag).join(',') || undefined,
+        }),
+      })
+    }
+  }
   if (chips.length === 0) return null
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 16 }}>
