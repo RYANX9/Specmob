@@ -4,9 +4,9 @@ import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
-  Search, ArrowRight, ArrowUpRight, Camera, Battery, Zap, Tag, Feather,
+  Search, ArrowRight, Camera, Battery, Zap, Tag, Feather,
   Smartphone, ChevronRight, Gamepad2, Monitor, Bolt, BadgeDollarSign,
-  SlidersHorizontal, Compass, Database,
+  Check, RotateCcw, Database, ArrowUpRight,
 } from 'lucide-react'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
@@ -17,6 +17,7 @@ import { useToast } from './components/Toast'
 import { api } from '@/lib/api'
 import { ROUTES, brandSlug, phoneSlug, PAGE_SIZE, MAX_COMPARE, CATEGORY_META } from '@/lib/config'
 import { c, f, z, mq } from '@/lib/tokens'
+import { PRICE_TIERS, type PriceTierId } from '@/lib/priceTiers'
 import type { Phone, SearchFilters, FilterStats } from '@/lib/types'
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
@@ -29,6 +30,18 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   'compact-phones': <Smartphone size={15} strokeWidth={1.5} />,
   'fast-charging':  <Bolt size={15} strokeWidth={1.5} />,
 }
+
+const QUICK_PRIORITIES: { id: string; label: string; icon: React.ReactNode }[] = [
+  { id: 'camera',        label: 'Camera',        icon: <Camera size={14} strokeWidth={2} /> },
+  { id: 'battery',       label: 'Battery',       icon: <Battery size={14} strokeWidth={2} /> },
+  { id: 'performance',   label: 'Performance',   icon: <Zap size={14} strokeWidth={2} /> },
+  { id: 'gaming',        label: 'Gaming',        icon: <Gamepad2 size={14} strokeWidth={2} /> },
+  { id: 'display',       label: 'Display',       icon: <Monitor size={14} strokeWidth={2} /> },
+  { id: 'fast_charging', label: 'Fast Charging', icon: <Bolt size={14} strokeWidth={2} /> },
+  { id: 'compact',       label: 'Compact',       icon: <Smartphone size={14} strokeWidth={2} /> },
+  { id: 'lightweight',   label: 'Lightweight',   icon: <Feather size={14} strokeWidth={2} /> },
+  { id: 'value',         label: 'Best Value',    icon: <BadgeDollarSign size={14} strokeWidth={2} /> },
+]
 
 const SORT_OPTIONS = [
   { label: 'Newest First',       sort_by: 'release_ts',       sort_order: 'desc' },
@@ -89,13 +102,34 @@ function hasActiveUrlState(sp: URLSearchParams): boolean {
   return false
 }
 
-// ─── Hero — states the job in one line, one obvious action ─────────────────
+// ─── Hero — the decision tool itself is the landing page ───────────────────
 
-function Hero({ query, setQuery, onSubmit }: {
-  query: string
-  setQuery: (v: string) => void
-  onSubmit: (e: React.FormEvent) => void
-}) {
+function DecisionHero() {
+  const router = useRouter()
+  const [tierId, setTierId] = useState<PriceTierId | null>(null)
+  const [priorities, setPriorities] = useState<Set<string>>(new Set())
+
+  const togglePriority = (id: string) => {
+    setPriorities(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else if (next.size < 3) next.add(id)
+      return next
+    })
+  }
+
+  const ready = !!tierId && priorities.size >= 2
+  const handleReset = () => { setTierId(null); setPriorities(new Set()) }
+
+  const handleGo = () => {
+    if (!ready) return
+    const params = new URLSearchParams()
+    params.set('step', '3')
+    params.set('tier', tierId as string)
+    params.set('p', Array.from(priorities).join(','))
+    router.push(`/pick?${params.toString()}`)
+  }
+
   return (
     <section style={{ background: c.primary, position: 'relative', overflow: 'hidden' }}>
       <div
@@ -104,7 +138,7 @@ function Hero({ query, setQuery, onSubmit }: {
           position: 'absolute', inset: 0,
           backgroundImage: 'linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px)',
           backgroundSize: '48px 48px',
-          maskImage: 'radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 90%)',
+          maskImage: 'radial-gradient(ellipse 90% 70% at 50% 0%, black 40%, transparent 90%)',
           pointerEvents: 'none',
         }}
       />
@@ -114,97 +148,173 @@ function Hero({ query, setQuery, onSubmit }: {
         pointerEvents: 'none',
       }} />
 
-      <div style={{ maxWidth: 760, margin: '0 auto', padding: '88px var(--page-px) 56px', position: 'relative', textAlign: 'center' }}>
-        <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 14px',
-          background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)',
-          borderRadius: 'var(--r-full)', marginBottom: 26,
-        }}>
-          <Database size={12} color="rgba(255,255,255,0.6)" />
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1.6px' }}>
-            A phone spec database, not a shop
-          </span>
+      <div style={{ maxWidth: 720, margin: '0 auto', padding: '68px var(--page-px) 60px', position: 'relative' }}>
+        <div style={{ textAlign: 'center', marginBottom: 40 }}>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 14px',
+            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)',
+            borderRadius: 'var(--r-full)', marginBottom: 22,
+          }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: c.accent, display: 'inline-block' }} />
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1.4px' }}>
+              No sponsored picks — ranked on specs only
+            </span>
+          </div>
+
+          <h1 style={{
+            fontFamily: f.serif, fontSize: 'clamp(30px, 4.5vw, 46px)', color: '#fff',
+            letterSpacing: '-1px', lineHeight: 1.1, marginBottom: 14,
+          }}>
+            Tell us your budget.<br />We'll tell you which phone to buy.
+          </h1>
+          <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.5)', maxWidth: 440, margin: '0 auto' }}>
+            Two steps, thirty seconds. No spec sheets to compare yourself.
+          </p>
         </div>
 
-        <h1 style={{
-          fontFamily: f.serif, fontSize: 'clamp(34px, 5vw, 54px)', color: '#fff',
-          letterSpacing: '-1.2px', lineHeight: 1.08, marginBottom: 18,
+        {/* the console */}
+        <div style={{
+          background: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(20px)',
+          border: `1px solid ${c.accent}40`, boxShadow: '0 28px 72px rgba(0,0,0,0.4)',
+          borderRadius: 'var(--r-lg)', padding: '30px 32px 28px',
         }}>
-          Every phone's real specs.<br />No sponsored ranking.
-        </h1>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1.4px' }}>
+              01 Budget — 02 Priorities
+            </span>
+            {(tierId || priorities.size > 0) && (
+              <button
+                onClick={handleReset}
+                style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'rgba(255,255,255,0.4)', background: 'none', border: 'none', cursor: 'pointer' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#fff' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.4)' }}
+              >
+                <RotateCcw size={10} /> Reset
+              </button>
+            )}
+          </div>
 
-        <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.55)', lineHeight: 1.65, maxWidth: 480, margin: '0 auto 34px' }}>
-          Search any model, or tell us your budget and we'll narrow the field for you.
-          Every number on this site comes from the manufacturer spec sheet.
-        </p>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.4)', marginBottom: 10 }}>
+            What's your budget?
+          </div>
+          <div className="tier-row" style={{ display: 'flex', gap: 8, marginBottom: 26 }}>
+            {PRICE_TIERS.map(tier => {
+              const active = tierId === tier.id
+              return (
+                <button
+                  key={tier.id}
+                  onClick={() => setTierId(tier.id)}
+                  style={{
+                    flex: 1, padding: '12px 6px', borderRadius: 'var(--r-md)', cursor: 'pointer',
+                    border: `1.5px solid ${active ? c.accent : 'rgba(255,255,255,0.14)'}`,
+                    background: active ? 'rgba(230,57,70,0.14)' : 'rgba(255,255,255,0.03)',
+                    display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'center',
+                    transition: 'all 150ms ease',
+                  }}
+                >
+                  <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.3px', color: active ? '#fff' : 'rgba(255,255,255,0.4)' }}>
+                    {tier.label}
+                  </span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: active ? c.accent : 'rgba(255,255,255,0.55)' }}>
+                    {tier.max == null ? `$${tier.min / 1000}k+` : `$${tier.min}–${tier.max}`}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
 
-        <form onSubmit={onSubmit} style={{ position: 'relative', maxWidth: 480, margin: '0 auto' }}>
-          <Search size={16} style={{ position: 'absolute', left: 18, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.4)' }} aria-hidden="true" />
-          <input
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="Search a phone — “iPhone 17 Pro”, “Galaxy S26”..."
-            aria-label="Search phones"
-            style={{
-              width: '100%', height: 52, padding: '0 110px 0 46px',
-              background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.16)',
-              borderRadius: 'var(--r-full)', fontSize: 15, color: '#fff',
-            }}
-          />
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.4)', marginBottom: 10 }}>
+            What matters most? <span style={{ color: priorities.size >= 2 ? c.accent : 'inherit' }}>({priorities.size}/3)</span>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 26 }}>
+            {QUICK_PRIORITIES.map(p => {
+              const active = priorities.has(p.id)
+              const dimmed = priorities.size >= 3 && !active
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => togglePriority(p.id)}
+                  disabled={dimmed}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 13px',
+                    borderRadius: 'var(--r-full)', cursor: dimmed ? 'not-allowed' : 'pointer',
+                    border: `1px solid ${active ? c.accent : 'rgba(255,255,255,0.16)'}`,
+                    background: active ? c.accent : 'transparent',
+                    opacity: dimmed ? 0.35 : 1, transition: 'all 120ms ease',
+                  }}
+                >
+                  <span style={{ color: active ? '#fff' : 'rgba(255,255,255,0.5)', display: 'flex' }}>{p.icon}</span>
+                  <span style={{ fontSize: 12.5, fontWeight: 500, color: active ? '#fff' : 'rgba(255,255,255,0.7)' }}>{p.label}</span>
+                </button>
+              )
+            })}
+          </div>
+
           <button
-            type="submit"
+            onClick={handleGo}
+            disabled={!ready}
             style={{
-              position: 'absolute', right: 5, top: '50%', transform: 'translateY(-50%)',
-              padding: '11px 22px', background: c.accent, color: '#fff',
-              borderRadius: 'var(--r-full)', fontSize: 13, fontWeight: 700, border: 'none', cursor: 'pointer',
+              width: '100%', padding: '16px 20px', borderRadius: 'var(--r-md)',
+              fontSize: 15, fontWeight: 700, border: 'none',
+              background: ready ? c.accent : 'rgba(255,255,255,0.08)',
+              color: ready ? '#fff' : 'rgba(255,255,255,0.35)',
+              cursor: ready ? 'pointer' : 'not-allowed',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              boxShadow: ready ? '0 8px 24px rgba(230,57,70,0.35)' : 'none',
               transition: 'background 150ms ease',
             }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#D32F3E' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = c.accent }}
+            onMouseEnter={e => { if (ready) (e.currentTarget as HTMLElement).style.background = '#D32F3E' }}
+            onMouseLeave={e => { if (ready) (e.currentTarget as HTMLElement).style.background = c.accent }}
           >
-            Search
+            {ready ? 'Show my top 5 matches' : `Pick ${!tierId ? 'a budget' : `${2 - priorities.size} more`}`}
+            {ready && <ArrowRight size={17} strokeWidth={2.4} />}
           </button>
-        </form>
+        </div>
+
+        <div style={{ textAlign: 'center', marginTop: 18 }}>
+          <Link
+            href="#catalog"
+            style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+          >
+            Already know the model you want? Search the catalog directly
+            <ArrowRight size={12} />
+          </Link>
+        </div>
       </div>
     </section>
   )
 }
 
-// ─── Stats ticker — the signature element: a live monospace readout instead
-// of a marketing stat chip, since this site's whole identity is "real data" ──
+// ─── Stats ticker ────────────────────────────────────────────────────────────
 
 function StatsTicker({ stats }: { stats: FilterStats | null }) {
   const items = stats ? [
     { label: 'PHONES TRACKED', value: stats.total_phones.toLocaleString() },
     { label: 'BRANDS',         value: String(stats.total_brands) },
     { label: 'PRICE RANGE',    value: `$${Math.round(stats.price_range.min)}–${Math.round(stats.price_range.max).toLocaleString()}` },
-    { label: 'NEWEST MODEL',   value: String(stats.year_range.max) },
+    { label: 'SPONSORED PICKS', value: 'Zero' },
   ] : null
 
   return (
     <div style={{ background: '#12121F', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
       <div style={{
-        maxWidth: 'var(--max-w)', margin: '0 auto', padding: '14px var(--page-px)',
+        maxWidth: 'var(--max-w)', margin: '0 auto', padding: '13px var(--page-px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0,
         flexWrap: 'wrap', fontFamily: 'ui-monospace, "Cascadia Code", "Fira Code", monospace',
       }}>
         {(items ?? Array.from({ length: 4 })).map((item, i) => (
           <div
             key={i}
-            style={{
-              display: 'flex', alignItems: 'baseline', gap: 8,
-              padding: '2px 20px',
-              borderRight: i < 3 ? '1px solid rgba(255,255,255,0.08)' : 'none',
-            }}
             className="ticker-item"
+            style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '2px 20px', borderRight: i < 3 ? '1px solid rgba(255,255,255,0.08)' : 'none' }}
           >
             {item ? (
               <>
-                <span style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>{item.value}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>{item.value}</span>
                 <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.6px' }}>{item.label}</span>
               </>
             ) : (
-              <span className="skeleton" style={{ height: 14, width: 90, background: 'rgba(255,255,255,0.08)' }} />
+              <span className="skeleton" style={{ height: 13, width: 90, background: 'rgba(255,255,255,0.08)' }} />
             )}
           </div>
         ))}
@@ -213,97 +323,13 @@ function StatsTicker({ stats }: { stats: FilterStats | null }) {
   )
 }
 
-// ─── Two paths — the only two ways to start, named by what they do ─────────
-
-function PathCard({ icon, eyebrow, title, desc, meta, href, tone }: {
-  icon: React.ReactNode
-  eyebrow: string
-  title: string
-  desc: string
-  meta: string
-  href: string
-  tone: 'accent' | 'neutral'
-}) {
-  const [hov, setHov] = useState(false)
-  return (
-    <Link
-      href={href}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      style={{
-        display: 'block', padding: '30px 28px', borderRadius: 'var(--r-xl)',
-        border: `1px solid ${hov ? (tone === 'accent' ? c.accent : c.borderHover) : c.border}`,
-        background: c.surface, textDecoration: 'none', transition: 'all 150ms ease',
-        boxShadow: hov ? 'var(--shadow-md)' : 'var(--shadow-sm)',
-        transform: hov ? 'translateY(-2px)' : 'none',
-      }}
-    >
-      <div style={{
-        width: 44, height: 44, borderRadius: 'var(--r-md)', marginBottom: 18,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: tone === 'accent' ? 'var(--accent-light)' : c.bg,
-        color: tone === 'accent' ? c.accent : c.text2,
-      }}>
-        {icon}
-      </div>
-      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.6px', textTransform: 'uppercase', color: tone === 'accent' ? c.accent : c.text3, marginBottom: 8 }}>
-        {eyebrow}
-      </div>
-      <div style={{ fontFamily: f.serif, fontSize: 22, color: c.text1, marginBottom: 8, letterSpacing: '-0.3px' }}>
-        {title}
-      </div>
-      <p style={{ fontSize: 14, color: c.text2, lineHeight: 1.6, marginBottom: 18 }}>{desc}</p>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 12, color: c.text3 }}>{meta}</span>
-        <span style={{
-          display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, fontWeight: 600,
-          color: tone === 'accent' ? c.accent : c.text1,
-        }}>
-          {tone === 'accent' ? 'Start' : 'Browse'}
-          <ArrowRight size={14} style={{ transform: hov ? 'translateX(3px)' : 'none', transition: 'transform 150ms ease' }} />
-        </span>
-      </div>
-    </Link>
-  )
-}
-
-function TwoPaths() {
-  return (
-    <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '48px var(--page-px) 8px' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }} className="paths-grid">
-        <PathCard
-          icon={<SlidersHorizontal size={20} strokeWidth={1.5} />}
-          eyebrow="30 seconds · guided"
-          title="Tell us your budget and priorities"
-          desc="Pick a price tier and up to 3 things that matter — camera, battery, gaming, whatever. We rank the whole catalog against exactly that."
-          meta="Best if you don't know where to start"
-          href={ROUTES.pick}
-          tone="accent"
-        />
-        <PathCard
-          icon={<Compass size={20} strokeWidth={1.5} />}
-          eyebrow="self-directed"
-          title="Browse and filter the full catalog"
-          desc="Every tracked phone, with every filter — RAM, screen size, chipset tier, water resistance. Sort however you want."
-          meta="Best if you already know what you're looking for"
-          href="#catalog"
-          tone="neutral"
-        />
-      </div>
-    </div>
-  )
-}
-
-// ─── Category rail — clearly secondary, labeled as pre-computed rankings ────
+// ─── Category rail — secondary shortcuts for people who already know an angle
 
 function CategoryRail() {
   return (
-    <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '52px var(--page-px) 0' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', color: c.text3 }}>
-          Or jump to a pre-ranked list
-        </span>
-        <span style={{ fontSize: 12, color: c.text3 }}>Recomputed nightly</span>
+    <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '44px var(--page-px) 0' }}>
+      <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', color: c.text3, marginBottom: 14 }}>
+        Or skip straight to a category
       </div>
       <div className="category-chip-row" style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6 }}>
         {Object.entries(CATEGORY_META).map(([slug, meta]) => (
@@ -333,7 +359,7 @@ function TrendingScroll({ phones }: { phones: Phone[] }) {
   const router = useRouter()
   if (phones.length === 0) return null
   return (
-    <section style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '52px var(--page-px) 0' }}>
+    <section style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '48px var(--page-px) 0' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 18 }}>
         <span style={{ fontFamily: f.serif, fontSize: 22, color: c.text1 }}>Most viewed this week</span>
       </div>
@@ -364,7 +390,7 @@ function TrendingScroll({ phones }: { phones: Phone[] }) {
   )
 }
 
-// ─── Catalog filter chips / pagination (unchanged behavior) ─────────────────
+// ─── Catalog filter chips / pagination ──────────────────────────────────────
 
 function FilterChips({ filters, onChange }: { filters: SearchFilters; onChange: (f: SearchFilters) => void }) {
   const chips: { label: string; clear: () => void }[] = []
@@ -473,7 +499,6 @@ function HomeContent() {
   const [total, setTotal]                 = useState(0)
   const [loading, setLoading]             = useState(true)
   const [comparePhones, setComparePhones] = useState<Phone[]>([])
-  const [searchQuery, setSearchQuery]     = useState(searchParams.get('q') ?? '')
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
 
   const [catalogOpen, setCatalogOpen] = useState(() => hasActiveUrlState(new URLSearchParams(searchParams.toString())))
@@ -486,7 +511,6 @@ function HomeContent() {
     if (ownUpdate.current) { ownUpdate.current = false; return }
     const parsed = parseFiltersFromParams(new URLSearchParams(spString))
     setFilters(parsed)
-    setSearchQuery(parsed.q ?? '')
     setPage(parseInt(searchParams.get('page') ?? '1', 10))
     setSortIdx(parseInt(searchParams.get('sort') ?? '0', 10))
     if (hasActiveUrlState(new URLSearchParams(spString))) setCatalogOpen(true)
@@ -540,20 +564,12 @@ function HomeContent() {
   }, [mobileFiltersOpen])
 
   const handleFiltersChange = (f: SearchFilters) => { setFilters(f); setPage(1); commit(f, 1, sortIdx) }
-  const handleReset = () => { setFilters(EMPTY_FILTERS); setPage(1); setSearchQuery(''); commit(EMPTY_FILTERS, 1, sortIdx) }
+  const handleReset = () => { setFilters(EMPTY_FILTERS); setPage(1); commit(EMPTY_FILTERS, 1, sortIdx) }
   const handleSortChange = (idx: number) => { setSortIdx(idx); setPage(1); commit(filters, 1, idx) }
   const handlePageChange = (p: number) => {
     setPage(p)
     commit(filters, p, sortIdx)
     document.getElementById('catalog')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
-
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!searchQuery.trim()) return
-    const f = { ...filters, q: searchQuery.trim() }
-    setFilters(f); setPage(1); setCatalogOpen(true); commit(f, 1, sortIdx)
-    setTimeout(() => document.getElementById('catalog')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
   }
 
   const handleCompareToggle = (phone: Phone) => {
@@ -574,98 +590,123 @@ function HomeContent() {
         onOpenCompare={() => comparePhones.length >= 2 && router.push(ROUTES.compare(...comparePhones.map(p => phoneSlug(p))))}
       />
 
-      <Hero query={searchQuery} setQuery={setSearchQuery} onSubmit={handleSearchSubmit} />
+      <DecisionHero />
       <StatsTicker stats={stats} />
-      <TwoPaths />
       <CategoryRail />
 
       <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 var(--page-px)' }}>
         <TrendingScroll phones={trending} />
       </div>
 
-      <div id="catalog" style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '56px var(--page-px) 0' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginBottom: 8 }}>
-          <div style={{ flex: 1, height: 1, background: c.border }} />
-          <span style={{ fontSize: 12, fontWeight: 700, color: c.text3, textTransform: 'uppercase', letterSpacing: '0.6px', whiteSpace: 'nowrap' }}>
-            Full Catalog
-          </span>
-          <div style={{ flex: 1, height: 1, background: c.border }} />
+      {!catalogOpen ? (
+        <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '52px var(--page-px) 8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+            <div style={{ flex: 1, height: 1, background: c.border }} />
+            <button
+              onClick={() => { setCatalogOpen(true); setTimeout(() => document.getElementById('catalog')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50) }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none',
+                cursor: 'pointer', fontSize: 12.5, fontWeight: 600, color: c.text3,
+                textTransform: 'uppercase', letterSpacing: '0.6px', padding: '6px 4px',
+                transition: 'color 150ms ease',
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = c.text1 }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = c.text3 }}
+            >
+              <Search size={13} /> Prefer to search the full catalog yourself
+            </button>
+            <div style={{ flex: 1, height: 1, background: c.border }} />
+          </div>
         </div>
-      </div>
-
-      <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '24px var(--page-px) 64px', display: 'grid', gridTemplateColumns: 'var(--sidebar-w) 1fr', gap: 32, alignItems: 'start' }}>
-        <div className="filter-sidebar">
-          <FilterPanel filters={filters} onChange={handleFiltersChange} onReset={handleReset} />
+      ) : (
+        <div id="catalog" style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '52px var(--page-px) 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginBottom: 8 }}>
+            <div style={{ flex: 1, height: 1, background: c.border }} />
+            <span style={{ fontSize: 12, fontWeight: 700, color: c.text3, textTransform: 'uppercase', letterSpacing: '0.6px', whiteSpace: 'nowrap' }}>
+              Full Catalog
+            </span>
+            <div style={{ flex: 1, height: 1, background: c.border }} />
+          </div>
         </div>
+      )}
 
-        <div>
-          <FilterChips filters={filters} onChange={handleFiltersChange} />
-
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, gap: 12, flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <button
-                onClick={() => setMobileFiltersOpen(true)}
-                style={{ display: 'none', alignItems: 'center', gap: 6, padding: '7px 14px', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-sm)', fontSize: 13, fontWeight: 500, color: c.text1 }}
-                className="mobile-filter-btn"
-                aria-label="Open filters"
-              >
-                <SlidersHorizontal size={14} />
-                Filters
-                {activeFilterCount > 0 && (
-                  <span style={{ background: c.accent, color: '#fff', fontSize: 10, fontWeight: 700, width: 16, height: 16, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {activeFilterCount}
-                  </span>
-                )}
-              </button>
-
-              <div style={{ position: 'relative' }}>
-                <select
-                  value={sortIdx}
-                  onChange={e => handleSortChange(Number(e.target.value))}
-                  aria-label="Sort phones"
-                  style={{ appearance: 'none', padding: '7px 30px 7px 12px', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-sm)', fontSize: 13, fontWeight: 500, color: c.text1, cursor: 'pointer' }}
-                >
-                  {SORT_OPTIONS.map((o, i) => <option key={i} value={i}>{o.label}</option>)}
-                </select>
-                <ChevronRight size={12} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%) rotate(90deg)', color: c.text3, pointerEvents: 'none' }} />
-              </div>
-
-              {!loading && <span style={{ fontSize: 13, color: c.text3 }}>{total.toLocaleString()} phone{total !== 1 ? 's' : ''}</span>}
-            </div>
-
-            <Link href={ROUTES.pick} style={{ fontSize: 13, fontWeight: 600, color: c.accent, display: 'flex', alignItems: 'center', gap: 4 }}>
-              Not sure? Take the 30s quiz instead <ArrowRight size={13} />
-            </Link>
+      {catalogOpen && (
+        <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '24px var(--page-px) 64px', display: 'grid', gridTemplateColumns: 'var(--sidebar-w) 1fr', gap: 32, alignItems: 'start' }}>
+          <div className="filter-sidebar">
+            <FilterPanel filters={filters} onChange={handleFiltersChange} onReset={handleReset} />
           </div>
 
-          {loading ? (
-            <div className="phone-grid-layout">
-              {Array.from({ length: PAGE_SIZE }).map((_, i) => <PhoneCardSkeleton key={i} />)}
-            </div>
-          ) : phones.length > 0 ? (
-            <>
-              <div className="phone-grid-layout">
-                {phones.map(phone => <PhoneCard key={phone.id} phone={phone} compareIds={compareIds} onCompareToggle={handleCompareToggle} />)}
+          <div>
+            <div style={{ fontFamily: f.serif, fontSize: 20, color: c.text1, marginBottom: 16 }}>The full catalog</div>
+
+            <FilterChips filters={filters} onChange={handleFiltersChange} />
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <button
+                  onClick={() => setMobileFiltersOpen(true)}
+                  style={{ display: 'none', alignItems: 'center', gap: 6, padding: '7px 14px', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-sm)', fontSize: 13, fontWeight: 500, color: c.text1 }}
+                  className="mobile-filter-btn"
+                  aria-label="Open filters"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="12" y1="18" x2="20" y2="18"/></svg>
+                  Filters
+                  {activeFilterCount > 0 && (
+                    <span style={{ background: c.accent, color: '#fff', fontSize: 10, fontWeight: 700, width: 16, height: 16, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </button>
+
+                <div style={{ position: 'relative' }}>
+                  <select
+                    value={sortIdx}
+                    onChange={e => handleSortChange(Number(e.target.value))}
+                    aria-label="Sort phones"
+                    style={{ appearance: 'none', padding: '7px 30px 7px 12px', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-sm)', fontSize: 13, fontWeight: 500, color: c.text1, cursor: 'pointer' }}
+                  >
+                    {SORT_OPTIONS.map((o, i) => <option key={i} value={i}>{o.label}</option>)}
+                  </select>
+                  <ChevronRight size={12} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%) rotate(90deg)', color: c.text3, pointerEvents: 'none' }} />
+                </div>
+
+                {!loading && <span style={{ fontSize: 13, color: c.text3 }}>{total.toLocaleString()} phone{total !== 1 ? 's' : ''}</span>}
               </div>
-              <Pagination page={page} total={total} pageSize={PAGE_SIZE} onChange={handlePageChange} />
-            </>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '80px 0' }}>
-              <Smartphone size={56} color={c.border} strokeWidth={1.5} style={{ margin: '0 auto 16px' }} />
-              <h3 style={{ fontFamily: f.serif, fontSize: 22, color: c.text1, marginBottom: 8 }}>No phones found</h3>
-              <p style={{ fontSize: 14, color: c.text3, marginBottom: 20 }}>Try adjusting your filters or search terms.</p>
-              <button
-                onClick={handleReset}
-                style={{ padding: '9px 22px', background: c.primary, color: '#fff', borderRadius: 'var(--r-full)', fontSize: 14, fontWeight: 500, border: 'none', cursor: 'pointer', transition: 'background 150ms ease' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#2A2A42' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = c.primary }}
-              >
-                Clear all filters
-              </button>
+
+              <Link href={ROUTES.pick} style={{ fontSize: 13, fontWeight: 600, color: c.accent, display: 'flex', alignItems: 'center', gap: 4 }}>
+                Back to the 30s picker <ArrowRight size={13} />
+              </Link>
             </div>
-          )}
+
+            {loading ? (
+              <div className="phone-grid-layout">
+                {Array.from({ length: PAGE_SIZE }).map((_, i) => <PhoneCardSkeleton key={i} />)}
+              </div>
+            ) : phones.length > 0 ? (
+              <>
+                <div className="phone-grid-layout">
+                  {phones.map(phone => <PhoneCard key={phone.id} phone={phone} compareIds={compareIds} onCompareToggle={handleCompareToggle} />)}
+                </div>
+                <Pagination page={page} total={total} pageSize={PAGE_SIZE} onChange={handlePageChange} />
+              </>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '80px 0' }}>
+                <Smartphone size={56} color={c.border} strokeWidth={1.5} style={{ margin: '0 auto 16px' }} />
+                <h3 style={{ fontFamily: f.serif, fontSize: 22, color: c.text1, marginBottom: 8 }}>No phones found</h3>
+                <p style={{ fontSize: 14, color: c.text3, marginBottom: 20 }}>Try adjusting your filters or search terms.</p>
+                <button
+                  onClick={handleReset}
+                  style={{ padding: '9px 22px', background: c.primary, color: '#fff', borderRadius: 'var(--r-full)', fontSize: 14, fontWeight: 500, border: 'none', cursor: 'pointer', transition: 'background 150ms ease' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#2A2A42' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = c.primary }}
+                >
+                  Clear all filters
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       <Footer />
 
@@ -705,11 +746,13 @@ function HomeContent() {
         .phone-grid-layout { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
 
         ${mq.lg} {
-          .paths-grid { grid-template-columns: 1fr !important; }
+          #catalog + div { grid-template-columns: 1fr !important; }
           div[style*="grid-template-columns: var(--sidebar-w) 1fr"] { grid-template-columns: 1fr !important; }
           .filter-sidebar { display: none !important; }
           .mobile-filter-btn { display: flex !important; }
           .phone-grid-layout { grid-template-columns: repeat(4, 1fr); gap: 12px; }
+          .tier-row { flex-wrap: wrap; }
+          .tier-row > button { flex: 1 1 30%; }
         }
         @media (max-width: 860px) { .phone-grid-layout { grid-template-columns: repeat(3, 1fr); gap: 10px; } }
         ${mq.sm} {
