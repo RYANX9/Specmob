@@ -19,13 +19,12 @@ const NUMERIC_KEYS: NumericKey[] = [
   'min_refresh_rate', 'min_antutu',
 ]
 
-const STRING_KEYS: StringKey[] = ['chipset_tier', 'camera_setup_type', 'brands']
+const STRING_KEYS: StringKey[] = ['chipset_tier', 'camera_setup_type', 'brands', 'features']
 
 const BOOLEAN_KEYS: BooleanKey[] = [
   'has_nfc', 'has_ois', 'has_wireless_charging', 'has_headphone_jack',
   'is_foldable', 'is_premium_gaming', 'water_resistant',
 ]
-
 // Parses every filter key that isn't route/query-scoped (q, brand — those
 // stay caller-specific since brand pages fix `brand` via the route and
 // don't use `q` at all).
