@@ -8,7 +8,7 @@ import {
   Search, ArrowRight, ArrowUpRight, Camera, Battery, Zap, Tag, Feather,
   Smartphone, ChevronLeft, ChevronRight, ChevronDown,
   Gamepad2, Monitor, Bolt, BadgeDollarSign, X, RotateCcw,
-  Layers, Droplets,
+  Layers, Droplets,Waves,
 } from 'lucide-react'
 
 import Navbar from './components/Navbar'
