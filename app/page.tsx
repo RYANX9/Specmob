@@ -3,13 +3,9 @@
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import {
-  Search, ArrowRight, Camera, Battery, Zap, Tag, Feather,
-  Smartphone, ChevronRight, Gamepad2, Monitor, Bolt, BadgeDollarSign,
-  ChevronLeft, ChevronDown,
-  Gamepad2, Monitor, Bolt, BadgeDollarSign, X, RotateCcw,
-  Layers, Droplets, Waves,
-} from 'lucide-react'
+
+import { Search, ArrowRight, Camera, Battery, Zap, Tag, Feather, Smartphone, ChevronRight, Gamepad2, Monitor, Bolt, BadgeDollarSign, Layers, Droplets, Waves } from 'lucide-react';
+
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import PhoneCard, { PhoneCardSkeleton } from './components/PhoneCard'
