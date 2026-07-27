@@ -47,7 +47,6 @@ const SORT_OPTIONS: SortOption[] = [
 const PAGE_SIZE = 24
 const EMPTY_FILTERS: SearchFilters = {}
 
-import { parseFilterParams, serializeFilterParams } from '@/lib/filterParams'
 
 function parseFiltersFromParams(sp: URLSearchParams): SearchFilters {
   return parseFilterParams(sp)
