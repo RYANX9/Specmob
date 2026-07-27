@@ -18,6 +18,8 @@ import { api } from '@/lib/api'
 import { ROUTES, brandSlug, phoneSlug, PAGE_SIZE, MAX_COMPARE, CATEGORY_META } from '@/lib/config'
 import { c, f, z, mq } from '@/lib/tokens'
 import type { Phone, SearchFilters, FilterStats } from '@/lib/types'
+import { parseFilterParams, serializeFilterParams, hasAnyFilterParam } from '@/lib/filterParams'
+
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   'camera-phones':  <Camera size={15} strokeWidth={1.5} />,
@@ -69,50 +71,26 @@ function tierForDialValue(v: number): { id: string; min: number; max: number | u
 
 function parseFiltersFromParams(sp: URLSearchParams): SearchFilters {
   return {
-    q:               sp.get('q')               || undefined,
-    brand:           sp.get('brand')           || undefined,
-    min_price:       sp.get('min_price')       ? Number(sp.get('min_price'))       : undefined,
-    max_price:       sp.get('max_price')       ? Number(sp.get('max_price'))       : undefined,
-    min_ram:         sp.get('min_ram')         ? Number(sp.get('min_ram'))         : undefined,
-    min_battery:     sp.get('min_battery')     ? Number(sp.get('min_battery'))     : undefined,
-    min_camera_mp:   sp.get('min_camera_mp')   ? Number(sp.get('min_camera_mp'))   : undefined,
-    min_screen_size: sp.get('min_screen_size') ? Number(sp.get('min_screen_size')) : undefined,
-    max_screen_size: sp.get('max_screen_size') ? Number(sp.get('max_screen_size')) : undefined,
-    min_year:        sp.get('min_year')        ? Number(sp.get('min_year'))        : undefined,
-    max_weight:      sp.get('max_weight')      ? Number(sp.get('max_weight'))      : undefined,
-    min_charging_w:  sp.get('min_charging_w')  ? Number(sp.get('min_charging_w'))  : undefined,
-    chipset_tier:    sp.get('chipset_tier')    || undefined,
+    q: sp.get('q') || undefined,
+    brand: sp.get('brand') || undefined,
+    ...parseFilterParams(sp),
   }
 }
 
 function buildSearchUrl(f: SearchFilters, p: number, sIdx: number): string {
   const params = new URLSearchParams()
-  if (f.q)               params.set('q',               f.q)
-  if (f.brand)           params.set('brand',           f.brand)
-  if (f.min_price)       params.set('min_price',       String(f.min_price))
-  if (f.max_price)       params.set('max_price',       String(f.max_price))
-  if (f.min_ram)         params.set('min_ram',         String(f.min_ram))
-  if (f.min_battery)     params.set('min_battery',     String(f.min_battery))
-  if (f.min_camera_mp)   params.set('min_camera_mp',   String(f.min_camera_mp))
-  if (f.min_screen_size) params.set('min_screen_size', String(f.min_screen_size))
-  if (f.max_screen_size) params.set('max_screen_size', String(f.max_screen_size))
-  if (f.min_year)        params.set('min_year',        String(f.min_year))
-  if (f.max_weight)      params.set('max_weight',      String(f.max_weight))
-  if (f.min_charging_w)  params.set('min_charging_w',  String(f.min_charging_w))
-  if (f.chipset_tier)    params.set('chipset_tier',    f.chipset_tier)
-  if (p > 1)    params.set('page', String(p))
+  if (f.q) params.set('q', f.q)
+  if (f.brand) params.set('brand', f.brand)
+  serializeFilterParams(params, f)
+  if (p > 1) params.set('page', String(p))
   if (sIdx > 0) params.set('sort', String(sIdx))
   const str = params.toString()
   return str ? `/?${str}` : '/'
 }
 
 function hasActiveUrlState(sp: URLSearchParams): boolean {
-  for (const key of ['q', 'brand', 'min_price', 'max_price', 'min_ram', 'min_battery',
-    'min_camera_mp', 'min_screen_size', 'max_screen_size', 'min_year', 'max_weight',
-    'min_charging_w', 'chipset_tier', 'page', 'sort']) {
-    if (sp.get(key)) return true
-  }
-  return false
+  if (sp.get('q') || sp.get('brand') || sp.get('page') || sp.get('sort')) return true
+  return hasAnyFilterParam(sp)
 }
 
 // ─── Price dial — the number you drag IS the headline. Signature element. ──
