@@ -146,6 +146,22 @@ export default function FilterPanel({ filters, onChange, onReset, showBrandFilte
     setLocalMax(filters.max_price != null ? String(filters.max_price) : '')
   }, [filters.max_price])
 
+
+  const [selectedFeatures, setSelectedFeatures] = useState<string[]>(() =>
+    filters.features ? filters.features.split(',').filter(Boolean) : []
+  )
+  
+  useEffect(() => {
+    setSelectedFeatures(filters.features ? filters.features.split(',').filter(Boolean) : [])
+  }, [filters.features])
+  
+  const toggleFeatureTag = (key: string) => {
+    const next = selectedFeatures.includes(key)
+      ? selectedFeatures.filter(k => k !== key)
+      : [...selectedFeatures, key]
+    setSelectedFeatures(next)
+    set({ features: next.length ? next.join(',') : undefined })
+  }
   const set = (patch: Partial<SearchFilters>) => onChange({ ...filters, ...patch })
 
   const handleModeChange = (m: 'simple' | 'expert') => {
@@ -277,12 +293,20 @@ export default function FilterPanel({ filters, onChange, onReset, showBrandFilte
       {DIVIDER}
       <div>
         <SectionTitle>Release Year</SectionTitle>
-        <RangeSelect
-          label="Minimum release year"
-          value={filters.min_year}
-          options={YEAR_OPTIONS}
-          onChange={v => set({ min_year: v ? Number(v) : undefined })}
-        />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+          <RangeSelect
+            label="Minimum release year"
+            value={filters.min_year}
+            options={YEAR_OPTIONS}
+            onChange={v => set({ min_year: v ? Number(v) : undefined })}
+          />
+          <RangeSelect
+            label="Maximum release year"
+            value={filters.max_year}
+            options={YEAR_OPTIONS}
+            onChange={v => set({ max_year: v ? Number(v) : undefined })}
+          />
+        </div>
       </div>
 
       {DIVIDER}
@@ -341,7 +365,35 @@ export default function FilterPanel({ filters, onChange, onReset, showBrandFilte
           />
         ))}
       </div>
-
+      {DIVIDER}
+      <div>
+        <SectionTitle>Sensors & Features</SectionTitle>
+        {FEATURE_TAGS.map(({ key, label }) => (
+          <CheckItem
+            key={key}
+            label={label}
+            checked={selectedFeatures.includes(key)}
+            onChange={() => toggleFeatureTag(key)}
+          />
+        ))}
+      </div>
+      {DIVIDER}
+      <div>
+        <SectionTitle>Camera Setup</SectionTitle>
+        <RangeSelect
+          label="Camera setup type"
+          value={filters.camera_setup_type}
+          options={[
+            { label: 'Single', value: 'single' },
+            { label: 'Dual', value: 'dual' },
+            { label: 'Triple', value: 'triple' },
+            { label: 'Quad', value: 'quad' },
+          ]}
+          onChange={v => set({ camera_setup_type: v ? String(v) : undefined })}
+        />
+      </div>
+      
+      
       {mode === 'expert' && (
         <>
           {DIVIDER}
