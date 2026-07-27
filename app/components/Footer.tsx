@@ -23,6 +23,7 @@ const COLS = [
       { label: 'Gaming',        href: ROUTES.category('gaming-phones') },
       { label: 'Fast Charging', href: ROUTES.category('fast-charging') },
       { label: 'Lightweight',   href: ROUTES.category('lightweight') },
+      { label: 'Foldables',      href: ROUTES.category('foldables') },
       { label: 'Compact',       href: ROUTES.category('compact-phones') },
     ],
   },
