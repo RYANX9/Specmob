@@ -21,6 +21,7 @@ import { formatDisplayPrice } from '@/lib/price'
 
 const CATEGORY_CONFIG: Record<string, {
   title: string
+  scoreLabel: string
   minYear: number
   desc: string
   scoring: string
@@ -29,6 +30,7 @@ const CATEGORY_CONFIG: Record<string, {
 }> = {
   'camera-phones': {
     title: 'Best Camera Phones',
+    scoreLabel: 'Camera Score',
     minYear: 2023,
     desc: 'Ranked by main sensor resolution, sensor size, OIS, lens versatility, and video capabilities. Updated automatically from live spec data.',
     scoring: 'Main sensor (30%) · Sensor size (25%) · OIS (15%) · Lens count (15%) · Telephoto (10%) · Video (5%)',
@@ -44,6 +46,7 @@ const CATEGORY_CONFIG: Record<string, {
   },
   'battery-life': {
     title: 'Best Battery Life',
+    scoreLabel: 'Battery Score',
     minYear: 2023,
     desc: 'Highest battery capacity phones from 2023 and newer. Ranked purely by mAh.',
     scoring: 'Battery capacity (100%). Simple and honest.',
@@ -52,6 +55,7 @@ const CATEGORY_CONFIG: Record<string, {
   },
   'gaming-phones': {
     title: 'Best Gaming Phones',
+    scoreLabel: 'Performance Score',
     minYear: 2024,
     desc: 'Top AnTuTu benchmark scores from 2024 and newer. Raw processing power for demanding games at maximum settings.',
     scoring: 'AnTuTu score (100%). 2024+ devices only.',
@@ -60,6 +64,7 @@ const CATEGORY_CONFIG: Record<string, {
   },
   'under-300': {
     title: 'Best Phones Under $300',
+    scoreLabel: 'Value Score',
     minYear: 2022,
     desc: 'Maximum specs per dollar under $300. Composite of battery, camera MP, and performance relative to price.',
     scoring: 'Battery capacity (33%) · Main camera MP (33%) · Performance score (34%).',
@@ -72,6 +77,7 @@ const CATEGORY_CONFIG: Record<string, {
   },
   'under-500': {
     title: 'Best Phones Under $500',
+    scoreLabel: 'Value Score',
     minYear: 2022,
     desc: 'The mid-range sweet spot. Near-flagship specs at half the price. Scored by specs composite within the $0–$500 range.',
     scoring: 'Battery capacity (33%) · Main camera MP (33%) · Performance score (34%).',
@@ -84,6 +90,7 @@ const CATEGORY_CONFIG: Record<string, {
   },
   'lightweight': {
     title: 'Lightest Smartphones',
+    scoreLabel: 'Lightness Score',
     minYear: 2023,
     desc: 'Modern smartphones (5.5"+ screen) between 100g–185g. Feature phones excluded. Sorted by weight ascending.',
     scoring: 'Weight ascending (100%). Under 185g only, 2023+ releases.',
@@ -92,6 +99,7 @@ const CATEGORY_CONFIG: Record<string, {
   },
   'compact-phones': {
     title: 'Best Compact Phones',
+    scoreLabel: 'Performance Score',
     minYear: 2023,
     desc: 'Smartphones with screens between 5.0"–6.3". Ranked by AnTuTu performance within the compact segment.',
     scoring: 'Filter: screen ≤ 6.3". Ranking: AnTuTu score within that set.',
@@ -100,6 +108,7 @@ const CATEGORY_CONFIG: Record<string, {
   },
   'fast-charging': {
     title: 'Fastest Charging Phones',
+    scoreLabel: 'Charging Score',
     minYear: 2023,
     desc: 'Ranked by maximum wired charging wattage. 30W minimum to qualify. 90W+ is the 2026 premium benchmark.',
     scoring: 'Fast charging wattage (100%). Wired only. 30W minimum.',
@@ -124,21 +133,6 @@ const MEDAL_COLORS: Record<MedalVariant, string> = {
   gold:   '#C9A84C',
   silver: '#8A9BB0',
   bronze: '#A0705A',
-}
-
-function Medal({ variant, size = 28 }: { variant: MedalVariant; size?: number }) {
-  const color = MEDAL_COLORS[variant]
-  return (
-    <svg
-      width={size} height={size}
-      viewBox="0 0 24 24" fill="none"
-      stroke={color} strokeWidth="1.5"
-      strokeLinecap="round" strokeLinejoin="round"
-    >
-      <circle cx="12" cy="8" r="6" />
-      <path d="M8.5 13.5L6 22l6-2 6 2-2.5-8.5" />
-    </svg>
-  )
 }
 
 function truncateWords(str: string, maxChars: number): string {
@@ -312,9 +306,10 @@ function getReason(slug: string, phone: Phone & { category_score: number }, rank
 
 // ─── rank card: gold (#1) ─────────────────────────────────────────────────────
 
-function RankCardGold({ phone, score, rank, config, slug, onCompare, isCompared }: {
+function RankCardGold({ phone, score, scoreLabel, rank, config, slug, onCompare, isCompared }: {
   phone: Phone & { category_score: number }
   score: number
+  scoreLabel: string
   rank: number
   config: typeof CATEGORY_CONFIG[string]
   slug: string
@@ -372,7 +367,7 @@ function RankCardGold({ phone, score, rank, config, slug, onCompare, isCompared 
 
         <div className="rank-score-block" style={{ flexShrink: 0, textAlign: 'center' }}>
           <div style={{ fontFamily: 'var(--font-serif)', fontSize: 52, color: MEDAL_COLORS.gold, lineHeight: 1, letterSpacing: '-2px' }}>{score.toFixed(1)}</div>
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>{categoryLabel} Score</div>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>{scoreLabel}</div>
           <div style={{ marginTop: 8, width: 60, height: 4, background: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden' }}>
             <div style={{ height: '100%', borderRadius: 2, background: MEDAL_COLORS.gold, width: `${(score / 10) * 100}%` }} />
           </div>
@@ -432,9 +427,10 @@ function RankCardGold({ phone, score, rank, config, slug, onCompare, isCompared 
 
 // ─── rank card: silver/bronze (#2, #3) ───────────────────────────────────────
 
-function RankCardMedium({ phone, score, rank, variant, slug, onCompare, isCompared }: {
+function RankCardMedium({ phone, score, scoreLabel, rank, variant, slug, onCompare, isCompared }: {
   phone: Phone & { category_score: number }
   score: number
+  scoreLabel: string
   rank: number
   variant: MedalVariant
   slug: string
@@ -489,7 +485,7 @@ function RankCardMedium({ phone, score, rank, variant, slug, onCompare, isCompar
 
       <div className="rank-med-right" style={{ flexShrink: 0, textAlign: 'right' }}>
         <div style={{ fontFamily: 'var(--font-serif)', fontSize: 38, letterSpacing: '-1px', lineHeight: 1, color }}>{score.toFixed(1)}</div>
-        <div style={{ fontSize: 11, color: c.text3, marginBottom: 8 }}>Score</div>
+        <div style={{ fontSize: 11, color: c.text3, marginBottom: 8 }}>{scoreLabel}</div>
         <div style={{ fontSize: 16, fontWeight: 600, color: c.text1, marginTop: 8 }}>
           {formatDisplayPrice(phone)}
         </div>
@@ -564,8 +560,13 @@ function MethodologyBox({ config, open, onToggle }: {
 
       {open && (
         <div style={{ padding: 28 }}>
+          <p style={{ fontSize: 14, color: c.text2, lineHeight: 1.7, marginBottom: 16, maxWidth: 640 }}>
+            The <strong>{config.scoreLabel}</strong> shown on each card below is specific to this category —
+            it measures {categoryLabel.toLowerCase()} fit, not general phone quality. A phone's overall hardware
+            score on its own detail page can differ from this number; both are correct, they answer different questions.
+          </p>
           <p style={{ fontSize: 14, color: c.text2, lineHeight: 1.7, marginBottom: 24, maxWidth: 640 }}>
-            Our {categoryLabel.toLowerCase()} score is computed automatically from each phone's hardware specifications, with a review layer for scored models. Scores are relative: the highest-scoring phone in each run is normalised to 10, all others are scored against it.
+            The {config.scoreLabel.toLowerCase()} is computed automatically from each phone's hardware specifications, with a review layer for scored models. Scores are relative: the highest-scoring phone in each run is normalised to 10, all others are scored against it.
           </p>
           <div className="methodology-weights" style={{ display: 'grid', gap: 12, marginBottom: 24 }}>
             {config.weights.map((w, i) => (
@@ -810,13 +811,13 @@ function CategoryPageContent() {
         ) : (
           <>
             {top3[0] && (
-              <RankCardGold phone={top3[0]} score={top3[0].category_score} rank={1} config={config} slug={slug} onCompare={handleCompare} isCompared={compareIds.includes(top3[0].id)} />
+              <RankCardGold phone={top3[0]} score={top3[0].category_score} scoreLabel={config.scoreLabel} rank={1} config={config} slug={slug} onCompare={handleCompare} isCompared={compareIds.includes(top3[0].id)} />
             )}
             {top3[1] && (
-              <RankCardMedium phone={top3[1]} score={top3[1].category_score} rank={2} variant="silver" slug={slug} onCompare={handleCompare} isCompared={compareIds.includes(top3[1].id)} />
+              <RankCardMedium phone={top3[1]} score={top3[1].category_score} scoreLabel={config.scoreLabel} rank={2} variant="silver" slug={slug} onCompare={handleCompare} isCompared={compareIds.includes(top3[1].id)} />
             )}
             {top3[2] && (
-              <RankCardMedium phone={top3[2]} score={top3[2].category_score} rank={3} variant="bronze" slug={slug} onCompare={handleCompare} isCompared={compareIds.includes(top3[2].id)} />
+              <RankCardMedium phone={top3[2]} score={top3[2].category_score} scoreLabel={config.scoreLabel} rank={3} variant="bronze" slug={slug} onCompare={handleCompare} isCompared={compareIds.includes(top3[2].id)} />
             )}
 
             {rest.length > 0 && (
