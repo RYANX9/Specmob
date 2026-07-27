@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Search, ArrowRight, Camera, Battery, Zap, Tag, Feather,
   Smartphone, ChevronRight, Gamepad2, Monitor, Bolt, BadgeDollarSign,
-  Check, RotateCcw, Database, ArrowUpRight,
+  ArrowUpRight,
 } from 'lucide-react'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
@@ -17,7 +17,6 @@ import { useToast } from './components/Toast'
 import { api } from '@/lib/api'
 import { ROUTES, brandSlug, phoneSlug, PAGE_SIZE, MAX_COMPARE, CATEGORY_META } from '@/lib/config'
 import { c, f, z, mq } from '@/lib/tokens'
-import { PRICE_TIERS, type PriceTierId } from '@/lib/priceTiers'
 import type { Phone, SearchFilters, FilterStats } from '@/lib/types'
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
@@ -53,6 +52,19 @@ const SORT_OPTIONS = [
 ] as const
 
 const EMPTY_FILTERS: SearchFilters = {}
+
+// price dial range + tier mapping (mirrors lib/priceTiers.ts bounds)
+const DIAL_MIN = 0
+const DIAL_MAX = 2000
+const DIAL_STEP = 10
+
+function tierForDialValue(v: number): { id: string; min: number; max: number | undefined } {
+  if (v >= 1000) return { id: 's', min: 1000, max: undefined }
+  if (v >= 700)  return { id: 'a', min: 700, max: 999 }
+  if (v >= 400)  return { id: 'b', min: 400, max: 699 }
+  if (v >= 200)  return { id: 'c', min: 200, max: 399 }
+  return { id: 'd', min: 0, max: 199 }
+}
 
 function parseFiltersFromParams(sp: URLSearchParams): SearchFilters {
   return {
@@ -102,12 +114,40 @@ function hasActiveUrlState(sp: URLSearchParams): boolean {
   return false
 }
 
-// ─── Hero — the decision tool itself is the landing page ───────────────────
+// ─── Price dial — the number you drag IS the headline. Signature element. ──
 
-function DecisionHero() {
+function PriceDial() {
   const router = useRouter()
-  const [tierId, setTierId] = useState<PriceTierId | null>(null)
+  const [value, setValue] = useState(500)
+  const [touched, setTouched] = useState(false)
   const [priorities, setPriorities] = useState<Set<string>>(new Set())
+  const trackRef = useRef<HTMLDivElement>(null)
+  const draggingRef = useRef(false)
+
+  const tier = tierForDialValue(value)
+  const pct = ((value - DIAL_MIN) / (DIAL_MAX - DIAL_MIN)) * 100
+
+  const setFromClientX = useCallback((clientX: number) => {
+    const track = trackRef.current
+    if (!track) return
+    const rect = track.getBoundingClientRect()
+    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
+    const raw = DIAL_MIN + ratio * (DIAL_MAX - DIAL_MIN)
+    const stepped = Math.round(raw / DIAL_STEP) * DIAL_STEP
+    setValue(stepped)
+    setTouched(true)
+  }, [])
+
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => { if (draggingRef.current) setFromClientX(e.clientX) }
+    const onUp = () => { draggingRef.current = false }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+  }, [setFromClientX])
 
   const togglePriority = (id: string) => {
     setPriorities(prev => {
@@ -118,115 +158,102 @@ function DecisionHero() {
     })
   }
 
-  const ready = !!tierId && priorities.size >= 2
-  const handleReset = () => { setTierId(null); setPriorities(new Set()) }
+  const ready = touched && priorities.size >= 2
 
   const handleGo = () => {
-    if (!ready) return
     const params = new URLSearchParams()
     params.set('step', '3')
-    params.set('tier', tierId as string)
+    params.set('tier', tier.id)
     params.set('p', Array.from(priorities).join(','))
     router.push(`/pick?${params.toString()}`)
   }
 
+  const displayValue = value >= DIAL_MAX ? `${DIAL_MAX.toLocaleString()}+` : value.toLocaleString()
+
   return (
-    <section style={{ background: c.primary, position: 'relative', overflow: 'hidden' }}>
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'absolute', inset: 0,
-          backgroundImage: 'linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px)',
-          backgroundSize: '48px 48px',
-          maskImage: 'radial-gradient(ellipse 90% 70% at 50% 0%, black 40%, transparent 90%)',
-          pointerEvents: 'none',
-        }}
-      />
-      <div style={{
-        position: 'absolute', top: '-30%', right: '-8%', width: 560, height: 560,
-        borderRadius: '50%', background: 'radial-gradient(circle, rgba(230,57,70,0.16) 0%, transparent 68%)',
-        pointerEvents: 'none',
-      }} />
-
-      <div style={{ maxWidth: 720, margin: '0 auto', padding: '68px var(--page-px) 60px', position: 'relative' }}>
-        <div style={{ textAlign: 'center', marginBottom: 40 }}>
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 14px',
-            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)',
-            borderRadius: 'var(--r-full)', marginBottom: 22,
-          }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: c.accent, display: 'inline-block' }} />
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '1.4px' }}>
-              No sponsored picks — ranked on specs only
-            </span>
-          </div>
-
-          <h1 style={{
-            fontFamily: f.serif, fontSize: 'clamp(30px, 4.5vw, 46px)', color: '#fff',
-            letterSpacing: '-1px', lineHeight: 1.1, marginBottom: 14,
-          }}>
-            Tell us your budget.<br />We'll tell you which phone to buy.
-          </h1>
-          <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.5)', maxWidth: 440, margin: '0 auto' }}>
-            Two steps, thirty seconds. No spec sheets to compare yourself.
-          </p>
+    <section style={{ background: c.bg, position: 'relative' }}>
+      <div style={{ maxWidth: 760, margin: '0 auto', padding: '64px var(--page-px) 60px', textAlign: 'center' }}>
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 14px',
+          background: c.surface, border: `1px solid ${c.border}`,
+          borderRadius: 'var(--r-full)', marginBottom: 28,
+        }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: c.accent, display: 'inline-block' }} />
+          <span style={{ fontSize: 11, fontWeight: 600, color: c.text2, textTransform: 'uppercase', letterSpacing: '1.4px' }}>
+            No sponsored picks — ranked on specs only
+          </span>
         </div>
 
-        {/* the console */}
+        <p style={{ fontSize: 15, color: c.text3, marginBottom: 6, fontWeight: 500 }}>
+          How much do you want to spend?
+        </p>
+
+        {/* the dragged number IS the headline */}
+        <div
+          style={{
+            fontFamily: f.serif, fontSize: 'clamp(64px, 13vw, 128px)', lineHeight: 1, color: c.text1,
+            letterSpacing: '-3px', marginBottom: 8, fontVariantNumeric: 'tabular-nums',
+            userSelect: 'none', display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 4,
+          }}
+        >
+          <span style={{ fontSize: '0.42em', color: c.text3, fontFamily: 'var(--font-sans)', fontWeight: 300 }}>$</span>
+          {displayValue}
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: c.accent, marginBottom: 34, minHeight: 18 }}>
+          {touched ? `That's ${tier.id === 's' ? 'ultra-flagship' : tier.id === 'a' ? 'flagship' : tier.id === 'b' ? 'upper mid-range' : tier.id === 'c' ? 'mid-range' : 'budget'} territory` : 'Drag to set your budget'}
+        </div>
+
+        {/* the dial track */}
+        <div
+          ref={trackRef}
+          onPointerDown={e => { draggingRef.current = true; (e.target as HTMLElement).setPointerCapture?.(e.pointerId); setFromClientX(e.clientX) }}
+          role="slider"
+          aria-label="Budget"
+          aria-valuemin={DIAL_MIN}
+          aria-valuemax={DIAL_MAX}
+          aria-valuenow={value}
+          tabIndex={0}
+          onKeyDown={e => {
+            if (e.key === 'ArrowRight') { setValue(v => Math.min(DIAL_MAX, v + 50)); setTouched(true) }
+            if (e.key === 'ArrowLeft')  { setValue(v => Math.max(DIAL_MIN, v - 50)); setTouched(true) }
+          }}
+          style={{
+            position: 'relative', height: 56, cursor: 'pointer', touchAction: 'none',
+            marginBottom: 30, maxWidth: 560, marginLeft: 'auto', marginRight: 'auto',
+          }}
+        >
+          {/* tick marks */}
+          <div style={{ position: 'absolute', left: 0, right: 0, top: 8, height: 16, display: 'flex', justifyContent: 'space-between', pointerEvents: 'none' }}>
+            {Array.from({ length: 41 }).map((_, i) => (
+              <div key={i} style={{ width: 1, height: i % 5 === 0 ? 14 : 7, background: c.border, alignSelf: 'flex-start' }} />
+            ))}
+          </div>
+          {/* filled track */}
+          <div style={{ position: 'absolute', left: 0, right: 0, top: 24, height: 6, borderRadius: 3, background: c.border, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${pct}%`, background: c.accent, borderRadius: 3, transition: draggingRef.current ? 'none' : 'width 150ms ease' }} />
+          </div>
+          {/* handle */}
+          <div
+            style={{
+              position: 'absolute', top: 27, left: `${pct}%`, transform: 'translate(-50%, -50%)',
+              width: 26, height: 26, borderRadius: '50%', background: c.surface,
+              border: `3px solid ${c.accent}`, boxShadow: 'var(--shadow-md)',
+              transition: draggingRef.current ? 'none' : 'left 150ms ease',
+            }}
+          />
+          <div style={{ position: 'absolute', left: 0, top: 40, fontSize: 11, color: c.text3 }}>$0</div>
+          <div style={{ position: 'absolute', right: 0, top: 40, fontSize: 11, color: c.text3 }}>$2,000+</div>
+        </div>
+
+        {/* priorities reveal only once a budget has been touched — one action at a time */}
         <div style={{
-          background: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(20px)',
-          border: `1px solid ${c.accent}40`, boxShadow: '0 28px 72px rgba(0,0,0,0.4)',
-          borderRadius: 'var(--r-lg)', padding: '30px 32px 28px',
+          maxHeight: touched ? 300 : 0, opacity: touched ? 1 : 0,
+          overflow: 'hidden', transition: 'max-height 320ms ease, opacity 280ms ease',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1.4px' }}>
-              01 Budget — 02 Priorities
-            </span>
-            {(tierId || priorities.size > 0) && (
-              <button
-                onClick={handleReset}
-                style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'rgba(255,255,255,0.4)', background: 'none', border: 'none', cursor: 'pointer' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#fff' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.4)' }}
-              >
-                <RotateCcw size={10} /> Reset
-              </button>
-            )}
-          </div>
-
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.4)', marginBottom: 10 }}>
-            What's your budget?
-          </div>
-          <div className="tier-row" style={{ display: 'flex', gap: 8, marginBottom: 26 }}>
-            {PRICE_TIERS.map(tier => {
-              const active = tierId === tier.id
-              return (
-                <button
-                  key={tier.id}
-                  onClick={() => setTierId(tier.id)}
-                  style={{
-                    flex: 1, padding: '12px 6px', borderRadius: 'var(--r-md)', cursor: 'pointer',
-                    border: `1.5px solid ${active ? c.accent : 'rgba(255,255,255,0.14)'}`,
-                    background: active ? 'rgba(230,57,70,0.14)' : 'rgba(255,255,255,0.03)',
-                    display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'center',
-                    transition: 'all 150ms ease',
-                  }}
-                >
-                  <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.3px', color: active ? '#fff' : 'rgba(255,255,255,0.4)' }}>
-                    {tier.label}
-                  </span>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: active ? c.accent : 'rgba(255,255,255,0.55)' }}>
-                    {tier.max == null ? `$${tier.min / 1000}k+` : `$${tier.min}–${tier.max}`}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.4)', marginBottom: 10 }}>
-            What matters most? <span style={{ color: priorities.size >= 2 ? c.accent : 'inherit' }}>({priorities.size}/3)</span>
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 26 }}>
+          <p style={{ fontSize: 13, fontWeight: 600, color: c.text2, marginBottom: 12 }}>
+            What matters most? <span style={{ color: priorities.size >= 2 ? c.accent : c.text3 }}>({priorities.size}/3)</span>
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginBottom: 28 }}>
             {QUICK_PRIORITIES.map(p => {
               const active = priorities.has(p.id)
               const dimmed = priorities.size >= 3 && !active
@@ -236,48 +263,44 @@ function DecisionHero() {
                   onClick={() => togglePriority(p.id)}
                   disabled={dimmed}
                   style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 13px',
+                    display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px',
                     borderRadius: 'var(--r-full)', cursor: dimmed ? 'not-allowed' : 'pointer',
-                    border: `1px solid ${active ? c.accent : 'rgba(255,255,255,0.16)'}`,
-                    background: active ? c.accent : 'transparent',
-                    opacity: dimmed ? 0.35 : 1, transition: 'all 120ms ease',
+                    border: `1.5px solid ${active ? c.accent : c.border}`,
+                    background: active ? 'var(--accent-light)' : c.surface,
+                    opacity: dimmed ? 0.4 : 1, transition: 'all 120ms ease',
                   }}
                 >
-                  <span style={{ color: active ? '#fff' : 'rgba(255,255,255,0.5)', display: 'flex' }}>{p.icon}</span>
-                  <span style={{ fontSize: 12.5, fontWeight: 500, color: active ? '#fff' : 'rgba(255,255,255,0.7)' }}>{p.label}</span>
+                  <span style={{ color: active ? c.accent : c.text3, display: 'flex' }}>{p.icon}</span>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: active ? c.text1 : c.text2 }}>{p.label}</span>
                 </button>
               )
             })}
           </div>
-
-          <button
-            onClick={handleGo}
-            disabled={!ready}
-            style={{
-              width: '100%', padding: '16px 20px', borderRadius: 'var(--r-md)',
-              fontSize: 15, fontWeight: 700, border: 'none',
-              background: ready ? c.accent : 'rgba(255,255,255,0.08)',
-              color: ready ? '#fff' : 'rgba(255,255,255,0.35)',
-              cursor: ready ? 'pointer' : 'not-allowed',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              boxShadow: ready ? '0 8px 24px rgba(230,57,70,0.35)' : 'none',
-              transition: 'background 150ms ease',
-            }}
-            onMouseEnter={e => { if (ready) (e.currentTarget as HTMLElement).style.background = '#D32F3E' }}
-            onMouseLeave={e => { if (ready) (e.currentTarget as HTMLElement).style.background = c.accent }}
-          >
-            {ready ? 'Show my top 5 matches' : `Pick ${!tierId ? 'a budget' : `${2 - priorities.size} more`}`}
-            {ready && <ArrowRight size={17} strokeWidth={2.4} />}
-          </button>
         </div>
 
-        <div style={{ textAlign: 'center', marginTop: 18 }}>
-          <Link
-            href="#catalog"
-            style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', display: 'inline-flex', alignItems: 'center', gap: 5 }}
-          >
-            Already know the model you want? Search the catalog directly
-            <ArrowRight size={12} />
+        <button
+          onClick={handleGo}
+          disabled={!ready}
+          style={{
+            padding: '17px 40px', borderRadius: 'var(--r-full)',
+            fontSize: 15, fontWeight: 700, border: 'none',
+            background: ready ? c.accent : c.border,
+            color: ready ? '#fff' : c.text3,
+            cursor: ready ? 'pointer' : 'not-allowed',
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            boxShadow: ready ? '0 10px 28px rgba(230,57,70,0.28)' : 'none',
+            transition: 'all 150ms ease',
+          }}
+          onMouseEnter={e => { if (ready) (e.currentTarget as HTMLElement).style.background = '#D32F3E' }}
+          onMouseLeave={e => { if (ready) (e.currentTarget as HTMLElement).style.background = c.accent }}
+        >
+          {!touched ? 'Set your budget above' : priorities.size < 2 ? `Pick ${2 - priorities.size} more priorities` : 'Show my top 5 matches'}
+          {ready && <ArrowRight size={17} strokeWidth={2.4} />}
+        </button>
+
+        <div style={{ marginTop: 22 }}>
+          <Link href="#catalog" style={{ fontSize: 13, color: c.text3, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            Already know the model? Search the catalog directly <ArrowRight size={12} />
           </Link>
         </div>
       </div>
@@ -285,9 +308,9 @@ function DecisionHero() {
   )
 }
 
-// ─── Stats ticker ────────────────────────────────────────────────────────────
+// ─── Stats strip — light, quiet, proof not decoration ──────────────────────
 
-function StatsTicker({ stats }: { stats: FilterStats | null }) {
+function StatsStrip({ stats }: { stats: FilterStats | null }) {
   const items = stats ? [
     { label: 'PHONES TRACKED', value: stats.total_phones.toLocaleString() },
     { label: 'BRANDS',         value: String(stats.total_brands) },
@@ -296,25 +319,25 @@ function StatsTicker({ stats }: { stats: FilterStats | null }) {
   ] : null
 
   return (
-    <div style={{ background: '#12121F', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+    <div style={{ background: c.surface, borderTop: `1px solid ${c.border}`, borderBottom: `1px solid ${c.border}` }}>
       <div style={{
         maxWidth: 'var(--max-w)', margin: '0 auto', padding: '13px var(--page-px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
         flexWrap: 'wrap', fontFamily: 'ui-monospace, "Cascadia Code", "Fira Code", monospace',
       }}>
         {(items ?? Array.from({ length: 4 })).map((item, i) => (
           <div
             key={i}
             className="ticker-item"
-            style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '2px 20px', borderRight: i < 3 ? '1px solid rgba(255,255,255,0.08)' : 'none' }}
+            style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '2px 20px', borderRight: i < 3 ? `1px solid ${c.border}` : 'none' }}
           >
             {item ? (
               <>
-                <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>{item.value}</span>
-                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.6px' }}>{item.label}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: c.text1 }}>{item.value}</span>
+                <span style={{ fontSize: 10, color: c.text3, letterSpacing: '0.6px' }}>{item.label}</span>
               </>
             ) : (
-              <span className="skeleton" style={{ height: 13, width: 90, background: 'rgba(255,255,255,0.08)' }} />
+              <span className="skeleton" style={{ height: 13, width: 90 }} />
             )}
           </div>
         ))}
@@ -323,7 +346,7 @@ function StatsTicker({ stats }: { stats: FilterStats | null }) {
   )
 }
 
-// ─── Category rail — secondary shortcuts for people who already know an angle
+// ─── Category rail ───────────────────────────────────────────────────────────
 
 function CategoryRail() {
   return (
@@ -590,8 +613,8 @@ function HomeContent() {
         onOpenCompare={() => comparePhones.length >= 2 && router.push(ROUTES.compare(...comparePhones.map(p => phoneSlug(p))))}
       />
 
-      <DecisionHero />
-      <StatsTicker stats={stats} />
+      <PriceDial />
+      <StatsStrip stats={stats} />
       <CategoryRail />
 
       <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '0 var(--page-px)' }}>
@@ -746,13 +769,10 @@ function HomeContent() {
         .phone-grid-layout { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
 
         ${mq.lg} {
-          #catalog + div { grid-template-columns: 1fr !important; }
           div[style*="grid-template-columns: var(--sidebar-w) 1fr"] { grid-template-columns: 1fr !important; }
           .filter-sidebar { display: none !important; }
           .mobile-filter-btn { display: flex !important; }
           .phone-grid-layout { grid-template-columns: repeat(4, 1fr); gap: 12px; }
-          .tier-row { flex-wrap: wrap; }
-          .tier-row > button { flex: 1 1 30%; }
         }
         @media (max-width: 860px) { .phone-grid-layout { grid-template-columns: repeat(3, 1fr); gap: 10px; } }
         ${mq.sm} {
