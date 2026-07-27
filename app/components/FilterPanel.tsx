@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp, RotateCcw } from 'lucide-react'
 import { api } from '@/lib/api'
 import { c } from '@/lib/tokens'
 import type { SearchFilters, FilterStats } from '@/lib/types'
+import { FEATURE_TAGS } from '@/lib/featureTags'
 
 interface FilterPanelProps {
   filters: SearchFilters
@@ -100,6 +101,7 @@ const FEATURE_FILTERS: { key: keyof SearchFilters; label: string }[] = [
   { key: 'has_nfc', label: 'NFC' },
   { key: 'has_wireless_charging', label: 'Wireless Charging' },
   { key: 'has_ois', label: 'Optical Image Stabilization' },
+  { key: 'is_premium_gaming', label: 'Gaming Optimized' },
 ]
 
 export default function FilterPanel({ filters, onChange, onReset, showBrandFilter = true }: FilterPanelProps) {
