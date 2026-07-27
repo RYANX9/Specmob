@@ -176,10 +176,13 @@ export interface SearchFilters {
   is_premium_gaming?: boolean
   water_resistant?: boolean
   camera_setup_type?: string
+  features?: string 
   sort_by?: string
   sort_order?: 'asc' | 'desc'
   page?: number
   page_size?: number
+  
+
 }
 
 export interface FilterStats {
