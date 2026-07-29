@@ -364,7 +364,7 @@ function CategoryRail() {
 
 // ─── Trending ────────────────────────────────────────────────────────────────
 
-function TrendingScroll({ phones }: { phones: Phone[] }) {
+function TrendingScroll({ phones }: { phones: Phone[] }) { 
   const router = useRouter()
   if (phones.length === 0) return null
   return (
