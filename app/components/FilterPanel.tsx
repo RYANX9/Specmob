@@ -22,6 +22,14 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   )
 }
 
+function ExpertBadge() {
+  return (
+    <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 600, color: c.accent, background: 'var(--accent-light)', padding: '1px 6px', borderRadius: 'var(--r-full)' }}>
+      Expert
+    </span>
+  )
+}
+
 function CheckItem({ label, count, checked, onChange }: {
   label: string; count?: number; checked: boolean; onChange: (v: boolean) => void
 }) {
@@ -87,6 +95,13 @@ const DIVIDER = <div style={{ height: 1, background: 'var(--border)', margin: '1
 const CURRENT_YEAR = new Date().getFullYear()
 const YEAR_OPTIONS = Array.from({ length: 7 }, (_, i) => CURRENT_YEAR - i).map(y => ({ label: String(y), value: y }))
 
+const CAMERA_SETUP_OPTIONS = [
+  { label: 'Single', value: 'single' },
+  { label: 'Dual', value: 'dual' },
+  { label: 'Triple', value: 'triple' },
+  { label: 'Quad', value: 'quad' },
+]
+
 const PRICE_DEBOUNCE_MS = 400
 
 // Boolean device-feature filters. Each key maps directly to a FilterParams
@@ -113,6 +128,9 @@ export default function FilterPanel({ filters, onChange, onReset, showBrandFilte
     if (filters.brand) return [filters.brand]
     return []
   })
+  const [selectedFeatures, setSelectedFeatures] = useState<string[]>(() =>
+    filters.features ? filters.features.split(',').filter(Boolean) : []
+  )
 
   // Local state for price inputs — debounced before propagating up
   const [localMin, setLocalMin] = useState(filters.min_price != null ? String(filters.min_price) : '')
@@ -146,22 +164,11 @@ export default function FilterPanel({ filters, onChange, onReset, showBrandFilte
     setLocalMax(filters.max_price != null ? String(filters.max_price) : '')
   }, [filters.max_price])
 
-
-  const [selectedFeatures, setSelectedFeatures] = useState<string[]>(() =>
-    filters.features ? filters.features.split(',').filter(Boolean) : []
-  )
-  
+  // Sync selectedFeatures when parent resets filters externally
   useEffect(() => {
     setSelectedFeatures(filters.features ? filters.features.split(',').filter(Boolean) : [])
   }, [filters.features])
-  
-  const toggleFeatureTag = (key: string) => {
-    const next = selectedFeatures.includes(key)
-      ? selectedFeatures.filter(k => k !== key)
-      : [...selectedFeatures, key]
-    setSelectedFeatures(next)
-    set({ features: next.length ? next.join(',') : undefined })
-  }
+
   const set = (patch: Partial<SearchFilters>) => onChange({ ...filters, ...patch })
 
   const handleModeChange = (m: 'simple' | 'expert') => {
@@ -197,6 +204,17 @@ export default function FilterPanel({ filters, onChange, onReset, showBrandFilte
 
   const toggleFeature = (key: keyof SearchFilters, current: boolean | undefined) => {
     set({ [key]: current === true ? undefined : true } as Partial<SearchFilters>)
+  }
+
+  // Feature tags map to FEATURE_TAG_PATTERNS (ILIKE buckets against
+  // phone_features.feature_name) in scoring.py — multiple selected tags
+  // AND together, same semantics as the boolean filters above.
+  const toggleFeatureTag = (key: string) => {
+    const next = selectedFeatures.includes(key)
+      ? selectedFeatures.filter(k => k !== key)
+      : [...selectedFeatures, key]
+    setSelectedFeatures(next)
+    set({ features: next.length ? next.join(',') : undefined })
   }
 
   const visibleBrands = stats
@@ -240,6 +258,8 @@ export default function FilterPanel({ filters, onChange, onReset, showBrandFilte
           </button>
         ))}
       </div>
+
+      {/* ── Simple mode: always visible, coarse filters everyone needs ── */}
 
       <div>
         <SectionTitle>Price Range</SectionTitle>
@@ -365,42 +385,15 @@ export default function FilterPanel({ filters, onChange, onReset, showBrandFilte
           />
         ))}
       </div>
-      {DIVIDER}
-      <div>
-        <SectionTitle>Sensors & Features</SectionTitle>
-        {FEATURE_TAGS.map(({ key, label }) => (
-          <CheckItem
-            key={key}
-            label={label}
-            checked={selectedFeatures.includes(key)}
-            onChange={() => toggleFeatureTag(key)}
-          />
-        ))}
-      </div>
-      {DIVIDER}
-      <div>
-        <SectionTitle>Camera Setup</SectionTitle>
-        <RangeSelect
-          label="Camera setup type"
-          value={filters.camera_setup_type}
-          options={[
-            { label: 'Single', value: 'single' },
-            { label: 'Dual', value: 'dual' },
-            { label: 'Triple', value: 'triple' },
-            { label: 'Quad', value: 'quad' },
-          ]}
-          onChange={v => set({ camera_setup_type: v ? String(v) : undefined })}
-        />
-      </div>
-      
-      
+
+      {/* ── Expert mode: niche/granular filters, gated behind the toggle ── */}
+
       {mode === 'expert' && (
         <>
           {DIVIDER}
           <div>
             <SectionTitle>
-              Screen Size{' '}
-              <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 600, color: c.accent, background: 'var(--accent-light)', padding: '1px 6px', borderRadius: 'var(--r-full)' }}>Expert</span>
+              Screen Size <ExpertBadge />
             </SectionTitle>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
               {(['min_screen_size', 'max_screen_size'] as const).map((key, i) => (
@@ -420,8 +413,7 @@ export default function FilterPanel({ filters, onChange, onReset, showBrandFilte
           {DIVIDER}
           <div>
             <SectionTitle>
-              Chipset Tier{' '}
-              <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 600, color: c.accent, background: 'var(--accent-light)', padding: '1px 6px', borderRadius: 'var(--r-full)' }}>Expert</span>
+              Chipset Tier <ExpertBadge />
             </SectionTitle>
             {([
               { id: 'flagship', label: 'Flagship (SD 8 Elite, Dimensity 9xxx)' },
@@ -439,8 +431,7 @@ export default function FilterPanel({ filters, onChange, onReset, showBrandFilte
           {DIVIDER}
           <div>
             <SectionTitle>
-              Fast Charging{' '}
-              <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 600, color: c.accent, background: 'var(--accent-light)', padding: '1px 6px', borderRadius: 'var(--r-full)' }}>Expert</span>
+              Fast Charging <ExpertBadge />
             </SectionTitle>
             <RangeSelect
               label="Minimum fast charging wattage"
@@ -453,8 +444,7 @@ export default function FilterPanel({ filters, onChange, onReset, showBrandFilte
           {DIVIDER}
           <div>
             <SectionTitle>
-              Refresh Rate{' '}
-              <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 600, color: c.accent, background: 'var(--accent-light)', padding: '1px 6px', borderRadius: 'var(--r-full)' }}>Expert</span>
+              Refresh Rate <ExpertBadge />
             </SectionTitle>
             <RangeSelect
               label="Minimum refresh rate"
@@ -467,8 +457,7 @@ export default function FilterPanel({ filters, onChange, onReset, showBrandFilte
           {DIVIDER}
           <div>
             <SectionTitle>
-              Performance (AnTuTu){' '}
-              <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 600, color: c.accent, background: 'var(--accent-light)', padding: '1px 6px', borderRadius: 'var(--r-full)' }}>Expert</span>
+              Performance (AnTuTu) <ExpertBadge />
             </SectionTitle>
             <RangeSelect
               label="Minimum AnTuTu score"
@@ -481,8 +470,7 @@ export default function FilterPanel({ filters, onChange, onReset, showBrandFilte
           {DIVIDER}
           <div>
             <SectionTitle>
-              Max Weight{' '}
-              <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 600, color: c.accent, background: 'var(--accent-light)', padding: '1px 6px', borderRadius: 'var(--r-full)' }}>Expert</span>
+              Max Weight <ExpertBadge />
             </SectionTitle>
             <RangeSelect
               label="Maximum weight in grams"
@@ -490,6 +478,34 @@ export default function FilterPanel({ filters, onChange, onReset, showBrandFilte
               options={[160, 170, 180, 190, 200, 220].map(w => ({ label: `Under ${w}g`, value: w }))}
               onChange={v => set({ max_weight: v ? Number(v) : undefined })}
             />
+          </div>
+
+          {DIVIDER}
+          <div>
+            <SectionTitle>
+              Camera Setup <ExpertBadge />
+            </SectionTitle>
+            <RangeSelect
+              label="Camera setup type"
+              value={filters.camera_setup_type}
+              options={CAMERA_SETUP_OPTIONS}
+              onChange={v => set({ camera_setup_type: v ? String(v) : undefined })}
+            />
+          </div>
+
+          {DIVIDER}
+          <div>
+            <SectionTitle>
+              Sensors & Features <ExpertBadge />
+            </SectionTitle>
+            {FEATURE_TAGS.map(({ key, label }) => (
+              <CheckItem
+                key={key}
+                label={label}
+                checked={selectedFeatures.includes(key)}
+                onChange={() => toggleFeatureTag(key)}
+              />
+            ))}
           </div>
         </>
       )}
