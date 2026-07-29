@@ -23,6 +23,7 @@ import { c, f, z, mq } from '@/lib/tokens'
 import type { Phone, SearchFilters, FilterStats } from '@/lib/types'
 import { parseFilterParams, serializeFilterParams, hasAnyFilterParam } from '@/lib/filterParams'
 import { featureTagLabel } from '@/lib/featureTags'
+import { formatDisplayPrice } from '@/lib/price'
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   'camera-phones':  <Camera size={15} strokeWidth={1.5} />,
@@ -100,6 +101,91 @@ function hasActiveUrlState(sp: URLSearchParams): boolean {
   return hasAnyFilterParam(sp)
 }
 
+// ─── Budget preview — the live two-phone comparison beside the dial ─────────
+// Fetches the two strongest phones in the current tier (or, once priorities
+// are picked, the current recommend ranking) so the payoff of the dial is
+// visible before the user ever reaches the results step.
+
+function BudgetPreview({ phones, loading, hasPriorities }: { phones: Phone[]; loading: boolean; hasPriorities: boolean }) {
+  const cardStyle: React.CSSProperties = {
+    background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-lg)',
+    padding: '20px 22px', boxShadow: 'var(--shadow-md)',
+  }
+
+  if (loading) {
+    return (
+      <div style={cardStyle}>
+        <div className="skeleton" style={{ height: 11, width: 150, marginBottom: 18 }} />
+        <div className="skeleton" style={{ height: 16, marginBottom: 14 }} />
+        {Array.from({ length: 3 }).map((_, i) => <div key={i} className="skeleton" style={{ height: 32, marginBottom: 8 }} />)}
+      </div>
+    )
+  }
+
+  if (phones.length < 2) {
+    return (
+      <div style={{ ...cardStyle, textAlign: 'center' }}>
+        <p style={{ fontSize: 13, color: c.text3, lineHeight: 1.6 }}>
+          Not enough phones in this range yet — widen your budget to compare.
+        </p>
+      </div>
+    )
+  }
+
+  const [a, b] = phones
+  const camA = a.main_camera_mp ?? 0, camB = b.main_camera_mp ?? 0
+  const battA = a.battery_capacity ?? 0, battB = b.battery_capacity ?? 0
+  const priceA = a.price_usd ?? Infinity, priceB = b.price_usd ?? Infinity
+  const camWin   = camA === camB ? null : camA > camB
+  const battWin  = battA === battB ? null : battA > battB
+  const priceWin = priceA === priceB ? null : priceA < priceB
+
+  const rowStyle: React.CSSProperties = {
+    display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 8,
+    padding: '9px 0', borderBottom: `1px solid ${c.border}`, fontSize: 13,
+  }
+  const cell = (win: boolean | null, side: 'left' | 'right'): React.CSSProperties => ({
+    textAlign: side === 'left' ? 'right' : 'left',
+    fontWeight: win ? 700 : 400,
+    color: win ? c.text1 : c.text3,
+  })
+
+  return (
+    <div style={cardStyle}>
+      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: c.accent, marginBottom: 14 }}>
+        {hasPriorities ? 'Leading your priorities' : 'Your budget, narrowed to two'}
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 4 }}>
+        <span style={{ fontSize: 14, fontWeight: 600, color: c.text1 }}>{a.model_name}</span>
+        <span style={{ fontSize: 14, fontWeight: 600, color: c.text1, textAlign: 'right' }}>{b.model_name}</span>
+      </div>
+
+      <div style={rowStyle}>
+        <span style={cell(camWin, 'left')}>{camA ? `${camA}MP` : '—'}</span>
+        <span style={{ fontSize: 10, textTransform: 'uppercase', color: c.text3, letterSpacing: '0.4px' }}>Camera</span>
+        <span style={cell(camWin === null ? null : !camWin, 'right')}>{camB ? `${camB}MP` : '—'}</span>
+      </div>
+      <div style={rowStyle}>
+        <span style={cell(battWin, 'left')}>{battA ? `${battA.toLocaleString()}mAh` : '—'}</span>
+        <span style={{ fontSize: 10, textTransform: 'uppercase', color: c.text3, letterSpacing: '0.4px' }}>Battery</span>
+        <span style={cell(battWin === null ? null : !battWin, 'right')}>{battB ? `${battB.toLocaleString()}mAh` : '—'}</span>
+      </div>
+      <div style={{ ...rowStyle, borderBottom: 'none' }}>
+        <span style={cell(priceWin, 'left')}>{formatDisplayPrice(a)}</span>
+        <span style={{ fontSize: 10, textTransform: 'uppercase', color: c.text3, letterSpacing: '0.4px' }}>Price</span>
+        <span style={cell(priceWin === null ? null : !priceWin, 'right')}>{formatDisplayPrice(b)}</span>
+      </div>
+
+      <p style={{ fontSize: 11, color: c.text3, marginTop: 14, lineHeight: 1.5 }}>
+        {hasPriorities
+          ? 'Ranked by the priorities you picked so far — add more to narrow it further.'
+          : 'The two strongest phones in this range right now. Pick priorities below to re-rank them.'}
+      </p>
+    </div>
+  )
+}
+
 // ─── Price dial — the number you drag IS the headline. Signature element. ──
 
 function PriceDial() {
@@ -107,11 +193,14 @@ function PriceDial() {
   const [value, setValue] = useState(500)
   const [touched, setTouched] = useState(false)
   const [priorities, setPriorities] = useState<Set<string>>(new Set())
+  const [previewPhones, setPreviewPhones] = useState<Phone[]>([])
+  const [previewLoading, setPreviewLoading] = useState(true)
   const trackRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef(false)
 
   const tier = tierForDialValue(value)
   const pct = ((value - DIAL_MIN) / (DIAL_MAX - DIAL_MIN)) * 100
+  const priorityKey = Array.from(priorities).sort().join(',')
 
   const setFromClientX = useCallback((clientX: number) => {
     const track = trackRef.current
@@ -134,6 +223,27 @@ function PriceDial() {
       window.removeEventListener('pointerup', onUp)
     }
   }, [setFromClientX])
+
+  // Live preview: re-fetched only when the tier boundary or the priority
+  // set changes, not on every pixel of drag — cheap and always in sync
+  // with what the results step would actually return.
+  useEffect(() => {
+    const controller = new AbortController()
+    setPreviewLoading(true)
+
+    const request = priorityKey
+      ? api.phones.recommend({ min_price: tier.min, max_price: tier.max, priorities: priorityKey, limit: 2 }, controller.signal)
+          .then(d => d.phones)
+      : api.phones.search({ min_price: tier.min, max_price: tier.max, sort_by: 'antutu_score', sort_order: 'desc', page_size: 2 }, controller.signal)
+          .then(d => d.results)
+
+    request
+      .then(list => setPreviewPhones(list))
+      .catch(err => { if (!controller.signal.aborted && !(err instanceof Error && err.name === 'AbortError')) setPreviewPhones([]) })
+      .finally(() => { if (!controller.signal.aborted) setPreviewLoading(false) })
+
+    return () => controller.abort()
+  }, [tier.id, priorityKey])
 
   const togglePriority = (id: string) => {
     setPriorities(prev => {
@@ -158,136 +268,142 @@ function PriceDial() {
 
   return (
     <section style={{ background: c.bg, position: 'relative' }}>
-      <div style={{ maxWidth: 760, margin: '0 auto', padding: '64px var(--page-px) 60px', textAlign: 'center' }}>
-        <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 14px',
-          background: c.surface, border: `1px solid ${c.border}`,
-          borderRadius: 'var(--r-full)', marginBottom: 28,
-        }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: c.accent, display: 'inline-block' }} />
-          <span style={{ fontSize: 11, fontWeight: 600, color: c.text2, textTransform: 'uppercase', letterSpacing: '1.4px' }}>
-            No sponsored picks — ranked on specs only
-          </span>
-        </div>
-
-        <p style={{ fontSize: 15, color: c.text3, marginBottom: 6, fontWeight: 500 }}>
-          How much do you want to spend?
-        </p>
-
-        {/* the dragged number IS the headline */}
-        <div
-          style={{
-            fontFamily: f.serif, fontSize: 'clamp(64px, 13vw, 128px)', lineHeight: 1, color: c.text1,
-            letterSpacing: '-3px', marginBottom: 8, fontVariantNumeric: 'tabular-nums',
-            userSelect: 'none', display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 4,
-          }}
-        >
-          <span style={{ fontSize: '0.42em', color: c.text3, fontFamily: 'var(--font-sans)', fontWeight: 300 }}>$</span>
-          {displayValue}
-        </div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: c.accent, marginBottom: 34, minHeight: 18 }}>
-          {touched ? `That's ${tier.id === 's' ? 'ultra-flagship' : tier.id === 'a' ? 'flagship' : tier.id === 'b' ? 'upper mid-range' : tier.id === 'c' ? 'mid-range' : 'budget'} territory` : 'Drag to set your budget'}
-        </div>
-
-        {/* the dial track */}
-        <div
-          ref={trackRef}
-          onPointerDown={e => { draggingRef.current = true; (e.target as HTMLElement).setPointerCapture?.(e.pointerId); setFromClientX(e.clientX) }}
-          role="slider"
-          aria-label="Budget"
-          aria-valuemin={DIAL_MIN}
-          aria-valuemax={DIAL_MAX}
-          aria-valuenow={value}
-          tabIndex={0}
-          onKeyDown={e => {
-            if (e.key === 'ArrowRight') { setValue(v => Math.min(DIAL_MAX, v + 50)); setTouched(true) }
-            if (e.key === 'ArrowLeft')  { setValue(v => Math.max(DIAL_MIN, v - 50)); setTouched(true) }
-          }}
-          style={{
-            position: 'relative', height: 56, cursor: 'pointer', touchAction: 'none',
-            marginBottom: 30, maxWidth: 560, marginLeft: 'auto', marginRight: 'auto',
-          }}
-        >
-          {/* tick marks */}
-          <div style={{ position: 'absolute', left: 0, right: 0, top: 8, height: 16, display: 'flex', justifyContent: 'space-between', pointerEvents: 'none' }}>
-            {Array.from({ length: 41 }).map((_, i) => (
-              <div key={i} style={{ width: 1, height: i % 5 === 0 ? 14 : 7, background: c.border, alignSelf: 'flex-start' }} />
-            ))}
+      <div className="pricedial-grid" style={{ maxWidth: 1060, margin: '0 auto', padding: '64px var(--page-px) 60px' }}>
+        <div className="pricedial-controls">
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 14px',
+            background: c.surface, border: `1px solid ${c.border}`,
+            borderRadius: 'var(--r-full)', marginBottom: 28,
+          }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: c.accent, display: 'inline-block' }} />
+            <span style={{ fontSize: 11, fontWeight: 600, color: c.text2, textTransform: 'uppercase', letterSpacing: '1.4px' }}>
+              No sponsored picks — ranked on specs only
+            </span>
           </div>
-          {/* filled track */}
-          <div style={{ position: 'absolute', left: 0, right: 0, top: 24, height: 6, borderRadius: 3, background: c.border, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${pct}%`, background: c.accent, borderRadius: 3, transition: draggingRef.current ? 'none' : 'width 150ms ease' }} />
-          </div>
-          {/* handle */}
+
+          <p style={{ fontSize: 15, color: c.text3, marginBottom: 6, fontWeight: 500 }}>
+            How much do you want to spend?
+          </p>
+
+          {/* the dragged number IS the headline */}
           <div
             style={{
-              position: 'absolute', top: 27, left: `${pct}%`, transform: 'translate(-50%, -50%)',
-              width: 26, height: 26, borderRadius: '50%', background: c.surface,
-              border: `3px solid ${c.accent}`, boxShadow: 'var(--shadow-md)',
-              transition: draggingRef.current ? 'none' : 'left 150ms ease',
+              fontFamily: f.serif, fontSize: 'clamp(56px, 9vw, 112px)', lineHeight: 1, color: c.text1,
+              letterSpacing: '-3px', marginBottom: 8, fontVariantNumeric: 'tabular-nums',
+              userSelect: 'none', display: 'flex', alignItems: 'baseline', justifyContent: 'flex-start', gap: 4,
             }}
-          />
-          <div style={{ position: 'absolute', left: 0, top: 40, fontSize: 11, color: c.text3 }}>$0</div>
-          <div style={{ position: 'absolute', right: 0, top: 40, fontSize: 11, color: c.text3 }}>$2,000+</div>
-        </div>
+          >
+            <span style={{ fontSize: '0.42em', color: c.text3, fontFamily: 'var(--font-sans)', fontWeight: 300 }}>$</span>
+            {displayValue}
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: c.accent, marginBottom: 34, minHeight: 18 }}>
+            {touched ? `That's ${tier.id === 's' ? 'ultra-flagship' : tier.id === 'a' ? 'flagship' : tier.id === 'b' ? 'upper mid-range' : tier.id === 'c' ? 'mid-range' : 'budget'} territory` : 'Drag to set your budget'}
+          </div>
 
-        {/* priorities reveal only once a budget has been touched — one action at a time */}
-        <div style={{
-          maxHeight: touched ? 300 : 0, opacity: touched ? 1 : 0,
-          overflow: 'hidden', transition: 'max-height 320ms ease, opacity 280ms ease',
-        }}>
-          <p style={{ fontSize: 13, fontWeight: 600, color: c.text2, marginBottom: 12 }}>
-            What matters most? <span style={{ color: priorities.size >= 2 ? c.accent : c.text3 }}>({priorities.size}/3)</span>
-          </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginBottom: 28 }}>
-            {QUICK_PRIORITIES.map(p => {
-              const active = priorities.has(p.id)
-              const dimmed = priorities.size >= 3 && !active
-              return (
-                <button
-                  key={p.id}
-                  onClick={() => togglePriority(p.id)}
-                  disabled={dimmed}
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px',
-                    borderRadius: 'var(--r-full)', cursor: dimmed ? 'not-allowed' : 'pointer',
-                    border: `1.5px solid ${active ? c.accent : c.border}`,
-                    background: active ? 'var(--accent-light)' : c.surface,
-                    opacity: dimmed ? 0.4 : 1, transition: 'all 120ms ease',
-                  }}
-                >
-                  <span style={{ color: active ? c.accent : c.text3, display: 'flex' }}>{p.icon}</span>
-                  <span style={{ fontSize: 13, fontWeight: 500, color: active ? c.text1 : c.text2 }}>{p.label}</span>
-                </button>
-              )
-            })}
+          {/* the dial track */}
+          <div
+            ref={trackRef}
+            onPointerDown={e => { draggingRef.current = true; (e.target as HTMLElement).setPointerCapture?.(e.pointerId); setFromClientX(e.clientX) }}
+            role="slider"
+            aria-label="Budget"
+            aria-valuemin={DIAL_MIN}
+            aria-valuemax={DIAL_MAX}
+            aria-valuenow={value}
+            tabIndex={0}
+            onKeyDown={e => {
+              if (e.key === 'ArrowRight') { setValue(v => Math.min(DIAL_MAX, v + 50)); setTouched(true) }
+              if (e.key === 'ArrowLeft')  { setValue(v => Math.max(DIAL_MIN, v - 50)); setTouched(true) }
+            }}
+            style={{
+              position: 'relative', height: 56, cursor: 'pointer', touchAction: 'none',
+              marginBottom: 30,
+            }}
+          >
+            {/* tick marks */}
+            <div style={{ position: 'absolute', left: 0, right: 0, top: 8, height: 16, display: 'flex', justifyContent: 'space-between', pointerEvents: 'none' }}>
+              {Array.from({ length: 41 }).map((_, i) => (
+                <div key={i} style={{ width: 1, height: i % 5 === 0 ? 14 : 7, background: c.border, alignSelf: 'flex-start' }} />
+              ))}
+            </div>
+            {/* filled track */}
+            <div style={{ position: 'absolute', left: 0, right: 0, top: 24, height: 6, borderRadius: 3, background: c.border, overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${pct}%`, background: c.accent, borderRadius: 3, transition: draggingRef.current ? 'none' : 'width 150ms ease' }} />
+            </div>
+            {/* handle */}
+            <div
+              style={{
+                position: 'absolute', top: 27, left: `${pct}%`, transform: 'translate(-50%, -50%)',
+                width: 26, height: 26, borderRadius: '50%', background: c.surface,
+                border: `3px solid ${c.accent}`, boxShadow: 'var(--shadow-md)',
+                transition: draggingRef.current ? 'none' : 'left 150ms ease',
+              }}
+            />
+            <div style={{ position: 'absolute', left: 0, top: 40, fontSize: 11, color: c.text3 }}>$0</div>
+            <div style={{ position: 'absolute', right: 0, top: 40, fontSize: 11, color: c.text3 }}>$2,000+</div>
+          </div>
+
+          {/* priorities reveal only once a budget has been touched — one action at a time */}
+          <div style={{
+            maxHeight: touched ? 300 : 0, opacity: touched ? 1 : 0,
+            overflow: 'hidden', transition: 'max-height 320ms ease, opacity 280ms ease',
+          }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: c.text2, marginBottom: 12 }}>
+              What matters most? <span style={{ color: priorities.size >= 2 ? c.accent : c.text3 }}>({priorities.size}/3)</span>
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 28 }}>
+              {QUICK_PRIORITIES.map(p => {
+                const active = priorities.has(p.id)
+                const dimmed = priorities.size >= 3 && !active
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => togglePriority(p.id)}
+                    disabled={dimmed}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px',
+                      borderRadius: 'var(--r-full)', cursor: dimmed ? 'not-allowed' : 'pointer',
+                      border: `1.5px solid ${active ? c.accent : c.border}`,
+                      background: active ? 'var(--accent-light)' : c.surface,
+                      opacity: dimmed ? 0.4 : 1, transition: 'all 120ms ease',
+                    }}
+                  >
+                    <span style={{ color: active ? c.accent : c.text3, display: 'flex' }}>{p.icon}</span>
+                    <span style={{ fontSize: 13, fontWeight: 500, color: active ? c.text1 : c.text2 }}>{p.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <button
+            onClick={handleGo}
+            disabled={!ready}
+            style={{
+              padding: '17px 40px', borderRadius: 'var(--r-full)',
+              fontSize: 15, fontWeight: 700, border: 'none',
+              background: ready ? c.accent : c.border,
+              color: ready ? '#fff' : c.text3,
+              cursor: ready ? 'pointer' : 'not-allowed',
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              boxShadow: ready ? '0 10px 28px rgba(230,57,70,0.28)' : 'none',
+              transition: 'all 150ms ease',
+            }}
+            onMouseEnter={e => { if (ready) (e.currentTarget as HTMLElement).style.background = '#D32F3E' }}
+            onMouseLeave={e => { if (ready) (e.currentTarget as HTMLElement).style.background = c.accent }}
+          >
+            {!touched ? 'Set your budget above' : priorities.size < 2 ? `Pick ${2 - priorities.size} more priorities` : 'Show my top 5 matches'}
+            {ready && <ArrowRight size={17} strokeWidth={2.4} />}
+          </button>
+
+          <div style={{ marginTop: 22 }}>
+            <Link href="#catalog" style={{ fontSize: 13, color: c.text3, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              Already know the model? Search the catalog directly <ArrowRight size={12} />
+            </Link>
           </div>
         </div>
 
-        <button
-          onClick={handleGo}
-          disabled={!ready}
-          style={{
-            padding: '17px 40px', borderRadius: 'var(--r-full)',
-            fontSize: 15, fontWeight: 700, border: 'none',
-            background: ready ? c.accent : c.border,
-            color: ready ? '#fff' : c.text3,
-            cursor: ready ? 'pointer' : 'not-allowed',
-            display: 'inline-flex', alignItems: 'center', gap: 8,
-            boxShadow: ready ? '0 10px 28px rgba(230,57,70,0.28)' : 'none',
-            transition: 'all 150ms ease',
-          }}
-          onMouseEnter={e => { if (ready) (e.currentTarget as HTMLElement).style.background = '#D32F3E' }}
-          onMouseLeave={e => { if (ready) (e.currentTarget as HTMLElement).style.background = c.accent }}
-        >
-          {!touched ? 'Set your budget above' : priorities.size < 2 ? `Pick ${2 - priorities.size} more priorities` : 'Show my top 5 matches'}
-          {ready && <ArrowRight size={17} strokeWidth={2.4} />}
-        </button>
-
-        <div style={{ marginTop: 22 }}>
-          <Link href="#catalog" style={{ fontSize: 13, color: c.text3, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-            Already know the model? Search the catalog directly <ArrowRight size={12} />
-          </Link>
+        <div className="pricedial-preview">
+          <BudgetPreview phones={previewPhones} loading={previewLoading} hasPriorities={priorities.size > 0} />
         </div>
       </div>
     </section>
@@ -771,11 +887,16 @@ function HomeContent() {
       <style>{`
         .phone-grid-layout { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
 
+        .pricedial-grid { display: grid; grid-template-columns: 1fr 340px; gap: 44px; align-items: start; }
+        .pricedial-preview { position: sticky; top: calc(var(--nav-h) + 24px); }
+
         ${mq.lg} {
           div[style*="grid-template-columns: var(--sidebar-w) 1fr"] { grid-template-columns: 1fr !important; }
           .filter-sidebar { display: none !important; }
           .mobile-filter-btn { display: flex !important; }
           .phone-grid-layout { grid-template-columns: repeat(4, 1fr); gap: 12px; }
+          .pricedial-grid { grid-template-columns: 1fr; gap: 32px; }
+          .pricedial-preview { position: static; max-width: 460px; }
         }
         @media (max-width: 860px) { .phone-grid-layout { grid-template-columns: repeat(3, 1fr); gap: 10px; } }
         ${mq.sm} {
