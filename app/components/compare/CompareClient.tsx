@@ -328,15 +328,24 @@ function AddPhoneSlot({ onSelect, excludeIds }: { onSelect: (p: Phone) => void; 
 // ─── quick verdict ────────────────────────────────────────────────────────────
 
 function QuickVerdict({ phones, verdict }: { phones: Phone[]; verdict: CompareVerdict | null }) {
-  const wins = new Map<number, number>()
   const items = VERDICTS.map(v => {
     const bestIdx = getBestIdx(phones, v.getter, v.lower)
-    if (bestIdx >= 0) wins.set(bestIdx, (wins.get(bestIdx) ?? 0) + 1)
     const bestVal = bestIdx >= 0 ? v.getter(phones[bestIdx]) : null
     const isTie   = bestIdx === -1 && phones.some(p => v.getter(p) != null)
     return { ...v, bestIdx, bestVal, isTie }
   })
-  const overallWinner = Array.from(wins.entries()).sort((a, b) => b[1] - a[1])[0]
+
+  // "Overall" fallback (used when the server hasn't supplied a written
+  // verdict) must use the same weighted value score that drives the
+  // "Overall Best" badge on PhoneColumn — never a per-category win tally.
+  // Equal-weighting "wins on weight" with "wins on battery" produces a
+  // different, contradictory notion of "best" from the one shown on the
+  // cards above, even though a phone can trivially rack up "wins" on
+  // categories that barely matter (e.g. 2g lighter, 1MP more camera)
+  // while losing decisively on the ones that do.
+  const scored        = phones.map(p => ({ phone: p, score: resolveValueScore(p).score }))
+  const bestByValue    = scored.reduce((a, b) => (b.score > a.score ? b : a))
+  const overallWinner  = bestByValue.phone
 
   return (
     <section style={{ marginBottom: 40 }}>
@@ -381,17 +390,17 @@ function QuickVerdict({ phones, verdict }: { phones: Phone[]; verdict: CompareVe
               {verdict.verdict}
             </div>
           </div>
-        ) : overallWinner && (
+        ) : (
           <div style={{ gridColumn: '1 / -1', background: c.primary, borderRadius: r.md, padding: '16px 20px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
               <Trophy size={18} color="#C9A84C" />
               <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'rgba(255,255,255,0.4)' }}>Overall</span>
             </div>
             <div style={{ fontFamily: f.serif, fontSize: 20, color: '#fff', marginBottom: 4 }}>
-              {phones[overallWinner[0]].model_name} wins {overallWinner[1]} of {VERDICTS.length} categories
+              {overallWinner.model_name} — best overall value ({bestByValue.score.toFixed(1)}/10)
             </div>
             <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>
-              Based on the categories above. The best phone still depends on what matters most to you.
+              Based on specs-per-dollar across camera, battery, performance, and more. The best phone still depends on what matters most to you.
             </div>
           </div>
         )}
