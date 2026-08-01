@@ -14,7 +14,7 @@ import { getTierStyle } from '@/lib/tiers'
 import { resolveDisplayPrice, withLaunchPrice } from '@/lib/price'
 import { getPanelType, getFrontCamera, stripHtml } from '@/lib/specs'
 import { c, f, z } from '@/lib/tokens'
-import type { Phone } from '@/lib/types'
+import type { Phone, FullSpecifications } from '@/lib/types'
 import Navbar from '@/app/components/Navbar'
 import { useToast } from '@/app/components/Toast'
 import CompareBar from '@/app/components/CompareBar'
@@ -23,80 +23,36 @@ import { valueScoreColor } from '@/lib/valueScore'
 import PhoneGallery from '@/app/components/phone-detail/PhoneGallery'
 import {
   TabButton, SpecGroup, QuickSpecCard, VariantPicker,
-  getSpecGroups, rankSpecGroup, formatStorage,
+  rankSpecGroup, formatStorage,
   type PhoneVariant,
 } from '@/app/components/phone-detail/PhoneSpecs'
 import {
   WhyThisPhone, PriceHistoryChart, SimilarCard,
 } from '@/app/components/phone-detail/PhoneOverview'
 
-// ─── slug resolution ────────────────────────────────────────────────────────
+// ─── id-anchored slug resolution ─────────────────────────────────────────────
+// The [model] URL segment is "<slug>-<id>", e.g. "galaxy-a15-3421". The id
+// is the only thing that ever resolves to a phone — the slug text is
+// cosmetic and purely for readability/SEO. This replaces the old fuzzy
+// character-overlap resolvePhone()/pickBest() flow, which re-searched the
+// API by text on every load and could match the wrong phone whenever two
+// model names shared enough characters (e.g. "galaxy-a15" vs
+// "galaxy-a37" scored high enough on overlap to pass the old threshold).
 
-function pickBest(phones: Phone[], targetSlug: string): Phone | null {
-  if (!phones.length) return null
-  const target = targetSlug.toLowerCase()
-  let best: Phone | null = null
-  let bestScore = -1
-  for (const p of phones) {
-    const ps = phoneSlug(p).toLowerCase()
-    if (ps === target) return p
-    let score = 0; let ti = 0
-    for (let pi = 0; pi < ps.length && ti < target.length; pi++) {
-      if (ps[pi] === target[ti]) { score++; ti++ }
-    }
-    if (score > bestScore) { bestScore = score; best = p }
-  }
-  return bestScore > target.length * 0.45 ? best : null
-}
+const TRAILING_ID_RE = /-(\d+)$/
 
-async function resolvePhone(brand: string, model: string, signal: AbortSignal): Promise<Phone | null> {
-  const brandName  = brand.replace(/-/g, ' ')
-  const modelWords = model.replace(/-/g, ' ')
-
-  const [withBrand, withoutBrand] = await Promise.allSettled([
-    api.phones.search({ q: modelWords, brand: brandName, page_size: 10 }, signal),
-    api.phones.search({ q: modelWords, page_size: 10 }, signal),
-  ])
-
-  if (withBrand.status === 'fulfilled') {
-    const match = pickBest(withBrand.value.results, model)
-    if (match) return api.phones.detail(match.id, signal)
-  }
-
-  if (withoutBrand.status === 'fulfilled') {
-    const match = pickBest(withoutBrand.value.results, model)
-    if (match) return api.phones.detail(match.id, signal)
-  }
-
-  const brandTokens = brandName.toLowerCase().split(' ')
-  let queryTokens = modelWords.toLowerCase().split(' ')
-  for (const bt of brandTokens) {
-    if (queryTokens[0] === bt) queryTokens = queryTokens.slice(1)
-  }
-  const stripped = queryTokens.join(' ')
-
-  if (stripped && stripped !== modelWords.toLowerCase()) {
-    try {
-      const res = await api.phones.search({ q: stripped, brand: brandName, page_size: 10 }, signal)
-      const match = pickBest(res.results, model)
-      if (match) return api.phones.detail(match.id, signal)
-    } catch { /* continue */ }
-  }
-
-  try {
-    const res = await api.phones.search({ brand: brandName, page_size: 50 }, signal)
-    const match = pickBest(res.results, model)
-    if (match) return api.phones.detail(match.id, signal)
-  } catch { /* ignore */ }
-
-  return null
+function parsePhoneIdFromSegment(segment: string): number | null {
+  const match = segment.match(TRAILING_ID_RE)
+  if (!match) return null
+  const id = Number(match[1])
+  return Number.isFinite(id) && id > 0 ? id : null
 }
 
 type TabType = 'overview' | 'specs' | 'compare'
 
 // ─── JSON-LD builders ─────────────────────────────────────────────────────────
 
-function buildProductJsonLd(phone: Phone, brand: string, model: string, displayPrice: number | null): object {
+function buildProductJsonLd(phone: Phone, displayPrice: number | null): object {
   return {
     '@context': 'https://schema.org',
     '@type': 'Product',
@@ -114,7 +70,7 @@ function buildProductJsonLd(phone: Phone, brand: string, model: string, displayP
         price: displayPrice,
         priceCurrency: 'USD',
         availability: 'https://schema.org/InStock',
-        url: `https://specmob.vercel.app/brand/${brandSlug(phone.brand)}/${phoneSlug(phone)}`,
+        url: `https://specmob.vercel.app/brand/${brandSlug(phone.brand)}/${phoneSlug(phone)}-${phone.id}`,
       },
     }),
     ...(phone.main_image_url && { image: phone.main_image_url }),
@@ -128,7 +84,7 @@ function buildBreadcrumbJsonLd(phone: Phone): object {
     itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://specmob.vercel.app' },
       { '@type': 'ListItem', position: 2, name: phone.brand, item: `https://specmob.vercel.app/brand/${brandSlug(phone.brand)}` },
-      { '@type': 'ListItem', position: 3, name: phone.model_name, item: `https://specmob.vercel.app/brand/${brandSlug(phone.brand)}/${phoneSlug(phone)}` },
+      { '@type': 'ListItem', position: 3, name: phone.model_name, item: `https://specmob.vercel.app/brand/${brandSlug(phone.brand)}/${phoneSlug(phone)}-${phone.id}` },
     ],
   }
 }
@@ -141,8 +97,9 @@ function PhoneDetailContent() {
   const searchParams = useSearchParams()
   const { toast }    = useToast()
 
-  const brand = (params?.brand as string) ?? ''
-  const model = (params?.model as string) ?? ''
+  const brandParam = (params?.brand as string) ?? ''
+  const modelParam = (params?.model as string) ?? ''
+  const phoneId    = parsePhoneIdFromSegment(modelParam)
 
   const [phone, setPhone]                   = useState<Phone | null>(null)
   const [similar, setSimilar]               = useState<Phone[]>([])
@@ -162,6 +119,13 @@ function PhoneDetailContent() {
   const [selectedVariant, setSelectedVariant]   = useState<PhoneVariant | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
+  // Full specs: fetched only when the Specs tab is first opened, cached
+  // per phone id so re-opening the tab doesn't refetch.
+  const [fullSpecs, setFullSpecs] = useState<FullSpecifications | null>(null)
+  const [fullSpecsLoading, setFullSpecsLoading] = useState(false)
+  const [fullSpecsError, setFullSpecsError] = useState(false)
+  const fullSpecsFetchedFor = useRef<number | null>(null)
+
   const handleTabChange = (newTab: TabType) => {
     setTab(newTab)
     const p = new URLSearchParams(searchParams.toString())
@@ -174,10 +138,15 @@ function PhoneDetailContent() {
     router.replace(str ? `?${str}` : window.location.pathname, { scroll: false })
   }
 
+  // Core resolution: one direct GET /phones/{id} call, no text search, no
+  // fuzzy matching. If the id in the URL doesn't exist, show not-found.
+  // If it exists but the slug text in the URL is stale (renamed model,
+  // old bookmark), silently correct the URL to the canonical slug for
+  // that id rather than 404ing on a perfectly valid id.
   useEffect(() => {
-    if (!brand || !model) return
-    const controller = new AbortController()
+    if (phoneId == null) { setNotFound(true); setLoading(false); return }
 
+    const controller = new AbortController()
     setLoading(true)
     setNotFound(false)
     setPhone(null)
@@ -186,11 +155,16 @@ function PhoneDetailContent() {
     setVariants([])
     setSelectedVariant(null)
 
-    resolvePhone(brand, model, controller.signal)
-      .then(async found => {
+    api.phones.detail(phoneId, controller.signal)
+      .then(found => {
         if (controller.signal.aborted) return
-        if (!found) { setNotFound(true); return }
         setPhone(found)
+
+        const canonicalBrandSlug = brandSlug(found.brand)
+        const canonicalModelSlug = `${phoneSlug(found)}-${found.id}`
+        if (brandParam !== canonicalBrandSlug || modelParam !== canonicalModelSlug) {
+          router.replace(ROUTES.phone(canonicalBrandSlug, canonicalModelSlug), { scroll: false })
+        }
 
         setSimilarLoading(true)
         api.phones.similar(found.id, 12)
@@ -202,7 +176,7 @@ function PhoneDetailContent() {
       .finally(() => { if (!controller.signal.aborted) setLoading(false) })
 
     return () => controller.abort()
-  }, [brand, model])
+  }, [phoneId])
 
   useEffect(() => {
     if (!phone?.id) return
@@ -230,6 +204,34 @@ function PhoneDetailContent() {
       .finally(() => { if (!controller.signal.aborted) setVariantsLoading(false) })
     return () => controller.abort()
   }, [phone?.id])
+
+  useEffect(() => {
+    setFullSpecs(null)
+    setFullSpecsError(false)
+    fullSpecsFetchedFor.current = null
+  }, [phone?.id])
+
+  useEffect(() => {
+    if (tab !== 'specs' || !phone?.id) return
+    if (fullSpecsFetchedFor.current === phone.id) return
+
+    const controller = new AbortController()
+    fullSpecsFetchedFor.current = phone.id
+    setFullSpecsLoading(true)
+    setFullSpecsError(false)
+
+    api.phones.fullSpecs(phone.id, controller.signal)
+      .then(res => { if (!controller.signal.aborted) setFullSpecs(res.full_specifications) })
+      .catch(() => {
+        if (controller.signal.aborted) return
+        setFullSpecs(null)
+        setFullSpecsError(true)
+        fullSpecsFetchedFor.current = null
+      })
+      .finally(() => { if (!controller.signal.aborted) setFullSpecsLoading(false) })
+
+    return () => controller.abort()
+  }, [tab, phone?.id])
 
   const inCompare = phone ? comparePhones.some(p => p.id === phone.id) : false
 
@@ -289,8 +291,8 @@ function PhoneDetailContent() {
           <Link href={ROUTES.home} style={{ padding: '10px 24px', background: c.primary, color: '#fff', borderRadius: 'var(--r-full)', fontSize: 14, fontWeight: 600 }}>
             Browse All Phones
           </Link>
-          <Link href={ROUTES.brand(brand)} style={{ padding: '10px 24px', border: `1px solid ${c.border}`, color: c.text2, borderRadius: 'var(--r-full)', fontSize: 14, fontWeight: 500 }}>
-            Browse {brand.replace(/-/g, ' ')} phones
+          <Link href={ROUTES.brand(brandParam)} style={{ padding: '10px 24px', border: `1px solid ${c.border}`, color: c.text2, borderRadius: 'var(--r-full)', fontSize: 14, fontWeight: 500 }}>
+            Browse {brandParam.replace(/-/g, ' ')} phones
           </Link>
         </div>
       </div>
@@ -314,9 +316,8 @@ function PhoneDetailContent() {
     phone.weight_g            ? { icon: <Weight  size={20} strokeWidth={1.5} />, value: `${phone.weight_g}g`,                  label: 'Weight'   } : null,
   ].filter(Boolean) as { icon: React.ReactNode; value: string; label: string }[]
 
-  const specGroups  = getSpecGroups(phone)
   const sortedSpecGroups = withLaunchPrice(
-    [...specGroups].sort(([a], [b]) => rankSpecGroup(a) - rankSpecGroup(b)),
+    [...getFullSpecGroups(fullSpecs)].sort(([a], [b]) => rankSpecGroup(a) - rankSpecGroup(b)),
     phone,
   )
   const valueScore  = (phone as any).value_score as number | null
@@ -335,8 +336,6 @@ function PhoneDetailContent() {
       title: 'Camera', headline: phone.main_camera_mp ? `${phone.main_camera_mp}MP Main Camera` : 'Camera System',
       specs: [
         phone.main_camera_mp ? { label: 'Main Camera', value: `${phone.main_camera_mp} MP` } : null,
-        (phone.full_specifications as any)?.quick_specs?.cam1modules
-          ? { label: 'Rear System', value: stripHtml(String((phone.full_specifications as any).quick_specs.cam1modules)) } : null,
         getFrontCamera(phone) !== '—' ? { label: 'Front Camera', value: getFrontCamera(phone) } : null,
       ].filter(Boolean) as { label: string; value: string }[],
     },
@@ -371,7 +370,7 @@ function PhoneDetailContent() {
     <div style={{ minHeight: '100vh', background: c.bg }}>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(buildProductJsonLd(phone, brand, model, displayPrice)) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(buildProductJsonLd(phone, displayPrice)) }}
       />
       <script
         type="application/ld+json"
@@ -529,19 +528,37 @@ function PhoneDetailContent() {
         )}
 
         {tab === 'specs' && (
-          <div style={{ marginBottom: 48 }}>
-            {sortedSpecGroups.length > 0
-              ? sortedSpecGroups.map(([name, specs]) => (
-                  <SpecGroup key={name} title={name} specs={specs} />
-                ))
-              : (
-                <div style={{ textAlign: 'center', padding: '48px 0', color: c.text3 }}>
-                  <Smartphone size={48} color={c.border} strokeWidth={1} style={{ margin: '0 auto 12px' }} />
-                  <p>Detailed specifications not available for this model.</p>
-                </div>
-              )
-            }
-          </div>
+          fullSpecsLoading ? (
+            <div style={{ marginBottom: 48 }}>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="skeleton" style={{ height: 140, borderRadius: 'var(--r-md)', marginBottom: 6 }} />
+              ))}
+            </div>
+          ) : fullSpecsError ? (
+            <div style={{ textAlign: 'center', padding: '48px 0', color: c.text3 }}>
+              <p style={{ marginBottom: 12 }}>Couldn't load full specifications.</p>
+              <button
+                onClick={() => { fullSpecsFetchedFor.current = null; setTab('overview'); setTimeout(() => setTab('specs'), 0) }}
+                style={{ padding: '8px 18px', background: c.primary, color: '#fff', borderRadius: 'var(--r-full)', fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer' }}
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
+            <div style={{ marginBottom: 48 }}>
+              {sortedSpecGroups.length > 0
+                ? sortedSpecGroups.map(([name, specs]) => (
+                    <SpecGroup key={name} title={name} specs={specs} />
+                  ))
+                : (
+                  <div style={{ textAlign: 'center', padding: '48px 0', color: c.text3 }}>
+                    <Smartphone size={48} color={c.border} strokeWidth={1} style={{ margin: '0 auto 12px' }} />
+                    <p>Detailed specifications not available for this model.</p>
+                  </div>
+                )
+              }
+            </div>
+          )
         )}
 
         {tab === 'compare' && (
@@ -646,6 +663,59 @@ function PhoneDetailContent() {
       `}</style>
     </div>
   )
+}
+
+// Local replacement for the old PhoneSpecs.getSpecGroups(phone), which read
+// phone.full_specifications directly. That field no longer arrives on the
+// detail payload — this reads the lazily-fetched full-specs response instead.
+const SKIP_SPEC_KEYS = new Set([
+  'metadata', 'media', 'benchmarks', 'price_info',
+  'quick_specs', 'processed_at', 'source_url', 'specifications',
+])
+
+function specValueToString(v: unknown): string {
+  if (v === null || v === undefined) return '—'
+  if (typeof v === 'boolean') return v ? 'Yes' : 'No'
+  if (typeof v === 'number') return String(v)
+  if (typeof v === 'string') {
+    const stripped = stripHtml(v)
+    return stripped || '—'
+  }
+  if (Array.isArray(v)) {
+    return v.map(specValueToString).filter(s => s !== '—').join(', ') || '—'
+  }
+  if (typeof v === 'object') {
+    return Object.entries(v as Record<string, unknown>)
+      .filter(([, val]) => {
+        const s = String(val ?? '')
+        return !s.startsWith('http') && s !== 'null' && s !== ''
+      })
+      .map(([k, val]) => `${k}: ${specValueToString(val)}`)
+      .join(' · ') || '—'
+  }
+  return String(v)
+}
+
+function getFullSpecGroups(fullSpecs: FullSpecifications | null): Array<[string, Record<string, string>]> {
+  if (!fullSpecs || typeof fullSpecs !== 'object') return []
+  const root: Record<string, unknown> =
+    (fullSpecs as any).specifications && typeof (fullSpecs as any).specifications === 'object'
+      ? (fullSpecs as any).specifications
+      : (fullSpecs as any)
+
+  const groups: Array<[string, Record<string, string>]> = []
+  for (const [groupName, groupVal] of Object.entries(root)) {
+    if (SKIP_SPEC_KEYS.has(groupName)) continue
+    if (!groupVal || typeof groupVal !== 'object' || Array.isArray(groupVal)) continue
+    const rows: Record<string, string> = {}
+    for (const [k, v] of Object.entries(groupVal as Record<string, unknown>)) {
+      if (k.toLowerCase().includes('url') && typeof v === 'string' && v.startsWith('http')) continue
+      const val = specValueToString(v)
+      if (val && val !== '—') rows[k] = val
+    }
+    if (Object.keys(rows).length > 0) groups.push([groupName, rows])
+  }
+  return groups
 }
 
 export default function PhoneDetailPage() {
