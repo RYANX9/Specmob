@@ -147,6 +147,11 @@ export const api = {
 
     detail: (id: number, signal?: AbortSignal) =>
       req<Phone>(`/phones/${id}`, { ...CACHE.phoneDetail, signal }),
+    
+    fullSpecs: (id: number, signal?: AbortSignal) =>
+      req<{ phone_id: number; full_specifications: FullSpecifications }>(
+        `/phones/${id}/full-specs`, { ...CACHE.phoneDetail, signal },
+      ),
 
     latest: (limit = 20) =>
       req<{ phones: Phone[] }>(`/phones/latest?limit=${limit}`, CACHE.stable),
