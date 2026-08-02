@@ -9,6 +9,7 @@ import {
   Smartphone, ChevronDown,
 } from 'lucide-react'
 import { api } from '@/lib/api'
+import { useCompare } from '@/lib/compareStore'
 import { ROUTES, brandSlug, phoneSlug, MAX_COMPARE } from '@/lib/config'
 import { c, f, z, mq } from '@/lib/tokens'
 import type { Phone, SearchFilters } from '@/lib/types'
@@ -274,6 +275,7 @@ function BrandPageContent() {
   const router       = useRouter()
   const searchParams = useSearchParams()
   const { toast }    = useToast()
+  const { phones: comparePhones, add: addCompare, remove: removeCompare } = useCompare()
 
   const slug      = (params?.brand as string) ?? ''
   const brandName = slug.replace(/-/g, ' ')
@@ -289,7 +291,6 @@ function BrandPageContent() {
   const [gridView, setGridView]             = useState(true)
   const [sortOpen, setSortOpen]             = useState(false)
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
-  const [comparePhones, setComparePhones]   = useState<Phone[]>([])
 
   const [filters, setFilters] = useState<SearchFilters>(() =>
     parseFiltersFromParams(new URLSearchParams(searchParams.toString()))
@@ -390,12 +391,14 @@ function BrandPageContent() {
   }
 
   const handleCompareToggle = (phone: Phone) => {
-    setComparePhones(prev => {
-      if (prev.find(p => p.id === phone.id)) { toast('Removed from compare', 'info'); return prev.filter(p => p.id !== phone.id) }
-      if (prev.length >= MAX_COMPARE) { toast(`Maximum ${MAX_COMPARE} phones`, 'error'); return prev }
-      toast('Added to compare', 'success')
-      return [...prev, phone]
-    })
+    if (comparePhones.find(p => p.id === phone.id)) {
+      removeCompare(phone.id)
+      toast('Removed from compare', 'info')
+      return
+    }
+    if (comparePhones.length >= MAX_COMPARE) { toast(`Maximum ${MAX_COMPARE} phones`, 'error'); return }
+    addCompare(phone)
+    toast('Added to compare', 'success')
   }
 
   const compareIds = comparePhones.map(p => p.id)
@@ -404,7 +407,7 @@ function BrandPageContent() {
 
   if (loading) return (
     <div style={{ minHeight: '100vh', background: c.bg }}>
-      <Navbar compareCount={0} />
+      <Navbar />
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: '32px 24px' }}>
         <div className="skeleton" style={{ height: 14, width: '20%', marginBottom: 24 }} />
         <div style={{ display: 'flex', gap: 28, marginBottom: 40 }}>
@@ -425,7 +428,7 @@ function BrandPageContent() {
 
   if (notFound || !stats) return (
     <div style={{ minHeight: '100vh', background: c.bg }}>
-      <Navbar compareCount={0} />
+      <Navbar />
       <div style={{ maxWidth: 600, margin: '80px auto', padding: '0 24px', textAlign: 'center' }}>
         <Smartphone size={64} color={c.border} strokeWidth={1} style={{ margin: '0 auto 20px' }} />
         <h1 style={{ fontFamily: f.serif, fontSize: 28, color: c.text1, marginBottom: 10 }}>Brand not found</h1>
@@ -442,13 +445,7 @@ function BrandPageContent() {
 
   return (
     <div style={{ minHeight: '100vh', background: c.bg }}>
-      <Navbar
-        compareCount={comparePhones.length}
-        onOpenCompare={() => {
-          if (comparePhones.length >= 2)
-            router.push(ROUTES.compare(...comparePhones.map(p => phoneSlug(p))))
-        }}
-      />
+      <Navbar />
 
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 24px 80px' }}>
         <nav style={{ padding: '16px 0 0', fontSize: 13, color: c.text3, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -620,11 +617,7 @@ function BrandPageContent() {
 
       <Footer />
 
-      <CompareBar
-        phones={comparePhones}
-        onRemove={id => setComparePhones(prev => prev.filter(p => p.id !== id))}
-        onClear={() => setComparePhones([])}
-      />
+      <CompareBar />
 
       {mobileFiltersOpen && (
         <div
