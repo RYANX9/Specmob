@@ -18,6 +18,7 @@ import FilterPanel from './components/FilterPanel'
 import CompareBar from './components/CompareBar'
 import { useToast } from './components/Toast'
 import { api } from '@/lib/api'
+import { useCompare } from '@/lib/compareStore'
 import { ROUTES, brandSlug, phoneSlug, PAGE_SIZE, MAX_COMPARE, CATEGORY_META } from '@/lib/config'
 import { c, f, z, mq } from '@/lib/tokens'
 import type { Phone, SearchFilters, FilterStats } from '@/lib/types'
@@ -629,6 +630,7 @@ function HomeContent() {
   const router       = useRouter()
   const searchParams = useSearchParams()
   const { toast }    = useToast()
+  const { phones: comparePhones, add: addCompare, remove: removeCompare } = useCompare()
 
   const [filters, setFilters] = useState<SearchFilters>(() =>
     parseFiltersFromParams(new URLSearchParams(searchParams.toString()))
@@ -640,7 +642,6 @@ function HomeContent() {
   const [stats, setStats]                 = useState<FilterStats | null>(null)
   const [total, setTotal]                 = useState(0)
   const [loading, setLoading]             = useState(true)
-  const [comparePhones, setComparePhones] = useState<Phone[]>([])
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
 
   const [catalogOpen, setCatalogOpen] = useState(() => hasActiveUrlState(new URLSearchParams(searchParams.toString())))
@@ -716,22 +717,21 @@ function HomeContent() {
   }
 
   const handleCompareToggle = (phone: Phone) => {
-    setComparePhones(prev => {
-      if (prev.find(p => p.id === phone.id)) { toast('Removed from compare', 'info'); return prev.filter(p => p.id !== phone.id) }
-      if (prev.length >= MAX_COMPARE) { toast(`Maximum ${MAX_COMPARE} phones in compare`, 'error'); return prev }
-      toast('Added to compare', 'success')
-      return [...prev, phone]
-    })
+    if (comparePhones.find(p => p.id === phone.id)) {
+      removeCompare(phone.id)
+      toast('Removed from compare', 'info')
+      return
+    }
+    if (comparePhones.length >= MAX_COMPARE) { toast(`Maximum ${MAX_COMPARE} phones in compare`, 'error'); return }
+    addCompare(phone)
+    toast('Added to compare', 'success')
   }
 
   const compareIds = comparePhones.map(p => p.id)
 
   return (
     <div style={{ minHeight: '100vh', background: c.bg }}>
-      <Navbar
-        compareCount={comparePhones.length}
-        onOpenCompare={() => comparePhones.length >= 2 && router.push(ROUTES.compare(...comparePhones.map(p => phoneSlug(p))))}
-      />
+      <Navbar />
 
       <PriceDial />
       <StatsStrip stats={stats} />
@@ -853,11 +853,7 @@ function HomeContent() {
 
       <Footer />
 
-      <CompareBar
-        phones={comparePhones}
-        onRemove={id => setComparePhones(prev => prev.filter(p => p.id !== id))}
-        onClear={() => setComparePhones([])}
-      />
+      <CompareBar />
 
       {mobileFiltersOpen && (
         <div
