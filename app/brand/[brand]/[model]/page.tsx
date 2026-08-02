@@ -33,11 +33,8 @@ import {
 // ─── id-anchored slug resolution ─────────────────────────────────────────────
 // The [model] URL segment is "<slug>-<id>", e.g. "galaxy-a15-3421". The id
 // is the only thing that ever resolves to a phone — the slug text is
-// cosmetic and purely for readability/SEO. This replaces the old fuzzy
-// character-overlap resolvePhone()/pickBest() flow, which re-searched the
-// API by text on every load and could match the wrong phone whenever two
-// model names shared enough characters (e.g. "galaxy-a15" vs
-// "galaxy-a37" scored high enough on overlap to pass the old threshold).
+// cosmetic and purely for readability/SEO. lib/config.ts's phoneSlug()
+// must append the id for every generated link to match this.
 
 const TRAILING_ID_RE = /-(\d+)$/
 
@@ -70,7 +67,7 @@ function buildProductJsonLd(phone: Phone, displayPrice: number | null): object {
         price: displayPrice,
         priceCurrency: 'USD',
         availability: 'https://schema.org/InStock',
-        url: `https://specmob.vercel.app/brand/${brandSlug(phone.brand)}/${phoneSlug(phone)}-${phone.id}`,
+        url: `https://specmob.vercel.app/brand/${brandSlug(phone.brand)}/${phoneSlug(phone)}`,
       },
     }),
     ...(phone.main_image_url && { image: phone.main_image_url }),
@@ -84,7 +81,7 @@ function buildBreadcrumbJsonLd(phone: Phone): object {
     itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://specmob.vercel.app' },
       { '@type': 'ListItem', position: 2, name: phone.brand, item: `https://specmob.vercel.app/brand/${brandSlug(phone.brand)}` },
-      { '@type': 'ListItem', position: 3, name: phone.model_name, item: `https://specmob.vercel.app/brand/${brandSlug(phone.brand)}/${phoneSlug(phone)}-${phone.id}` },
+      { '@type': 'ListItem', position: 3, name: phone.model_name, item: `https://specmob.vercel.app/brand/${brandSlug(phone.brand)}/${phoneSlug(phone)}` },
     ],
   }
 }
@@ -161,7 +158,7 @@ function PhoneDetailContent() {
         setPhone(found)
 
         const canonicalBrandSlug = brandSlug(found.brand)
-        const canonicalModelSlug = `${phoneSlug(found)}-${found.id}`
+        const canonicalModelSlug = phoneSlug(found)
         if (brandParam !== canonicalBrandSlug || modelParam !== canonicalModelSlug) {
           router.replace(ROUTES.phone(canonicalBrandSlug, canonicalModelSlug), { scroll: false })
         }
