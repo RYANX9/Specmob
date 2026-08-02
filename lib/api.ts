@@ -9,9 +9,8 @@ import type {
   CompareVerdict,
   PhoneVariant,
   RecommendResponse,
+  FullSpecifications,
 } from './types'
-
-// ─── error class ─────────────────────────────────────────────────────────────
 
 export class APIError extends Error {
   constructor(
@@ -27,8 +26,6 @@ export class APIError extends Error {
   get isRateLimit()   { return this.status === 429 }
 }
 
-// ─── signal helpers ───────────────────────────────────────────────────────────
-
 function anySignal(signals: AbortSignal[]): AbortSignal {
   const ctrl = new AbortController()
   for (const sig of signals) {
@@ -41,16 +38,12 @@ function anySignal(signals: AbortSignal[]): AbortSignal {
   return ctrl.signal
 }
 
-// ─── cache presets ────────────────────────────────────────────────────────────
-
 const CACHE = {
   noStore:     { cache: 'no-store' } as RequestInit,
   stable:      { next: { revalidate: 3_600  } } as RequestInit,
   phoneDetail: { next: { revalidate: 86_400 } } as RequestInit,
   trending:    { next: { revalidate: 900    } } as RequestInit,
 } as const
-
-// ─── core fetch wrapper ───────────────────────────────────────────────────────
 
 const DEFAULT_TIMEOUT_MS = 12_000
 
@@ -93,8 +86,6 @@ async function req<T>(
   }
 }
 
-// ─── query-string builder ─────────────────────────────────────────────────────
-
 function qs(params: Record<string, unknown>): string {
   const p = new URLSearchParams()
   for (const [k, v] of Object.entries(params)) {
@@ -109,11 +100,7 @@ function qs(params: Record<string, unknown>): string {
   return s ? `?${s}` : ''
 }
 
-// ─── price history types ───────────────────────────────────────────────────────
 // Matches routes/phones.py GET /phones/{id}/price-history exactly.
-// NOT the same shape as the PriceHistoryResponse in lib/types.ts (that one
-// assumes a `current_price_usd` + `history` shape the backend doesn't send).
-
 export interface PriceHistoryPoint {
   snapshot_date: string
   condition: string | null
@@ -135,8 +122,6 @@ export interface PriceHistoryApiResponse {
   price_points: PricePointRow[]
 }
 
-// ─── public API surface ───────────────────────────────────────────────────────
-
 export const api = {
   phones: {
     search: (filters: SearchFilters, signal?: AbortSignal) =>
@@ -145,12 +130,15 @@ export const api = {
         { ...CACHE.noStore, signal },
       ),
 
-    detail: (id: number, signal?: AbortSignal) =>
-      req<Phone>(`/phones/${id}`, { ...CACHE.phoneDetail, signal }),
-    
+    // Backend accepts numeric id or slug on GET /phones/{phone_id}.
+    // Response never includes full_specifications — use fullSpecs() below.
+    detail: (idOrSlug: number | string, signal?: AbortSignal) =>
+      req<Phone>(`/phones/${idOrSlug}`, { ...CACHE.phoneDetail, signal }),
+
     fullSpecs: (id: number, signal?: AbortSignal) =>
-      req<{ phone_id: number; full_specifications: FullSpecifications }>(
-        `/phones/${id}/full-specs`, { ...CACHE.phoneDetail, signal },
+      req<{ phone_id: number; full_specifications: FullSpecifications | null }>(
+        `/phones/${id}/full-specs`,
+        { ...CACHE.phoneDetail, signal },
       ),
 
     latest: (limit = 20) =>
