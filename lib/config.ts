@@ -57,14 +57,16 @@ export const TRENDING_LIMIT = 10
  * which is a known mismatch documented in the review. The server-supplied slug
  * field, when present, bypasses this entirely and is always preferred.
  */
-export function phoneSlug(phone: { model_name: string; slug?: string | null }): string {
-  if (phone.slug) return phone.slug
-  return phone.model_name
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+export function phoneSlug(phone: { id: number; model_name: string; slug?: string | null }): string {
+  const base = phone.slug
+    ? phone.slug
+    : phone.model_name
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+  return `${base}-${phone.id}`
 }
 
 /**
