@@ -46,27 +46,15 @@ export const TRENDING_LIMIT = 10
 
 /**
  * Derives a URL slug from a phone record.
- *
- * Priority: server-supplied slug field → computed from model_name.
- * Computed path:
- *   1. NFD-normalise to decompose diacritics (é → e + combining acute)
- *   2. Strip combining marks so "café" → "cafe" not "caf"
- *   3. Lowercase, collapse non-alphanumeric runs to hyphens, trim edge hyphens
- *
- * The backend's sitemap route uses a different algorithm (.replace(" ", "-") only),
- * which is a known mismatch documented in the review. The server-supplied slug
- * field, when present, bypasses this entirely and is always preferred.
  */
 export function phoneSlug(phone: { id: number; model_name: string; slug?: string | null }): string {
-  const base = phone.slug
-    ? phone.slug
-    : phone.model_name
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-  return `${base}-${phone.id}`
+  if (phone.slug) return phone.slug
+  return phone.model_name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
 }
 
 /**
