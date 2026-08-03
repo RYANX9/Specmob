@@ -667,7 +667,7 @@ function HomeContent() {
   const fetchPhones = useCallback(async (f: SearchFilters, p: number, sIdx: number, signal?: AbortSignal) => {
     setLoading(true)
     const { sort_by, sort_order } = SORT_OPTIONS[sIdx]
-    const effectiveSortBy = sIdx === 0 && f.q ? 'relevance' : sort_by
+    const effectiveSortBy = f.q && sIdx === 0 ? 'relevance' : sort_by
     try {
       const data = await api.phones.search(
         { ...f, sort_by: effectiveSortBy, sort_order: sort_order as 'asc' | 'desc', page: p, page_size: PAGE_SIZE },
