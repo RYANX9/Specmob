@@ -30,21 +30,6 @@ import {
   WhyThisPhone, PriceHistoryChart, SimilarCard,
 } from '@/app/components/phone-detail/PhoneOverview'
 
-// ─── id-anchored slug resolution ─────────────────────────────────────────────
-// The [model] URL segment is "<slug>-<id>", e.g. "galaxy-a15-3421". The id
-// is the only thing that ever resolves to a phone — the slug text is
-// cosmetic and purely for readability/SEO. lib/config.ts's phoneSlug()
-// must append the id for every generated link to match this.
-
-const TRAILING_ID_RE = /-(\d+)$/
-
-function parsePhoneIdFromSegment(segment: string): number | null {
-  const match = segment.match(TRAILING_ID_RE)
-  if (!match) return null
-  const id = Number(match[1])
-  return Number.isFinite(id) && id > 0 ? id : null
-}
-
 type TabType = 'overview' | 'specs' | 'compare'
 
 // ─── JSON-LD builders ─────────────────────────────────────────────────────────
@@ -96,7 +81,6 @@ function PhoneDetailContent() {
 
   const brandParam = (params?.brand as string) ?? ''
   const modelParam = (params?.model as string) ?? ''
-  const phoneId    = parsePhoneIdFromSegment(modelParam)
 
   const [phone, setPhone]                   = useState<Phone | null>(null)
   const [similar, setSimilar]               = useState<Phone[]>([])
@@ -135,13 +119,11 @@ function PhoneDetailContent() {
     router.replace(str ? `?${str}` : window.location.pathname, { scroll: false })
   }
 
-  // Core resolution: one direct GET /phones/{id} call, no text search, no
-  // fuzzy matching. If the id in the URL doesn't exist, show not-found.
-  // If it exists but the slug text in the URL is stale (renamed model,
-  // old bookmark), silently correct the URL to the canonical slug for
-  // that id rather than 404ing on a perfectly valid id.
+  // Resolves by the slug in the URL (GET /phones/{slug}). If it's stale
+  // (renamed model, old bookmark) but still resolves to a phone, the URL
+  // is silently corrected to the canonical slug rather than 404ing.
   useEffect(() => {
-    if (phoneId == null) { setNotFound(true); setLoading(false); return }
+    if (!modelParam) { setNotFound(true); setLoading(false); return }
 
     const controller = new AbortController()
     setLoading(true)
@@ -152,7 +134,7 @@ function PhoneDetailContent() {
     setVariants([])
     setSelectedVariant(null)
 
-    api.phones.detail(phoneId, controller.signal)
+    api.phones.detail(modelParam, controller.signal)
       .then(found => {
         if (controller.signal.aborted) return
         setPhone(found)
@@ -173,7 +155,7 @@ function PhoneDetailContent() {
       .finally(() => { if (!controller.signal.aborted) setLoading(false) })
 
     return () => controller.abort()
-  }, [phoneId])
+  }, [modelParam])
 
   useEffect(() => {
     if (!phone?.id) return
