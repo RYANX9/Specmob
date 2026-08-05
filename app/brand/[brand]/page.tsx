@@ -607,7 +607,12 @@ function BrandPageContent() {
               </div>
             ) : gridView ? (
               <div className="brand-phone-grid" style={{ marginBottom: 40 }}>
-                {phones.map(p => <PhoneCard key={p.id} phone={p} compareIds={compareIds} onCompareToggle={handleCompareToggle} compact />)}
+                  {phones.map((p, i) => (
+                  <Fragment key={p.id}>
+                    <PhoneCard phone={p} compareIds={compareIds} onCompareToggle={handleCompareToggle} compact />
+                    {(i + 1) % 12 === 0 && <AdCard />}
+                  </Fragment>
+                ))}
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 40 }}>
