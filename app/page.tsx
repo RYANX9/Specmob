@@ -839,8 +839,8 @@ function HomeContent() {
                         {(i + 1) % 12 === 0 && <AdCard />}
                       </Fragment>
                     ))}
+
                   </div>
-                </div>
                 <Pagination page={page} total={total} pageSize={PAGE_SIZE} onChange={handlePageChange} />
               </>
             ) : (
