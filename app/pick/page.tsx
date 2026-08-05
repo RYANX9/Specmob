@@ -22,6 +22,8 @@ import { formatDisplayPrice } from '@/lib/price'
 
 import { valueScoreColor } from '@/lib/valueScore'
 
+import AdSlot from '@/app/components/ads/AdSlot'
+
 const STEPS = [
   { num: 1, label: 'Tier' },
   { num: 2, label: 'Priorities' },
@@ -829,6 +831,12 @@ function PickPageContent() {
           />
         )}
 
+        {step === 3 && results.length > 0 && !loading && (
+          <div style={{ margin: '32px 0' }}>
+            <AdSlot placement="inline" />
+          </div>
+        )}
+        
         {loading && (
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
             <div style={{
