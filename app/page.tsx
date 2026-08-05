@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
+import { useState, useEffect, useCallback, useRef, Suspense, Fragment } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 
@@ -833,7 +833,13 @@ function HomeContent() {
             ) : phones.length > 0 ? (
               <>
                 <div className="phone-grid-layout">
-                  {phones.map(phone => <PhoneCard key={phone.id} phone={phone} compareIds={compareIds} onCompareToggle={handleCompareToggle} />)}
+                    {phones.map((phone, i) => (
+                      <Fragment key={phone.id}>
+                        <PhoneCard phone={phone} compareIds={compareIds} onCompareToggle={handleCompareToggle} />
+                        {(i + 1) % 12 === 0 && <AdCard />}
+                      </Fragment>
+                    ))}
+                  </div>
                 </div>
                 <Pagination page={page} total={total} pageSize={PAGE_SIZE} onChange={handlePageChange} />
               </>
