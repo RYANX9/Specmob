@@ -26,6 +26,8 @@ import { parseFilterParams, serializeFilterParams, hasAnyFilterParam } from '@/l
 import { featureTagLabel } from '@/lib/featureTags'
 import { formatDisplayPrice } from '@/lib/price'
 
+import AdSlot from '@/app/components/ads/AdSlot'
+
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   'camera-phones':  <Camera size={15} strokeWidth={1.5} />,
   'battery-life':   <Battery size={15} strokeWidth={1.5} />,
@@ -777,6 +779,9 @@ function HomeContent() {
         <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '24px var(--page-px) 64px', display: 'grid', gridTemplateColumns: 'var(--sidebar-w) 1fr', gap: 32, alignItems: 'start' }}>
           <div className="filter-sidebar">
             <FilterPanel filters={filters} onChange={handleFiltersChange} onReset={handleReset} />
+            <div style={{ marginTop: 20 }}>
+              <AdSlot placement="skyscraper" />
+            </div>
           </div>
 
           <div>
