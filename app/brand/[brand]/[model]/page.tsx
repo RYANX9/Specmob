@@ -32,6 +32,8 @@ import {
 
 type TabType = 'overview' | 'specs' | 'compare'
 
+import AdSlot from '@/app/components/ads/AdSlot'
+
 // ─── JSON-LD builders ─────────────────────────────────────────────────────────
 
 function buildProductJsonLd(phone: Phone, displayPrice: number | null): object {
@@ -590,6 +592,8 @@ function PhoneDetailContent() {
           </div>
         )}
 
+        <AdSlot placement="rectangle" />
+        
         <section style={{ marginTop: 8, marginBottom: 64 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 20 }}>
             <h2 style={{ fontFamily: f.serif, fontSize: 24, color: c.text1 }}>Similar Phones</h2>
