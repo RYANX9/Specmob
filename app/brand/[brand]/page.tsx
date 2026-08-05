@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback, Suspense } from 'react'
+import { useState, useEffect, useRef, useCallback, Suspense, Fragment } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
@@ -24,8 +24,9 @@ import { formatDisplayPrice } from '@/lib/price'
 import { parseFilterParams, serializeFilterParams } from '@/lib/filterParams'
 import { featureTagLabel } from '@/lib/featureTags'
 
-import React, { Fragment } from 'react'
+import AdSlot from '@/app/components/ads/AdSlot'
 import AdCard from '@/app/components/ads/AdCard'
+
 
 interface BrandStats {
   brand: string
