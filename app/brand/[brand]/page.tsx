@@ -24,7 +24,8 @@ import { formatDisplayPrice } from '@/lib/price'
 import { parseFilterParams, serializeFilterParams } from '@/lib/filterParams'
 import { featureTagLabel } from '@/lib/featureTags'
 
-import AdSlot from '@/app/components/ads/AdSlot'
+import React, { Fragment } from 'react';
+import AdCard from '@/app/components/ads/AdCard';
 
 interface BrandStats {
   brand: string
