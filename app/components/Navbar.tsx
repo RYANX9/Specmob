@@ -12,6 +12,9 @@ import type { Phone } from '@/lib/types'
 import { formatDisplayPrice } from '@/lib/price'
 import { useCompare } from '@/lib/compareStore'
 
+import AdSlot from '@/app/components/ads/AdSlot'
+
+
 // Module scope, not a ref: survives regardless of when/how Navbar mounts.
 // The old useRef cache was dead on arrival because every route change used
 // to remount Navbar — a "1-hour TTL" that never outlived a single nav.
@@ -475,6 +478,9 @@ export default function Navbar() {
           </button>
         </div>
       </nav>
+      
+      <AdSlot placement="leaderboard" />
+
 
       {/* Mobile drawer */}
       {mobileOpen && (
