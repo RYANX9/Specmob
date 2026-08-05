@@ -19,6 +19,7 @@ import { c, z, mq } from '@/lib/tokens'
 import type { Phone, CategoryResult } from '@/lib/types'
 import { formatDisplayPrice } from '@/lib/price'
 
+import AdSlot from '@/app/components/ads/AdSlot'
 
 const CATEGORY_CONFIG: Record<string, {
   title: string
@@ -831,6 +832,10 @@ function CategoryPageContent() {
               <RankCardMedium phone={top3[2]} score={top3[2].category_score} scoreLabel={config.scoreLabel} rank={3} variant="bronze" slug={slug} onCompare={handleCompare} isCompared={compareIds.includes(top3[2].id)} />
             )}
 
+            <div style={{ margin: '24px 0' }}>
+              <AdSlot placement="inline" />
+            </div>
+            
             {rest.length > 0 && (
               <>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '24px 0 16px' }}>
