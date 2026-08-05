@@ -22,6 +22,8 @@ import type { Phone, CompareVerdict } from '@/lib/types'
 import { formatDisplayPrice } from '@/lib/price'
 import { specComposite, resolveValueScore } from '@/lib/valueScore'
 
+import AdSlot from '@/app/components/ads/AdSlot'
+
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
 function fmt(v: number | null, suffix = ''): string {
@@ -802,6 +804,7 @@ function CompareContent({ initialPhones, initialVerdict }: { initialPhones: Phon
               <>
                 <QuickVerdict phones={phones} verdict={verdict} />
                 <SpecTable phones={phones} />
+                <AdSlot placement="inline" />
                 <DetailedVerdicts phones={phones} />
                 <BottomLine phones={phones} verdict={verdict} />
               </>
