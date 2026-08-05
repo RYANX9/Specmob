@@ -858,6 +858,9 @@ function CategoryPageContent() {
         )}
 
         <MethodologyBox config={config} open={methodOpen} onToggle={() => setMethodOpen(v => !v)} />
+        
+        <AdSlot placement="inline" />
+        
         <OtherCategories currentSlug={slug} />
       </div>
 
