@@ -22,6 +22,8 @@ import Footer from '@/app/components/Footer'
 import { WhyThisPhone, PriceHistoryChart, SimilarCard } from '@/app/components/phone-detail/PhoneOverview'
 import { valueScoreColor } from '@/lib/valueScore'
 
+import AdSlot from '@/app/components/ads/AdSlot'
+
 type PhoneVariant = {
   ram_gb: number | null
   storage_gb: number
@@ -671,6 +673,8 @@ function PhoneDetailInner({ phone, similar }: PhoneDetailClientProps) {
           </div>
         )}
 
+        <AdSlot placement="rectangle" />
+        
         <section style={{ marginTop: 8, marginBottom: 64 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 20 }}>
             <h2 style={{ fontFamily: f.serif, fontSize: 24, color: c.text1 }}>Similar Phones</h2>
