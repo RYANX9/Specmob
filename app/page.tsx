@@ -27,6 +27,7 @@ import { featureTagLabel } from '@/lib/featureTags'
 import { formatDisplayPrice } from '@/lib/price'
 
 import AdSlot from '@/app/components/ads/AdSlot'
+import AdCard from '@/app/components/ads/AdCard'
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   'camera-phones':  <Camera size={15} strokeWidth={1.5} />,
