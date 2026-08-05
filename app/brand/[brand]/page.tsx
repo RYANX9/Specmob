@@ -24,6 +24,8 @@ import { formatDisplayPrice } from '@/lib/price'
 import { parseFilterParams, serializeFilterParams } from '@/lib/filterParams'
 import { featureTagLabel } from '@/lib/featureTags'
 
+import AdSlot from '@/app/components/ads/AdSlot'
+
 interface BrandStats {
   brand: string
   total_phones: number
@@ -518,6 +520,9 @@ function BrandPageContent() {
         <div ref={gridRef} id="brand-grid" style={{ display: 'grid', gap: 32, alignItems: 'start' }} className="brand-grid-layout">
           <div className="brand-filter-sidebar">
             <FilterPanel filters={filters} onChange={handleFiltersChange} onReset={handleReset} showBrandFilter={false} />
+            <div style={{ marginTop: 20 }}>
+              <AdSlot placement="skyscraper" />
+            </div>
           </div>
 
           <div>
