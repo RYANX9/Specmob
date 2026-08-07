@@ -66,3 +66,26 @@ export function tierForPrice(price: number | null | undefined): PriceTier | null
   if (price == null) return null
   return PRICE_TIERS.find(t => price >= t.min && (t.max == null || price <= t.max)) ?? null
 }
+
+// Single source of truth for point-price padding, mirrored server-side in
+// recommend_service.py:resolve_point_price_bounds. Used whenever a
+// dragged/typed value collapses to one number rather than an explicit
+// two-sided range.
+export const POINT_PRICE_LOW_PAD = 0.15
+export const POINT_PRICE_HIGH_PAD = 0.10
+
+export function pointPriceBounds(value: number): { min: number; max: number } {
+  return {
+    min: Math.round(value * (1 - POINT_PRICE_LOW_PAD)),
+    max: Math.round(value * (1 + POINT_PRICE_HIGH_PAD)),
+  }
+}
+
+// Matches WIDE_RANGE_RATIO server-side — a custom range this narrow is
+// treated as one number, not real min/max intent.
+const WIDE_RANGE_RATIO = 1.5
+
+export function isWideRange(min: number, max: number): boolean {
+  if (min <= 0) return false
+  return max / min >= WIDE_RANGE_RATIO
+}
