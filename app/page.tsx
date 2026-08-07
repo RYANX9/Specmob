@@ -28,6 +28,9 @@ import { formatDisplayPrice } from '@/lib/price'
 
 import AdSlot from '@/app/components/ads/AdSlot'
 import AdCard from '@/app/components/ads/AdCard'
+// AFTER — the dragged value drives the query directly; `tier` stays
+// purely for the "that's upper mid-range territory" label.
+import { pointPriceBounds } from '@/lib/priceTiers'
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   'camera-phones':  <Camera size={15} strokeWidth={1.5} />,
@@ -236,9 +239,12 @@ function PriceDial() {
     setPreviewLoading(true)
 
     const request = priorityKey
-      ? api.phones.recommend({ min_price: tier.min, max_price: tier.max, priorities: priorityKey, limit: 2 }, controller.signal)
+    const { min: dialMin, max: dialMax } = pointPriceBounds(value)
+    
+    const request = priorityKey
+      ? api.phones.recommend({ min_price: dialMin, max_price: dialMax, priorities: priorityKey, limit: 2 }, controller.signal)
           .then(d => d.phones)
-      : api.phones.search({ min_price: tier.min, max_price: tier.max, sort_by: 'antutu_score', sort_order: 'desc', page_size: 2 }, controller.signal)
+      : api.phones.search({ min_price: dialMin, max_price: dialMax, sort_by: 'antutu_score', sort_order: 'desc', page_size: 2 }, controller.signal)
           .then(d => d.results)
 
     request
