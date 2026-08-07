@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import Navbar from '@/app/components/Navbar'
@@ -77,7 +78,9 @@ function Bullets({ items }: { items: React.ReactNode[] }) {
 export default function TermsPage() {
   return (
     <div style={{ minHeight: '100vh', background: c.bg }}>
-      <Navbar />
+      <Suspense fallback={null}>
+        <Navbar />
+      </Suspense>
 
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 var(--page-px) 80px' }}>
         <nav style={{ padding: '16px 0 0', fontSize: 13, color: c.text3, display: 'flex', alignItems: 'center', gap: 6 }}>
