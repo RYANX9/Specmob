@@ -21,6 +21,7 @@ import type { Phone } from '@/lib/types'
 import { formatDisplayPrice } from '@/lib/price'
 
 import { valueScoreColor } from '@/lib/valueScore'
+import { getPriceTier, isWideRange, pointPriceBounds, tierForPrice } from '@/lib/priceTiers'
 
 import AdSlot from '@/app/components/ads/AdSlot'
 
@@ -705,18 +706,31 @@ function PickPageContent() {
 
   const activeTier = tierId ? getPriceTier(tierId) : null
 
+  
   const fetchResults = useCallback(async () => {
     let minPrice: number | undefined
     let maxPrice: number | undefined
-
+  
     if (tierId) {
+      // Explicit bucket choice — fixed tier bounds, unchanged.
       const t = getPriceTier(tierId)
       minPrice = t.min
       maxPrice = t.max
     } else if (customRangeValid) {
-      minPrice = Number(customMin)
-      maxPrice = Number(customMax)
+      const rawMin = Number(customMin)
+      const rawMax = Number(customMax)
+      if (isWideRange(rawMin, rawMax)) {
+        // Real two-sided intent — send as-is, backend applies max-weighted bias.
+        minPrice = rawMin
+        maxPrice = rawMax
+      } else {
+        // Narrow range collapses to a point, same rule as the dial.
+        const bounds = pointPriceBounds(rawMax)
+        minPrice = bounds.min
+        maxPrice = bounds.max
+      }
     }
+
 
     const priorityList = Array.from(priorities)
     if (priorityList.length === 0) return
@@ -785,7 +799,10 @@ function PickPageContent() {
 
   const compareIds = comparePhones.map(p => p.id)
 
-  const resultsTier: ReturnType<typeof getPriceTier> = activeTier ?? {
+  const effectiveMaxForLabel = recommendMeta?.effectiveMax ?? (customRangeValid ? Number(customMax) : undefined)
+  const derivedTier = tierForPrice(effectiveMaxForLabel)
+  
+  const resultsTier: ReturnType<typeof getPriceTier> = activeTier ?? derivedTier ?? {
     id: 'b',
     label: 'Custom',
     name: 'Custom Range',
