@@ -234,11 +234,13 @@ function PriceDial() {
   // Live preview: re-fetched only when the tier boundary or the priority
   // set changes, not on every pixel of drag — cheap and always in sync
   // with what the results step would actually return.
+  // Live preview: re-fetched only when the tier boundary or the priority
+  // set changes, not on every pixel of drag — cheap and always in sync
+  // with what the results step would actually return.
   useEffect(() => {
     const controller = new AbortController()
     setPreviewLoading(true)
 
-    const request = priorityKey
     const { min: dialMin, max: dialMax } = pointPriceBounds(value)
     
     const request = priorityKey
@@ -253,7 +255,7 @@ function PriceDial() {
       .finally(() => { if (!controller.signal.aborted) setPreviewLoading(false) })
 
     return () => controller.abort()
-  }, [tier.id, priorityKey])
+  }, [value, priorityKey])
 
   const togglePriority = (id: string) => {
     setPriorities(prev => {
@@ -266,10 +268,15 @@ function PriceDial() {
 
   const ready = touched && priorities.size >= 2
 
+  // AFTER — pass the actual dragged value as a custom range, not a tier id,
+  // so /pick uses the real number instead of snapping to the tier bucket.
   const handleGo = () => {
+    const { min, max } = pointPriceBounds(value)
     const params = new URLSearchParams()
     params.set('step', '3')
-    params.set('tier', tier.id)
+    params.set('tier', 'custom')
+    params.set('min', String(min))
+    params.set('max', String(max))
     params.set('p', Array.from(priorities).join(','))
     router.push(`/pick?${params.toString()}`)
   }
