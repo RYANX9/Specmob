@@ -21,7 +21,7 @@ import type { Phone } from '@/lib/types'
 import { formatDisplayPrice } from '@/lib/price'
 
 import { valueScoreColor } from '@/lib/valueScore'
-import { getPriceTier, isWideRange, pointPriceBounds, tierForPrice } from '@/lib/priceTiers'
+import { isWideRange, pointPriceBounds, tierForPrice } from '@/lib/priceTiers'
 
 import AdSlot from '@/app/components/ads/AdSlot'
 
