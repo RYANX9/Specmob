@@ -11,6 +11,7 @@ import { ROUTES, brandSlug, phoneSlug } from '@/lib/config'
 import { c, f, r } from '@/lib/tokens'
 import { formatDisplayPrice } from '@/lib/price'
 import { valueScoreColor } from '@/lib/valueScore'
+import { SimilarCard } from '@/app/components/phone-detail/PhoneOverview'
 import type { Phone, TradeInResponse, TradeInRequest } from '@/lib/types'
 
 const SCREEN_OPTIONS = [
@@ -265,49 +266,143 @@ function ScoreBar({ label, value, max }: { label: string; value: number; max: nu
   )
 }
 
+function BudgetRecommendations({ result }: { result: TradeInResponse }) {
+  const [extraBudgetInput, setExtraBudgetInput] = useState('')
+  const [extraBudget, setExtraBudget] = useState(0)
+  const [recs, setRecs] = useState<Phone[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const baseLow = result.estimated_range.low
+  const baseHigh = result.estimated_range.high
+  const minPrice = Math.round(baseLow * 0.95)
+  const maxPrice = Math.round((baseHigh + extraBudget) * 1.05)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    setLoading(true)
+    api.phones.search(
+      {
+        min_price: minPrice,
+        max_price: maxPrice,
+        sort_by: 'antutu_score',
+        sort_order: 'desc',
+        page_size: 6,
+      },
+      controller.signal,
+    )
+      .then(res => { if (!controller.signal.aborted) setRecs(res.results) })
+      .catch(() => { if (!controller.signal.aborted) setRecs([]) })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false) })
+    return () => controller.abort()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [minPrice, maxPrice])
+
+  const handleApply = (e: React.FormEvent) => {
+    e.preventDefault()
+    const n = Number(extraBudgetInput)
+    setExtraBudget(Number.isFinite(n) && n > 0 ? n : 0)
+  }
+
+  return (
+    <section style={{ marginTop: 44, maxWidth: 900, marginLeft: 'auto', marginRight: 'auto' }}>
+      <div style={{ textAlign: 'center', marginBottom: 18 }}>
+        <h2 style={{ fontFamily: f.serif, fontSize: 22, color: c.text1, marginBottom: 6 }}>
+          Phones you could get instead
+        </h2>
+        <p style={{ fontSize: 13, color: c.text3 }}>
+          ${minPrice.toLocaleString()}–${maxPrice.toLocaleString()} range, based on your estimate
+          {extraBudget > 0 ? ` plus $${extraBudget.toLocaleString()} you're adding` : ''}.
+        </p>
+      </div>
+
+      <form onSubmit={handleApply} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, marginBottom: 24 }}>
+        <span style={{ fontSize: 13, color: c.text2 }}>Willing to add on top:</span>
+        <div style={{ position: 'relative' }}>
+          <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: c.text3, fontSize: 13 }}>$</span>
+          <input
+            type="number"
+            min={0}
+            value={extraBudgetInput}
+            onChange={e => setExtraBudgetInput(e.target.value)}
+            placeholder="0"
+            style={{ width: 120, height: 38, padding: '0 12px 0 22px', border: `1px solid ${c.border}`, borderRadius: r.sm, fontSize: 13, color: c.text1 }}
+          />
+        </div>
+        <button
+          type="submit"
+          style={{ padding: '0 18px', height: 38, background: c.primary, color: '#fff', borderRadius: r.sm, fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer' }}
+        >
+          Apply
+        </button>
+      </form>
+
+      {loading ? (
+        <div style={{ display: 'flex', gap: 14, justifyContent: 'center' }}>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="skeleton" style={{ width: 156, height: 200, borderRadius: r.md }} />
+          ))}
+        </div>
+      ) : recs.length === 0 ? (
+        <p style={{ textAlign: 'center', fontSize: 13, color: c.text3 }}>No phones found in this range.</p>
+      ) : (
+        <div
+          className="scrollbar-none"
+          style={{ display: 'flex', gap: 14, overflowX: 'auto', justifyContent: recs.length <= 4 ? 'center' : 'flex-start', paddingBottom: 4 }}
+        >
+          {recs.map(p => <SimilarCard key={p.id} phone={p} />)}
+        </div>
+      )}
+    </section>
+  )
+}
+
 function ResultsView({ phone, result, onRestart }: { phone: Phone; result: TradeInResponse; onRestart: () => void }) {
   const b = result.score_breakdown
   return (
-    <div style={{ maxWidth: 640, margin: '0 auto' }}>
-      <div style={{ textAlign: 'center', marginBottom: 28 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: c.text3, marginBottom: 8 }}>
-          Estimated trade-in value
-        </div>
-        <div style={{ fontFamily: f.serif, fontSize: 44, color: c.text1, letterSpacing: '-1px' }}>
-          ${result.estimated_range.low.toLocaleString()} – ${result.estimated_range.high.toLocaleString()}
-        </div>
-        <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 14px', background: 'var(--accent-light)', border: '1px solid var(--accent-border)', borderRadius: r.full, fontSize: 12, fontWeight: 600, color: c.accent }}>
-          {CONDITION_LABEL[result.condition_tier]} condition
-        </div>
-      </div>
-
-      <div style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: r.lg, padding: '22px 24px', marginBottom: 20 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: c.text3, marginBottom: 14 }}>
-          Score breakdown ({b.normalized}/100)
-        </div>
-        <ScoreBar label="Screen" value={b.screen} max={30} />
-        <ScoreBar label="Body and frame" value={b.body} max={20} />
-        <ScoreBar label="Battery" value={b.battery} max={25} />
-        <ScoreBar label="Functional checklist" value={b.functional} max={25} />
-        {b.brand_bonus > 0 && (
-          <div style={{ fontSize: 12, color: 'var(--green)', marginTop: 8 }}>
-            + {b.brand_bonus} points brand residual-value bonus
+    <div style={{ maxWidth: 900, margin: '0 auto' }}>
+      <div style={{ maxWidth: 640, margin: '0 auto' }}>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: c.text3, marginBottom: 8 }}>
+            Estimated trade-in value
           </div>
-        )}
+          <div style={{ fontFamily: f.serif, fontSize: 44, color: c.text1, letterSpacing: '-1px' }}>
+            ${result.estimated_range.low.toLocaleString()} – ${result.estimated_range.high.toLocaleString()}
+          </div>
+          <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 14px', background: 'var(--accent-light)', border: '1px solid var(--accent-border)', borderRadius: r.full, fontSize: 12, fontWeight: 600, color: c.accent }}>
+            {CONDITION_LABEL[result.condition_tier]} condition
+          </div>
+        </div>
+
+        <div style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: r.lg, padding: '22px 24px', marginBottom: 20 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: c.text3, marginBottom: 14 }}>
+            Score breakdown ({b.normalized}/100)
+          </div>
+          <ScoreBar label="Screen" value={b.screen} max={30} />
+          <ScoreBar label="Body and frame" value={b.body} max={20} />
+          <ScoreBar label="Battery" value={b.battery} max={25} />
+          <ScoreBar label="Functional checklist" value={b.functional} max={25} />
+          {b.brand_bonus > 0 && (
+            <div style={{ fontSize: 12, color: 'var(--green)', marginTop: 8 }}>
+              + {b.brand_bonus} points brand residual-value bonus
+            </div>
+          )}
+        </div>
+
+        <div style={{ fontSize: 12, color: c.text3, textAlign: 'center', marginBottom: 28, lineHeight: 1.6 }}>
+          Based on a tracked price of {formatDisplayPrice(phone)} for this model, with a {Math.round(result.deduction_range.low_pct * 100)}–{Math.round(result.deduction_range.high_pct * 100)}% deduction applied for {CONDITION_LABEL[result.condition_tier].toLowerCase()} condition.
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <button onClick={onRestart} style={{ padding: '10px 22px', border: `1px solid ${c.border}`, borderRadius: r.full, background: 'transparent', color: c.text2, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+            Value another phone
+          </button>
+          <Link href={ROUTES.pick} style={{ padding: '10px 22px', background: c.primary, color: '#fff', borderRadius: r.full, fontSize: 13, fontWeight: 600 }}>
+            Shop upgrades
+          </Link>
+        </div>
       </div>
 
-      <div style={{ fontSize: 12, color: c.text3, textAlign: 'center', marginBottom: 28, lineHeight: 1.6 }}>
-        Based on a tracked price of {formatDisplayPrice(phone)} for this model, with a {Math.round(result.deduction_range.low_pct * 100)}–{Math.round(result.deduction_range.high_pct * 100)}% deduction applied for {CONDITION_LABEL[result.condition_tier].toLowerCase()} condition.
-      </div>
-
-      <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-        <button onClick={onRestart} style={{ padding: '10px 22px', border: `1px solid ${c.border}`, borderRadius: r.full, background: 'transparent', color: c.text2, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
-          Value another phone
-        </button>
-        <Link href={ROUTES.pick} style={{ padding: '10px 22px', background: c.primary, color: '#fff', borderRadius: r.full, fontSize: 13, fontWeight: 600 }}>
-          Shop upgrades
-        </Link>
-      </div>
+      <BudgetRecommendations result={result} />
     </div>
   )
 }
