@@ -11,6 +11,7 @@ const COLS = [
       { label: 'All Phones',     href: ROUTES.home },
       { label: 'Compare',        href: '/compare' },
       { label: 'Help Me Choose', href: ROUTES.pick },
+      { label: 'Trade-in', href: '/trade-in' },
     ],
   },
   {
