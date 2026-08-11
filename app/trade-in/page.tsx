@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, Suspense } from 'react'
 import Link from 'next/link'
-import { Smartphone, Search, ArrowRight, ArrowLeft, Check, Loader2 } from 'lucide-react'
+import { Smartphone, Search, ArrowRight, ArrowLeft, Check, Loader2, GitCompare } from 'lucide-react'
 import Navbar from '@/app/components/Navbar'
 import Footer from '@/app/components/Footer'
 import { useToast } from '@/app/components/Toast'
@@ -43,6 +43,44 @@ const CONDITION_LABEL: Record<TradeInResponse['condition_tier'], string> = {
   good: 'Good',
   fair: 'Fair',
   poor: 'Poor',
+}
+
+// ─── selected phone chip ────────────────────────────────────────────────────
+// Persistent across the condition form and the results view — the phone
+// the user picked should never scroll out of context or require them to
+// re-search if they want to switch.
+
+function SelectedPhoneChip({ phone, onChange }: { phone: Phone; onChange: () => void }) {
+  const [imgErr, setImgErr] = useState(false)
+  return (
+    <div
+      style={{
+        display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px',
+        background: c.surface, border: `1px solid ${c.border}`, borderRadius: r.md,
+        marginBottom: 28,
+      }}
+    >
+      <div style={{ width: 56, height: 56, background: c.bg, borderRadius: r.md, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        {phone.main_image_url && !imgErr
+          ? <img src={phone.main_image_url} alt="" onError={() => setImgErr(true)} style={{ width: 44, height: 44, objectFit: 'contain' }} />
+          : <Smartphone size={26} color={c.border} strokeWidth={1.5} />}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: f.serif, fontSize: 18, color: c.text1 }}>{phone.model_name}</div>
+        <div style={{ fontSize: 12, color: c.text3, marginTop: 2 }}>
+          {phone.brand} · Tracked price: {formatDisplayPrice(phone)}
+        </div>
+      </div>
+      <button
+        onClick={onChange}
+        style={{ fontSize: 12, fontWeight: 600, color: c.accent, background: 'none', border: 'none', cursor: 'pointer', padding: '6px 10px', borderRadius: r.sm, flexShrink: 0 }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)' }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+      >
+        Change phone
+      </button>
+    </div>
+  )
 }
 
 function PhonePicker({ onSelect }: { onSelect: (p: Phone) => void }) {
@@ -147,10 +185,8 @@ function OptionGroup<T extends string>({
 }
 
 function ConditionForm({
-  phone, onBack, onSubmit, submitting,
+  onSubmit, submitting,
 }: {
-  phone: Phone
-  onBack: () => void
   onSubmit: (payload: Omit<TradeInRequest, 'phone_id'>) => void
   submitting: boolean
 }) {
@@ -172,18 +208,6 @@ function ConditionForm({
 
   return (
     <div style={{ maxWidth: 680, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 32, padding: '14px 18px', background: c.surface, border: `1px solid ${c.border}`, borderRadius: r.md }}>
-        <div style={{ width: 44, height: 44, background: c.bg, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          {phone.main_image_url
-            ? <img src={phone.main_image_url} alt="" style={{ width: 36, height: 36, objectFit: 'contain' }} />
-            : <Smartphone size={20} color={c.border} />}
-        </div>
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: c.text1 }}>{phone.model_name}</div>
-          <div style={{ fontSize: 12, color: c.text3 }}>{phone.brand} · Tracked price: {formatDisplayPrice(phone)}</div>
-        </div>
-      </div>
-
       <section style={{ marginBottom: 28 }}>
         <h3 style={{ fontFamily: f.serif, fontSize: 18, color: c.text1, marginBottom: 12 }}>Screen condition</h3>
         <OptionGroup options={SCREEN_OPTIONS} selected={screen} onSelect={setScreen} />
@@ -225,10 +249,7 @@ function ConditionForm({
         </div>
       </section>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '11px 20px', border: `1px solid ${c.border}`, borderRadius: r.full, background: 'transparent', color: c.text2, fontSize: 14, cursor: 'pointer' }}>
-          <ArrowLeft size={15} /> Change phone
-        </button>
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <button
           disabled={!canSubmit || submitting}
           onClick={() => onSubmit({
@@ -266,7 +287,33 @@ function ScoreBar({ label, value, max }: { label: string; value: number; max: nu
   )
 }
 
-function BudgetRecommendations({ result }: { result: TradeInResponse }) {
+// ─── recommendation card ─────────────────────────────────────────────────────
+// Wraps SimilarCard with a Compare CTA that sends both phones straight into
+// the existing /compare/[phones] route, since that page already resolves
+// slugs and fetches the full-detail spec table server-side.
+
+function RecommendationCard({ original, phone }: { original: Phone; phone: Phone }) {
+  return (
+    <div style={{ flexShrink: 0, width: 156, display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <SimilarCard phone={phone} />
+      <Link
+        href={ROUTES.compare(phoneSlug(original), phoneSlug(phone))}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          padding: '7px 0', fontSize: 12, fontWeight: 600, color: c.text2,
+          border: `1px solid ${c.border}`, borderRadius: r.full, textDecoration: 'none',
+          transition: 'all 0.15s',
+        }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = c.primary; (e.currentTarget as HTMLElement).style.color = c.text1 }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = c.border; (e.currentTarget as HTMLElement).style.color = c.text2 }}
+      >
+        <GitCompare size={12} /> vs {original.model_name.split(' ').slice(-1)[0]}
+      </Link>
+    </div>
+  )
+}
+
+function BudgetRecommendations({ phone, result }: { phone: Phone; result: TradeInResponse }) {
   const [extraBudgetInput, setExtraBudgetInput] = useState('')
   const [extraBudget, setExtraBudget] = useState(0)
   const [recs, setRecs] = useState<Phone[]>([])
@@ -339,7 +386,7 @@ function BudgetRecommendations({ result }: { result: TradeInResponse }) {
       {loading ? (
         <div style={{ display: 'flex', gap: 14, justifyContent: 'center' }}>
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="skeleton" style={{ width: 156, height: 200, borderRadius: r.md }} />
+            <div key={i} className="skeleton" style={{ width: 156, height: 236, borderRadius: r.md }} />
           ))}
         </div>
       ) : recs.length === 0 ? (
@@ -349,7 +396,7 @@ function BudgetRecommendations({ result }: { result: TradeInResponse }) {
           className="scrollbar-none"
           style={{ display: 'flex', gap: 14, overflowX: 'auto', justifyContent: recs.length <= 4 ? 'center' : 'flex-start', paddingBottom: 4 }}
         >
-          {recs.map(p => <SimilarCard key={p.id} phone={p} />)}
+          {recs.map(p => <RecommendationCard key={p.id} original={phone} phone={p} />)}
         </div>
       )}
     </section>
@@ -402,7 +449,7 @@ function ResultsView({ phone, result, onRestart }: { phone: Phone; result: Trade
         </div>
       </div>
 
-      <BudgetRecommendations result={result} />
+      <BudgetRecommendations phone={phone} result={result} />
     </div>
   )
 }
@@ -412,6 +459,7 @@ function TradeInContent() {
   const [phone, setPhone] = useState<Phone | null>(null)
   const [result, setResult] = useState<TradeInResponse | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const resultRef = useRef<HTMLDivElement>(null)
 
   const handleSubmit = async (payload: Omit<TradeInRequest, 'phone_id'>) => {
     if (!phone) return
@@ -419,6 +467,10 @@ function TradeInContent() {
     try {
       const res = await api.tradein.estimate({ phone_id: phone.id, ...payload })
       setResult(res)
+      // Estimate lands below the fold after a long condition form — jump the
+      // viewport back to the top of the page so the result is what the user
+      // actually sees, instead of leaving them scrolled to the submit button.
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch {
       toast('Could not calculate a trade-in estimate', 'error')
     } finally {
@@ -427,11 +479,12 @@ function TradeInContent() {
   }
 
   const restart = () => { setPhone(null); setResult(null) }
+  const changePhone = () => { setPhone(null); setResult(null) }
 
   return (
     <div style={{ minHeight: '100vh', background: c.bg }}>
       <Navbar />
-      <main style={{ maxWidth: 900, margin: '0 auto', padding: '48px 20px 80px' }}>
+      <main ref={resultRef} style={{ maxWidth: 900, margin: '0 auto', padding: '48px 20px 80px' }}>
         <div style={{ textAlign: 'center', marginBottom: 40 }}>
           <h1 style={{ fontFamily: f.serif, fontSize: 'clamp(28px, 5vw, 40px)', color: c.text1, letterSpacing: '-0.5px', marginBottom: 8 }}>
             What's your phone worth?
@@ -441,8 +494,14 @@ function TradeInContent() {
 
         {!phone && <PhonePicker onSelect={setPhone} />}
 
+        {phone && (
+          <div style={{ maxWidth: 680, margin: '0 auto' }}>
+            <SelectedPhoneChip phone={phone} onChange={changePhone} />
+          </div>
+        )}
+
         {phone && !result && (
-          <ConditionForm phone={phone} onBack={restart} onSubmit={handleSubmit} submitting={submitting} />
+          <ConditionForm onSubmit={handleSubmit} submitting={submitting} />
         )}
 
         {phone && result && (
