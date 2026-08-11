@@ -759,8 +759,7 @@ function HomeContent() {
 
       {!catalogOpen ? (
         <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '52px var(--page-px) 8px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-            <div style={{ flex: 1, height: 1, background: c.border }} />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 24, flexWrap: 'wrap' }}>
             <button
               onClick={() => { setCatalogOpen(true); setTimeout(() => document.getElementById('catalog')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50) }}
               style={{
@@ -774,7 +773,19 @@ function HomeContent() {
             >
               <Search size={13} /> Prefer to search the full catalog yourself
             </button>
-            <div style={{ flex: 1, height: 1, background: c.border }} />
+            <Link
+              href="/trade-in"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                fontSize: 12.5, fontWeight: 600, color: c.text3,
+                textTransform: 'uppercase', letterSpacing: '0.6px', padding: '6px 4px',
+                transition: 'color 150ms ease',
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = c.text1 }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = c.text3 }}
+            >
+              <RotateCcw size={13} /> Got a phone to trade in?
+            </Link>
           </div>
         </div>
       ) : (
