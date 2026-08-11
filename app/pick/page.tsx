@@ -16,14 +16,11 @@ import { api } from '@/lib/api'
 import { ROUTES, phoneSlug, brandSlug, MAX_COMPARE } from '@/lib/config'
 import { resolveDisplayPrice } from '@/lib/price'
 import { PRICE_TIERS, getPriceTier, type PriceTierId } from '@/lib/priceTiers'
-import { c, z } from '@/lib/tokens'
+import { c, r, z } from '@/lib/tokens'
 import type { Phone } from '@/lib/types'
 import { formatDisplayPrice } from '@/lib/price'
 
 import { valueScoreColor } from '@/lib/valueScore'
-import { isWideRange, pointPriceBounds, tierForPrice } from '@/lib/priceTiers'
-
-import AdSlot from '@/app/components/ads/AdSlot'
 
 const STEPS = [
   { num: 1, label: 'Tier' },
@@ -531,8 +528,118 @@ function ResultCard({
   )
 }
 
+// ─── editable price summary ──────────────────────────────────────────────────
+// Shows the price range actually driving the results (whether it came from
+// a tier click on Step 1, a custom min/max, or the home page's drag dial via
+// tier=custom&min=&max=). "Change price" reveals two inputs inline so the
+// user can adjust and re-run the match without leaving Step 3.
+
+function PriceSummary({
+  tier, onPriceChange,
+}: {
+  tier: ReturnType<typeof getPriceTier>
+  onPriceChange: (min: number, max: number) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [minInput, setMinInput] = useState(String(tier.min))
+  const [maxInput, setMaxInput] = useState(tier.max != null ? String(tier.max) : '2000')
+
+  // Keep the inputs in sync if the tier changes from outside (e.g. user
+  // navigated back to Step 1 and picked a different tier, then returned).
+  useEffect(() => {
+    setMinInput(String(tier.min))
+    setMaxInput(tier.max != null ? String(tier.max) : '2000')
+  }, [tier.min, tier.max])
+
+  const priceLabel = tier.max != null
+    ? `$${tier.min.toLocaleString()}–$${tier.max.toLocaleString()}`
+    : `$${tier.min.toLocaleString()}+`
+
+  const apply = () => {
+    const min = Number(minInput)
+    const max = Number(maxInput)
+    if (!Number.isFinite(min) || !Number.isFinite(max) || min < 0 || max <= min) return
+    onPriceChange(min, max)
+    setEditing(false)
+  }
+
+  if (!editing) {
+    return (
+      <div style={{
+        background: c.bg, padding: '14px 18px', borderRadius: 'var(--r-md)',
+        textAlign: 'center', fontSize: 14, color: c.text2, marginBottom: 16,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, flexWrap: 'wrap',
+      }}>
+        <span style={{
+          fontSize: 10, fontWeight: 800, letterSpacing: '0.4px',
+          color: TIER_COLOR[tier.id], padding: '2px 8px',
+          background: `${TIER_COLOR[tier.id]}18`, borderRadius: 'var(--r-full)',
+        }}>
+          {tier.label}
+        </span>
+        <strong style={{ color: c.text1 }}>{priceLabel}</strong>
+        <button
+          onClick={() => setEditing(true)}
+          style={{ fontSize: 12, fontWeight: 600, color: c.accent, background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}
+        >
+          Change price
+        </button>
+      </div>
+    )
+  }
+
+  const invalid = minInput !== '' && maxInput !== '' && Number(maxInput) <= Number(minInput)
+
+  return (
+    <div style={{
+      background: c.bg, padding: '14px 18px', borderRadius: 'var(--r-md)',
+      marginBottom: 16,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 13, color: c.text2 }}>$</span>
+        <input
+          type="number" min={0} value={minInput}
+          onChange={e => setMinInput(e.target.value)}
+          aria-label="Minimum price"
+          style={{ width: 90, padding: '7px 10px', border: `1px solid ${c.border}`, borderRadius: r.sm, fontSize: 13, color: c.text1 }}
+        />
+        <span style={{ fontSize: 13, color: c.text3 }}>to</span>
+        <span style={{ fontSize: 13, color: c.text2 }}>$</span>
+        <input
+          type="number" min={0} value={maxInput}
+          onChange={e => setMaxInput(e.target.value)}
+          aria-label="Maximum price"
+          style={{ width: 90, padding: '7px 10px', border: `1px solid ${c.border}`, borderRadius: r.sm, fontSize: 13, color: c.text1 }}
+        />
+        <button
+          onClick={apply}
+          disabled={invalid}
+          style={{
+            padding: '7px 16px', background: invalid ? c.border : c.primary, color: '#fff',
+            borderRadius: r.sm, fontSize: 13, fontWeight: 600, border: 'none',
+            cursor: invalid ? 'not-allowed' : 'pointer',
+          }}
+        >
+          Apply
+        </button>
+        <button
+          onClick={() => setEditing(false)}
+          style={{ padding: '7px 12px', background: 'transparent', color: c.text3, border: 'none', fontSize: 13, cursor: 'pointer' }}
+        >
+          Cancel
+        </button>
+      </div>
+      {invalid && (
+        <p style={{ textAlign: 'center', fontSize: 12, color: c.accent, marginTop: 8 }}>
+          Max must be greater than min.
+        </p>
+      )}
+    </div>
+  )
+}
+
 function StepResults({
-  phones, priorities, tier, onCompare, compareIds, meta,
+  phones, priorities, tier, onCompare, compareIds, meta, onPriceChange,
 }: {
   phones: (Phone & { match_score?: number; in_requested_budget?: boolean | null })[]
   priorities: string[]
@@ -545,6 +652,7 @@ function StepResults({
     effectiveMin: number | null
     effectiveMax: number | null
   } | null
+  onPriceChange: (min: number, max: number) => void
 }) {
   const priorityLabels = priorities.map(id => PRIORITIES.find(p => p.id === id)?.label ?? id)
 
@@ -560,20 +668,13 @@ function StepResults({
         <p style={{ fontSize: 15, color: c.text3 }}>Step 3 of 3</p>
       </div>
 
-      <div style={{
-        background: c.bg, padding: '14px 18px', borderRadius: 'var(--r-md)',
-        textAlign: 'center', fontSize: 14, color: c.text2, marginBottom: 16,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap',
-      }}>
-        <span style={{
-          fontSize: 10, fontWeight: 800, letterSpacing: '0.4px',
-          color: TIER_COLOR[tier.id], padding: '2px 8px',
-          background: `${TIER_COLOR[tier.id]}18`, borderRadius: 'var(--r-full)',
-        }}>
-          {tier.label}
-        </span>
-        <span><strong style={{ color: c.text1 }}>{tier.name}</strong> · {priorityLabels.join(' · ')}</span>
-      </div>
+      <PriceSummary tier={tier} onPriceChange={onPriceChange} />
+
+      {priorityLabels.length > 0 && (
+        <div style={{ textAlign: 'center', fontSize: 13, color: c.text3, marginBottom: 16 }}>
+          Matched on <strong style={{ color: c.text2 }}>{priorityLabels.join(' · ')}</strong>
+        </div>
+      )}
 
       {meta?.insufficientMatches && phones.length > 0 && (
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 16px', background: 'rgba(231,111,81,0.06)', border: '1px solid rgba(231,111,81,0.15)', borderRadius: 'var(--r-md)', marginBottom: 16 }}>
@@ -706,32 +807,10 @@ function PickPageContent() {
 
   const activeTier = tierId ? getPriceTier(tierId) : null
 
-  
-  const fetchResults = useCallback(async () => {
-    let minPrice: number | undefined
-    let maxPrice: number | undefined
-  
-    if (tierId) {
-      // Explicit bucket choice — fixed tier bounds, unchanged.
-      const t = getPriceTier(tierId)
-      minPrice = t.min
-      maxPrice = t.max
-    } else if (customRangeValid) {
-      const rawMin = Number(customMin)
-      const rawMax = Number(customMax)
-      if (isWideRange(rawMin, rawMax)) {
-        // Real two-sided intent — send as-is, backend applies max-weighted bias.
-        minPrice = rawMin
-        maxPrice = rawMax
-      } else {
-        // Narrow range collapses to a point, same rule as the dial.
-        const bounds = pointPriceBounds(rawMax)
-        minPrice = bounds.min
-        maxPrice = bounds.max
-      }
-    }
-
-
+  // Takes explicit min/max rather than reading customMin/customMax off
+  // state, so a caller that just set new state (async) can pass the fresh
+  // values directly instead of racing a stale closure.
+  const fetchResultsWithPrice = useCallback(async (minPrice: number | undefined, maxPrice: number | undefined) => {
     const priorityList = Array.from(priorities)
     if (priorityList.length === 0) return
 
@@ -757,7 +836,23 @@ function PickPageContent() {
     } finally {
       setLoading(false)
     }
-  }, [tierId, customMin, customMax, customRangeValid, priorities, toast])
+  }, [priorities, toast])
+
+  const fetchResults = useCallback(async () => {
+    let minPrice: number | undefined
+    let maxPrice: number | undefined
+
+    if (tierId) {
+      const t = getPriceTier(tierId)
+      minPrice = t.min
+      maxPrice = t.max
+    } else if (customRangeValid) {
+      minPrice = Number(customMin)
+      maxPrice = Number(customMax)
+    }
+
+    await fetchResultsWithPrice(minPrice, maxPrice)
+  }, [tierId, customMin, customMax, customRangeValid, fetchResultsWithPrice])
 
   useEffect(() => {
     const canFetch = (tierId != null || customRangeValid) && priorities.size >= 2
@@ -766,6 +861,17 @@ function PickPageContent() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step])
+
+  // Called from the editable price control on Step 3. Editing the price
+  // always drops any preset tier — the tier badge is re-derived from the
+  // new numbers instead (see resultsTier below).
+  const handlePriceEdit = (min: number, max: number) => {
+    setTierId(null)
+    setCustomMin(String(min))
+    setCustomMax(String(max))
+    commit(step, null, String(min), String(max), priorities)
+    fetchResultsWithPrice(min, max)
+  }
 
   const goNext = () => {
     const next = Math.min(step + 1, 3)
@@ -799,10 +905,10 @@ function PickPageContent() {
 
   const compareIds = comparePhones.map(p => p.id)
 
-  const effectiveMaxForLabel = recommendMeta?.effectiveMax ?? (customRangeValid ? Number(customMax) : undefined)
-  const derivedTier = tierForPrice(effectiveMaxForLabel)
-  
-  const resultsTier: ReturnType<typeof getPriceTier> = activeTier ?? derivedTier ?? {
+  // Reflects whatever is actually driving the query right now: a preset
+  // tier, a custom range typed on Step 1, or a custom range set via the
+  // inline price editor on Step 3 (which always clears tierId).
+  const resultsTier: ReturnType<typeof getPriceTier> = activeTier ?? {
     id: 'b',
     label: 'Custom',
     name: 'Custom Range',
@@ -845,15 +951,10 @@ function PickPageContent() {
             onCompare={handleCompare}
             compareIds={compareIds}
             meta={recommendMeta}
+            onPriceChange={handlePriceEdit}
           />
         )}
 
-        {step === 3 && results.length > 0 && !loading && (
-          <div style={{ margin: '32px 0' }}>
-            <AdSlot placement="inline" />
-          </div>
-        )}
-        
         {loading && (
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
             <div style={{
