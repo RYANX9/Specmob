@@ -207,6 +207,16 @@ export const api = {
       ),
   },
 
+  tradein: {
+    estimate: (payload: TradeInRequest, signal?: AbortSignal) =>
+      req<TradeInResponse>('/tradein/estimate', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        cache: 'no-store',
+        signal,
+      }),
+  },
+  
   categories: {
     list: () =>
       req<{ categories: { slug: string; title: string; description: string }[] }>(
@@ -222,3 +232,4 @@ export const api = {
     stats: () => req<FilterStats>('/filters/stats', CACHE.stable),
   },
 }
+
