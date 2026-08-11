@@ -254,3 +254,33 @@ export type CategorySlug =
   | 'lightweight'
   | 'compact-phones'
   | 'fast-charging'
+
+export interface TradeInRequest {
+  phone_id: number
+  screen_condition: 'perfect' | 'minor_scratches' | 'deep_scratches' | 'cracked_touch_ok' | 'cracked_unresponsive'
+  body_condition: 'flawless' | 'light_wear' | 'moderate_wear' | 'heavy_wear' | 'cracked_back'
+  battery_health: number
+  battery_non_original: boolean
+  broken_components: string[]
+}
+
+export interface TradeInResponse {
+  phone_id: number
+  brand: string
+  model_name: string
+  baseline_price: number
+  price_tier_id: string
+  score_breakdown: {
+    screen: number
+    body: number
+    battery: number
+    functional: number
+    brand_bonus: number
+    raw_total: number
+    normalized: number
+  }
+  condition_tier: 'excellent' | 'good' | 'fair' | 'poor'
+  price_tier_bucket: 's' | 'ab' | 'cd'
+  deduction_range: { low_pct: number; high_pct: number }
+  estimated_range: { low: number; high: number }
+}
