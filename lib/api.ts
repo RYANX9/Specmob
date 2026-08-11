@@ -10,6 +10,8 @@ import type {
   PhoneVariant,
   RecommendResponse,
   FullSpecifications,
+  TradeInRequest, 
+  TradeInResponse,
 } from './types'
 
 export class APIError extends Error {
