@@ -12,6 +12,7 @@ export const ROUTES = {
   compare:  (...slugs: string[]) => `/compare/${slugs.join('-vs-')}`,
   category: (slug: string) => `/best/${slug}`,
   pick:     '/pick',
+  tradein: '/trade-in',
   about:    '/about',
 } as const
 
