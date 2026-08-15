@@ -1,4 +1,5 @@
 // app/support/page.tsx
+import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Server, HardDrive, Globe, Sparkles, Heart } from 'lucide-react'
@@ -28,7 +29,9 @@ export default function SupportPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: c.bg }}>
-      <Navbar />
+      <Suspense fallback={null}>
+        <Navbar />
+      </Suspense>
 
       <div style={{ maxWidth: 760, margin: '0 auto', padding: '0 var(--page-px) 80px' }}>
         <nav style={{ padding: '16px 0 0', fontSize: 13, color: c.text3 }}>
