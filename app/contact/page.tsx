@@ -7,6 +7,8 @@ import Footer from '@/app/components/Footer'
 import { c, f, r, sh } from '@/lib/tokens'
 import { TEAM, CONTACT_EMAIL } from '@/lib/team'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: 'Contact',
   description: 'Report data issues, send feedback, or reach the team behind Specmob.',
