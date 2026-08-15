@@ -7,8 +7,6 @@ import Footer from '@/app/components/Footer'
 import { c, f, r, sh } from '@/lib/tokens'
 import { TEAM, CONTACT_EMAIL } from '@/lib/team'
 
-export const dynamic = 'force-dynamic'
-
 export const metadata: Metadata = {
   title: 'Contact',
   description: 'Report data issues, send feedback, or reach the team behind Specmob.',
@@ -88,13 +86,12 @@ export default function ContactPage() {
               <a
                 key={reason.subject}
                 href={mailto(reason.subject)}
+                className="contact-card"
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   padding: '16px 18px', background: c.surface, border: `1px solid ${c.border}`,
                   borderRadius: r.md, textDecoration: 'none', transition: 'all 0.15s',
                 }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = c.primary }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = c.border }}
               >
                 <span style={{ fontSize: 14, fontWeight: 500, color: c.text1 }}>{reason.label}</span>
                 <Mail size={15} color={c.text3} strokeWidth={1.5} />
@@ -160,26 +157,24 @@ export default function ContactPage() {
                       href={link.url}
                       target="_blank"
                       rel="noopener noreferrer"
+                      className="member-link"
                       style={{
                         display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 500,
                         color: c.text2, border: `1px solid ${c.border}`, borderRadius: r.full,
                         padding: '5px 12px', textDecoration: 'none', transition: 'all 0.15s',
                       }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = c.primary; (e.currentTarget as HTMLElement).style.color = c.text1 }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = c.border; (e.currentTarget as HTMLElement).style.color = c.text2 }}
                     >
                       {linkIcon(link.label)} {link.label}
                     </a>
                   ))}
                   <a
                     href={mailto('Project inquiry')}
+                    className="hire-btn"
                     style={{
                       display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600,
                       color: '#fff', background: c.primary, borderRadius: r.full,
                       padding: '5px 12px', textDecoration: 'none', transition: 'background 0.15s',
                     }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#2A2A42' }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = c.primary }}
                   >
                     <Mail size={13} /> Hire me
                   </a>
@@ -193,6 +188,9 @@ export default function ContactPage() {
       <Footer />
 
       <style>{`
+        .contact-card:hover { border-color: ${c.primary} !important; }
+        .member-link:hover { border-color: ${c.primary} !important; color: ${c.text1} !important; }
+        .hire-btn:hover { background: #2A2A42 !important; }
         @media (max-width: 640px) {
           .contact-reason-grid { grid-template-columns: 1fr !important; }
           .team-grid { grid-template-columns: 1fr !important; }
