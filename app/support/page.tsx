@@ -7,6 +7,8 @@ import Footer from '@/app/components/Footer'
 import { c, f, r, sh } from '@/lib/tokens'
 import { COST_ITEMS, MONTHLY_GOAL_USD, MONTHLY_RAISED_USD, SUPPORT_LINKS } from '@/lib/supportData'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: 'Support Specmob',
   description: 'What it costs to run Specmob and how to help keep it free, ad-light, and unbiased.',
