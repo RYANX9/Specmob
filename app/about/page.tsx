@@ -2,7 +2,7 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Info, Mail, Sparkles, Database, ShieldCheck, Heart } from 'lucide-react'
+import { Info, Mail, Sparkles, Database, ShieldCheck, Heart, RotateCcw } from 'lucide-react'
 import Navbar from '@/app/components/Navbar'
 import Footer from '@/app/components/Footer'
 import { c, f, r, sh, mq } from '@/lib/tokens'
@@ -35,6 +35,7 @@ const jsonLd = {
 const TOC = [
   { id: 'overview', label: 'Overview' },
   { id: 'scoring', label: 'How We Score' },
+  { id: 'tools', label: 'Tools' },
   { id: 'data', label: 'Data Sources' },
   { id: 'contact', label: 'Contact' },
 ]
@@ -181,9 +182,9 @@ export default function AboutPage() {
                   </>,
                   <>
                     <strong style={{ color: c.text1 }}>Category rankings</strong> (Best Camera Phones, Best
-                    Battery Life, and so on) use the AI-scored dimension where it exists and fall back to
-                    the equivalent spec-based composite where it doesn&apos;t, so every list stays fully
-                    populated even for newer or less-covered phones.
+                    Battery Life, Foldables, and so on) use the AI-scored dimension where it exists and fall
+                    back to the equivalent spec-based composite where it doesn&apos;t, so every list stays
+                    fully populated even for newer or less-covered phones.
                   </>,
                 ].map((item, i) => (
                   <li key={i} style={{ display: 'flex', gap: 10 }}>
@@ -207,6 +208,37 @@ export default function AboutPage() {
                 We continuously refine the scoring model and chipset detection rules as new hardware
                 releases. If a score or tier looks wrong, <a href="#contact" style={{ color: 'var(--blue)', fontWeight: 600 }}>contact us</a> — we read every message.
               </Callout>
+            </Section>
+
+            <Section id="tools" icon={<RotateCcw size={16} strokeWidth={1.75} />} title="Tools">
+              <p style={{ marginBottom: 14 }}>
+                Beyond browsing and comparing, Specmob has a few purpose-built tools:
+              </p>
+              <ul style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14, paddingLeft: 0, listStyle: 'none' }}>
+                {[
+                  <>
+                    <strong style={{ color: c.text1 }}>Help Me Choose</strong> (<Link href={ROUTES.pick} style={{ color: c.accent }}>/pick</Link>) —
+                    set a budget and pick 2–3 priorities, and we rank the top 5 matching phones using the
+                    same scoring logic described above.
+                  </>,
+                  <>
+                    <strong style={{ color: c.text1 }}>Compare</strong> (<Link href={ROUTES.compare()} style={{ color: c.accent }}>/compare</Link>) —
+                    put up to 4 phones side by side with every spec, an AI-written verdict where available,
+                    and a category-by-category winner breakdown.
+                  </>,
+                  <>
+                    <strong style={{ color: c.text1 }}>Trade-In Estimator</strong> (<Link href={ROUTES.tradein} style={{ color: c.accent }}>/trade-in</Link>) —
+                    get an estimated resale range for a phone you own based on its condition, battery
+                    health, and functional state, plus recommendations for what you could upgrade to with
+                    that value.
+                  </>,
+                ].map((item, i) => (
+                  <li key={i} style={{ display: 'flex', gap: 10 }}>
+                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: c.accent, flexShrink: 0, marginTop: 8 }} />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
             </Section>
 
             <Section id="data" icon={<Database size={16} strokeWidth={1.75} />} title="Data Sources">
