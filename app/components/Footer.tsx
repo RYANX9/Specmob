@@ -34,9 +34,10 @@ const COLS = [
       { label: 'About Specmob', href: '/about' },
       { label: 'How We Score',   href: '/about#scoring' },
       { label: 'Data Sources',   href: '/about#data' },
-      { label: 'Contact',        href: '/about#contact' },
+      { label: 'Contact',        href: ROUTES.contact },
       { label: 'Privacy Policy', href: '/privacy' },
       { label: 'Terms of Use',   href: '/terms' },
+      { label: 'Support Specmob',  href: ROUTES.support },
     ],
   },
 ]
