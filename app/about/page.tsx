@@ -49,7 +49,7 @@ function TocSidebar() {
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         {TOC.map(item => (
-          
+          <a
             key={item.id}
             href={`#${item.id}`}
             style={{
