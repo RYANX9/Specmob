@@ -10,7 +10,7 @@ export interface TeamMember {
   role: string
   bio: string
   avatarUrl: string | null
-  openToWork: boolean
+  highlights: string[]
   links: TeamLink[]
 }
 
@@ -20,10 +20,10 @@ export const TEAM: TeamMember[] = [
   {
     slug: 'you',
     name: 'Your Name',
-    role: 'Founder & Full-Stack Developer',
-    bio: 'Built Specmob end to end: Next.js frontend, FastAPI backend, Postgres schema, and the AI scoring pipeline. Open to freelance and contract work.',
+    role: 'Creator, Specmob',
+    bio: 'Designed and built Specmob end to end — the catalog, the comparison and recommendation engines, the AI scoring pipeline, and the infrastructure running all of it.',
     avatarUrl: null,
-    openToWork: true,
+    highlights: ['Next.js frontend', 'FastAPI backend', 'Postgres + AI scoring pipeline', 'Built and shipped solo'],
     links: [
       { label: 'GitHub', url: 'https://github.com/yourhandle' },
       { label: 'Portfolio', url: 'https://yourportfolio.com' },
