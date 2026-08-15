@@ -26,8 +26,8 @@ const jsonLd = {
   breadcrumb: {
     '@type': 'BreadcrumbList',
     itemListElement: [
-      { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://Specmob.vercel.app' },
-      { '@type': 'ListItem', position: 2, name: 'Compare', item: 'https://Specmob.vercel.app/compare' },
+      { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://specmob.vercel.app' },
+      { '@type': 'ListItem', position: 2, name: 'Compare', item: 'https://specmob.vercel.app/compare' },
     ],
   },
 }
