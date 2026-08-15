@@ -146,67 +146,75 @@ export default function AboutPage() {
           <div>
             <Section id="scoring" icon={<Sparkles size={16} strokeWidth={1.75} />} title="How We Score">
               <p style={{ marginBottom: 14 }}>
-                Every phone on Specmob can carry two kinds of scoring, and we&apos;re upfront about which
-                one you&apos;re looking at.
+                Every phone listed on Specmob is scored by our AI pipeline before it ever reaches a
+                catalog page — there&apos;s no partial coverage and no phone showing up with an empty
+                scoring section.
               </p>
 
               <p style={{ marginBottom: 14 }}>
-                <strong style={{ color: c.text1 }}>Smart Score (AI-assisted).</strong> Where available,
-                phones are scored across six dimensions — camera, performance, battery, display, build
-                quality, and value — using an AI model that evaluates the phone&apos;s actual specifications.
-                Those six sub-scores are averaged into the single overall number shown on cards, detail
-                pages, and comparisons. That average is a fixed property of the phone itself, so the number
-                you see on a category page and the number you see on the phone&apos;s own detail page are
-                always the same — it doesn&apos;t shift depending on which page you&apos;re looking at it from.
+                <strong style={{ color: c.text1 }}>Smart Score.</strong> Each phone is scored across six
+                dimensions — camera, performance, battery, display, build quality, and value — by an AI
+                model evaluating the phone&apos;s actual specifications. Those six sub-scores are averaged
+                into the single overall number shown on cards, detail pages, and comparisons. That average
+                is a fixed property of the phone itself, so the number you see on a category page and the
+                number you see on the phone&apos;s own detail page are always the same — it never shifts
+                depending on which page you&apos;re looking at it from.
               </p>
 
               <p style={{ marginBottom: 10 }}>
-                <strong style={{ color: c.text1 }}>Fallback scoring.</strong> Not every phone has been
-                through AI scoring yet. When a smart score isn&apos;t available, we fall back to a
-                transparent, formula-based estimate:
+                <strong style={{ color: c.text1 }}>Tier system.</strong> Every phone is placed into one of
+                five market tiers as part of that same scoring pass:
               </p>
-              <ul style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14, paddingLeft: 0, listStyle: 'none' }}>
+              <div className="tier-strip" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
                 {[
-                  <>
-                    <strong style={{ color: c.text1 }}>Chipset tier</strong> (Flagship / Upper Mid-Range /
-                    Entry) is detected from the chipset name itself, matched against known flagship and
-                    upper-mid-range silicon — Snapdragon 8-series, Dimensity 9000-series, Apple A-series
-                    Bionic/Pro, Tensor, Kirin, and Exynos.
-                  </>,
-                  <>
-                    <strong style={{ color: c.text1 }}>Value score</strong> compares a phone&apos;s hardware
-                    composite (benchmark, camera resolution, battery capacity, RAM, charging speed, screen
-                    size) against a real peer group of similarly priced phones — not the entire catalog —
-                    so a budget phone is judged against other budget phones, not flagships three times the
-                    price.
-                  </>,
-                  <>
-                    <strong style={{ color: c.text1 }}>Category rankings</strong> (Best Camera Phones, Best
-                    Battery Life, Foldables, and so on) use the AI-scored dimension where it exists and fall
-                    back to the equivalent spec-based composite where it doesn&apos;t, so every list stays
-                    fully populated even for newer or less-covered phones.
-                  </>,
-                ].map((item, i) => (
-                  <li key={i} style={{ display: 'flex', gap: 10 }}>
-                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: c.accent, flexShrink: 0, marginTop: 8 }} />
-                    <span>{item}</span>
-                  </li>
+                  { label: 'Ultra Flagship', color: '#C9A84C' },
+                  { label: 'Flagship', color: 'var(--accent)' },
+                  { label: 'Upper Mid-Range', color: 'var(--blue)' },
+                  { label: 'Mid-Range', color: 'var(--blue)' },
+                  { label: 'Budget', color: 'var(--text-2)' },
+                ].map(t => (
+                  <span key={t.label} style={{
+                    fontSize: 12, fontWeight: 600, color: t.color,
+                    padding: '4px 12px', borderRadius: r.full,
+                    background: `${t.color}15`, border: `1px solid ${t.color}30`,
+                  }}>
+                    {t.label}
+                  </span>
                 ))}
-              </ul>
+              </div>
+              <p style={{ marginBottom: 14 }}>
+                Tier placement weighs the AI-assigned tier first, and where that&apos;s absent, falls back
+                to detecting the tier from the chipset itself — matched against known flagship and
+                upper-mid-range silicon: Snapdragon 8-series, Dimensity 9000-series, Apple A-series
+                Bionic/Pro, Tensor, Kirin, and Exynos.
+              </p>
+
+              <p style={{ marginBottom: 14 }}>
+                <strong style={{ color: c.text1 }}>Value score.</strong> Compares a phone&apos;s hardware
+                composite (benchmark, camera resolution, battery capacity, RAM, charging speed, screen
+                size) against a real peer group of similarly priced phones — not the entire catalog — so a
+                budget phone is judged against other budget phones, not flagships three times the price.
+              </p>
+
+              <p style={{ marginBottom: 14 }}>
+                <strong style={{ color: c.text1 }}>Category rankings.</strong> Best Camera Phones, Best
+                Battery Life, Foldables, and every other &quot;Best Of&quot; list are ranked directly off
+                the Smart Score dimension relevant to that category.
+              </p>
 
               <p style={{ marginBottom: 0 }}>
                 <strong style={{ color: c.text1 }}>AI-generated text.</strong> Comparison verdicts, match
-                explanations, and trade-off notes on comparison and recommendation pages are generated by
-                an AI model based on the phones&apos; real specifications and your stated priorities or
+                explanations, and trade-off notes on comparison and recommendation pages are written by an
+                AI model based on the phones&apos; real specifications and your stated priorities or
                 budget. This is a summary layer on top of the underlying data — it never changes the
                 specs, prices, or scores, and it&apos;s regenerated from scratch each time rather than
-                written by hand. If the AI service is unavailable, these pages still work; you simply see
-                the specs and scores without the generated commentary.
+                written by hand. If that generation step fails or is unavailable, these pages still work;
+                you simply see the specs and scores without the written commentary.
               </p>
 
               <Callout>
-                We continuously refine the scoring model and chipset detection rules as new hardware
-                releases. If a score or tier looks wrong, <a href="#contact" style={{ color: 'var(--blue)', fontWeight: 600 }}>contact us</a> — we read every message.
+                We continuously refine the scoring model and tier detection as new hardware releases. If a
+                score or tier looks wrong, <a href="#contact" style={{ color: 'var(--blue)', fontWeight: 600 }}>contact us</a> — we read every message.
               </Callout>
             </Section>
 
@@ -223,8 +231,8 @@ export default function AboutPage() {
                   </>,
                   <>
                     <strong style={{ color: c.text1 }}>Compare</strong> (<Link href={ROUTES.compare()} style={{ color: c.accent }}>/compare</Link>) —
-                    put up to 4 phones side by side with every spec, an AI-written verdict where available,
-                    and a category-by-category winner breakdown.
+                    put up to 4 phones side by side with every spec, an AI-written verdict, and a
+                    category-by-category winner breakdown.
                   </>,
                   <>
                     <strong style={{ color: c.text1 }}>Trade-In Estimator</strong> (<Link href={ROUTES.tradein} style={{ color: c.accent }}>/trade-in</Link>) —
@@ -278,7 +286,7 @@ export default function AboutPage() {
 
             <Section id="contact" icon={<Mail size={16} strokeWidth={1.75} />} title="Contact">
               <p style={{ marginBottom: 14 }}>
-                Questions, corrections, or partnership inquiries — the fastest route is our{' '}
+                Corrections, feedback, or sponsorship inquiries — the fastest route is our{' '}
                 <Link href={ROUTES.contact} style={{ color: c.accent, fontWeight: 600 }}>Contact page</Link>,
                 which routes each type of message correctly. Or email directly:{' '}
                 <a href="mailto:hello@specmob.com" style={{ color: c.accent, fontWeight: 600 }}>hello@specmob.com</a>
