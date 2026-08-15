@@ -9,9 +9,9 @@ const COLS = [
     title: 'Browse',
     links: [
       { label: 'All Phones',     href: ROUTES.home },
-      { label: 'Compare',        href: '/compare' },
+      { label: 'Compare',        href: ROUTES.compare() },
       { label: 'Help Me Choose', href: ROUTES.pick },
-      { label: 'Trade-in', href: '/trade-in' },
+      { label: 'Trade-in',       href: ROUTES.tradein },
     ],
   },
   {
@@ -31,13 +31,13 @@ const COLS = [
   {
     title: 'Company',
     links: [
-      { label: 'About Specmob', href: '/about' },
-      { label: 'How We Score',   href: '/about#scoring' },
-      { label: 'Data Sources',   href: '/about#data' },
+      { label: 'About Specmob', href: ROUTES.about },
+      { label: 'How We Score',   href: `${ROUTES.about}#scoring` },
+      { label: 'Data Sources',   href: `${ROUTES.about}#data` },
       { label: 'Contact',        href: ROUTES.contact },
       { label: 'Privacy Policy', href: '/privacy' },
       { label: 'Terms of Use',   href: '/terms' },
-      { label: 'Support Specmob',  href: ROUTES.support },
+      { label: 'Support Specmob', href: ROUTES.support },
     ],
   },
 ]
