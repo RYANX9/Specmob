@@ -1,10 +1,12 @@
+// app/about/page.tsx
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Info, Mail, Sparkles, Database, ShieldCheck } from 'lucide-react'
+import { Info, Mail, Sparkles, Database, ShieldCheck, Heart } from 'lucide-react'
 import Navbar from '@/app/components/Navbar'
 import Footer from '@/app/components/Footer'
 import { c, f, r, sh, mq } from '@/lib/tokens'
+import { ROUTES } from '@/lib/config'
 
 export const metadata: Metadata = {
   title: 'About Specmob',
@@ -47,7 +49,7 @@ function TocSidebar() {
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         {TOC.map(item => (
-          <a
+          
             key={item.id}
             href={`#${item.id}`}
             style={{
@@ -244,7 +246,9 @@ export default function AboutPage() {
 
             <Section id="contact" icon={<Mail size={16} strokeWidth={1.75} />} title="Contact">
               <p style={{ marginBottom: 14 }}>
-                Questions, corrections, or partnership inquiries:{' '}
+                Questions, corrections, or partnership inquiries — the fastest route is our{' '}
+                <Link href={ROUTES.contact} style={{ color: c.accent, fontWeight: 600 }}>Contact page</Link>,
+                which routes each type of message correctly. Or email directly:{' '}
                 <a href="mailto:hello@specmob.com" style={{ color: c.accent, fontWeight: 600 }}>hello@specmob.com</a>
               </p>
               <p style={{ marginBottom: 14 }}>
@@ -257,13 +261,25 @@ export default function AboutPage() {
             </Section>
 
             <div style={{
-              display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px',
+              display: 'flex', flexDirection: 'column', gap: 10,
               background: c.surface, border: `1px solid ${c.border}`, borderRadius: r.md,
+              padding: '14px 18px', marginBottom: 14,
             }}>
               <ShieldCheck size={16} color="var(--green)" style={{ flexShrink: 0 }} />
               <span style={{ fontSize: 13, color: c.text2 }}>
                 Read our full <Link href="/privacy" style={{ color: c.accent, fontWeight: 600 }}>Privacy Policy</Link>{' '}
                 and <Link href="/terms" style={{ color: c.accent, fontWeight: 600 }}>Terms of Use</Link> for the legal details.
+              </span>
+            </div>
+
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px',
+              background: c.surface, border: `1px solid ${c.border}`, borderRadius: r.md,
+            }}>
+              <Heart size={16} color={c.accent} style={{ flexShrink: 0 }} />
+              <span style={{ fontSize: 13, color: c.text2 }}>
+                Specmob is self-funded and ad-light by design. See what it costs to run and how to help
+                at <Link href={ROUTES.support} style={{ color: c.accent, fontWeight: 600 }}>/support</Link>.
               </span>
             </div>
           </div>
