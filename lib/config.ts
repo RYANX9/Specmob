@@ -14,6 +14,8 @@ export const ROUTES = {
   pick:     '/pick',
   tradein: '/trade-in',
   about:    '/about',
+  contact:  '/contact',
+  support:  '/support',
 } as const
 
 /**
