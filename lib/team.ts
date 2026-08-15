@@ -20,8 +20,8 @@ export const TEAM: TeamMember[] = [
   {
     slug: 'Ryan',
     name: 'Ahmed Ryan Messaad',
-    role: 'Creator, Specmob',
-    bio: 'Designed and built Specmob end to end — the catalog, the comparison and recommendation engines, the AI scoring pipeline, and the infrastructure running all of it.',
+    role: 'Co-Creator, Specmob',
+    bio: 'Built Specmob’s full-stack architecture — core platform, comparison engines, and scoring infrastructure.',
     avatarUrl: null,
     highlights: ['Next.js frontend', 'FastAPI backend', 'Postgres + AI scoring pipeline', 'Built and shipped'],
     links: [
