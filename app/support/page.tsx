@@ -120,7 +120,7 @@ export default function SupportPage() {
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
             {SUPPORT_LINKS.map(link => (
-              
+              <a
                 key={link.label}
                 href={link.url}
                 target="_blank"
