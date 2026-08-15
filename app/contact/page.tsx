@@ -2,7 +2,7 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Github, Linkedin, Globe, Mail, ArrowUpRight } from 'lucide-react'
+import { Github, Linkedin, Globe, Mail, ArrowUpRight, Sparkles } from 'lucide-react'
 import Navbar from '@/app/components/Navbar'
 import Footer from '@/app/components/Footer'
 import { c, f, r, sh } from '@/lib/tokens'
@@ -10,18 +10,18 @@ import { TEAM, CONTACT_EMAIL } from '@/lib/team'
 
 export const metadata: Metadata = {
   title: 'Contact',
-  description: 'Report data issues, send feedback, or reach the team behind Specmob.',
+  description: 'Report data issues, send feedback, propose a sponsorship, or reach the team behind Specmob.',
   openGraph: {
     title: 'Contact | Specmob',
-    description: 'Report data issues, send feedback, or reach the team behind Specmob.',
+    description: 'Report data issues, send feedback, propose a sponsorship, or reach the team behind Specmob.',
   },
 }
 
 const CONTACT_REASONS = [
   { label: 'Incorrect or outdated specs', subject: 'Data correction' },
   { label: 'Something is broken', subject: 'Bug report' },
-  { label: 'Feature request or feedback', subject: 'Feedback' },
-  { label: 'Press or partnership', subject: 'Partnership inquiry' },
+  { label: 'Feature request or suggestion', subject: 'Feedback' },
+  { label: 'Sponsorship or partnership', subject: 'Sponsorship inquiry' },
 ]
 
 function mailto(subject: string, email: string = CONTACT_EMAIL): string {
@@ -76,7 +76,7 @@ export default function ContactPage() {
             Get in touch
           </h1>
           <p style={{ fontSize: 15, color: c.text3, maxWidth: 480, margin: '0 auto' }}>
-            Data issue, feedback, or a project you want built — pick the right one below.
+            Data issue, feedback, or a sponsorship proposal — pick the right one below.
           </p>
         </div>
 
@@ -104,11 +104,13 @@ export default function ContactPage() {
         </section>
 
         <section>
-          <h2 style={{ fontFamily: f.serif, fontSize: 20, color: c.text1, marginBottom: 4 }}>
-            Built by
-          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <Sparkles size={16} color={c.accent} />
+            <h2 style={{ fontFamily: f.serif, fontSize: 20, color: c.text1 }}>Built by</h2>
+          </div>
           <p style={{ fontSize: 13, color: c.text3, marginBottom: 20 }}>
-            Specmob is an independent project. If you want something like it built, reach out directly.
+            Specmob — catalog, comparison engine, recommendation engine, and AI scoring pipeline — built
+            and shipped as a single, self-funded project.
           </p>
 
           <div
@@ -143,14 +145,18 @@ export default function ContactPage() {
                   {member.bio}
                 </p>
 
-                {member.openToWork && (
-                  <span style={{
-                    display: 'inline-block', fontSize: 11, fontWeight: 600, color: 'var(--green)',
-                    background: 'var(--green-light)', border: '1px solid var(--green-border)',
-                    borderRadius: r.full, padding: '3px 10px', marginBottom: 16,
-                  }}>
-                    Open to freelance work
-                  </span>
+                {member.highlights.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 18 }}>
+                    {member.highlights.map(h => (
+                      <span key={h} style={{
+                        fontSize: 11, fontWeight: 600, color: c.text2,
+                        background: c.bg, border: `1px solid ${c.border}`,
+                        borderRadius: r.full, padding: '3px 10px',
+                      }}>
+                        {h}
+                      </span>
+                    ))}
+                  </div>
                 )}
 
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -170,17 +176,6 @@ export default function ContactPage() {
                       {linkIcon(link.label)} {link.label}
                     </a>
                   ))}
-                  <a
-                    href={mailto('Project inquiry')}
-                    className="hire-btn"
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600,
-                      color: '#fff', background: c.primary, borderRadius: r.full,
-                      padding: '5px 12px', textDecoration: 'none', transition: 'background 0.15s',
-                    }}
-                  >
-                    <Mail size={13} /> Hire me
-                  </a>
                 </div>
               </div>
             ))}
@@ -193,7 +188,6 @@ export default function ContactPage() {
       <style>{`
         .contact-card:hover { border-color: ${c.primary} !important; }
         .member-link:hover { border-color: ${c.primary} !important; color: ${c.text1} !important; }
-        .hire-btn:hover { background: #2A2A42 !important; }
         @media (max-width: 640px) {
           .contact-reason-grid { grid-template-columns: 1fr !important; }
           .team-grid { grid-template-columns: 1fr !important; }
