@@ -7,8 +7,6 @@ import Footer from '@/app/components/Footer'
 import { c, f, r, sh } from '@/lib/tokens'
 import { COST_ITEMS, MONTHLY_GOAL_USD, MONTHLY_RAISED_USD, SUPPORT_LINKS } from '@/lib/supportData'
 
-export const dynamic = 'force-dynamic'
-
 export const metadata: Metadata = {
   title: 'Support Specmob',
   description: 'What it costs to run Specmob and how to help keep it free, ad-light, and unbiased.',
@@ -127,13 +125,12 @@ export default function SupportPage() {
                 href={link.url}
                 target="_blank"
                 rel="noopener noreferrer"
+                className="support-link"
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8, padding: '12px 24px',
                   background: c.primary, color: '#fff', borderRadius: r.full,
                   fontSize: 14, fontWeight: 600, textDecoration: 'none', transition: 'background 0.15s',
                 }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#2A2A42' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = c.primary }}
               >
                 <Heart size={15} strokeWidth={2} /> {link.label}
                 <span style={{ fontSize: 11, fontWeight: 400, color: 'rgba(255,255,255,0.6)' }}>{link.note}</span>
@@ -144,6 +141,10 @@ export default function SupportPage() {
       </div>
 
       <Footer />
+
+      <style>{`
+        .support-link:hover { background: #2A2A42 !important; }
+      `}</style>
     </div>
   )
 }
