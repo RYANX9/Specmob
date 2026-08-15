@@ -83,7 +83,7 @@ export default function ContactPage() {
           </h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }} className="contact-reason-grid">
             {CONTACT_REASONS.map(reason => (
-              
+              <a
                 key={reason.subject}
                 href={mailto(reason.subject)}
                 style={{
@@ -153,7 +153,7 @@ export default function ContactPage() {
 
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {member.links.map(link => (
-                    
+                    <a
                       key={link.label}
                       href={link.url}
                       target="_blank"
@@ -169,7 +169,7 @@ export default function ContactPage() {
                       {linkIcon(link.label)} {link.label}
                     </a>
                   ))}
-                  
+                  <a
                     href={mailto('Project inquiry')}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600,
