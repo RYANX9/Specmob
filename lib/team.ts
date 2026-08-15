@@ -18,16 +18,16 @@ export interface TeamMember {
 // of this array without layout changes.
 export const TEAM: TeamMember[] = [
   {
-    slug: 'you',
-    name: 'Your Name',
+    slug: 'Ryan',
+    name: 'Ahmed Ryan Messaad',
     role: 'Creator, Specmob',
     bio: 'Designed and built Specmob end to end — the catalog, the comparison and recommendation engines, the AI scoring pipeline, and the infrastructure running all of it.',
     avatarUrl: null,
-    highlights: ['Next.js frontend', 'FastAPI backend', 'Postgres + AI scoring pipeline', 'Built and shipped solo'],
+    highlights: ['Next.js frontend', 'FastAPI backend', 'Postgres + AI scoring pipeline', 'Built and shipped'],
     links: [
-      { label: 'GitHub', url: 'https://github.com/yourhandle' },
-      { label: 'Portfolio', url: 'https://yourportfolio.com' },
-      { label: 'LinkedIn', url: 'https://linkedin.com/in/yourhandle' },
+      { label: 'GitHub', url: 'https://github.com/RYANX9' },
+      { label: 'Portfolio', url: 'https://ahmed-messaad.vercel.app/' },
+      { label: 'LinkedIn', url: 'https://linkedin.com/in/ahmedmessaad' },
     ],
   },
 ]
