@@ -6,7 +6,8 @@ import { Server, HardDrive, Globe, Sparkles, Heart } from 'lucide-react'
 import Navbar from '@/app/components/Navbar'
 import Footer from '@/app/components/Footer'
 import { c, f, r, sh } from '@/lib/tokens'
-import { COST_ITEMS, MONTHLY_GOAL_USD, MONTHLY_RAISED_USD, SUPPORT_LINKS } from '@/lib/supportData'
+import { COST_ITEMS, MONTHLY_GOAL_USD, MONTHLY_RAISED_USD, SUPPORT_LINKS, CRYPTO_ADDRESSES } from '@/lib/supportData'
+import CryptoCard from '@/app/components/support/CryptoCard'
 
 export const metadata: Metadata = {
   title: 'Support Specmob',
@@ -121,7 +122,8 @@ export default function SupportPage() {
           <p style={{ fontSize: 13, color: c.text3, marginBottom: 22 }}>
             Entirely optional. The site stays free and unbiased either way.
           </p>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
+
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 28 }}>
             {SUPPORT_LINKS.map(link => (
               <a
                 key={link.label}
@@ -140,6 +142,15 @@ export default function SupportPage() {
               </a>
             ))}
           </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, maxWidth: 420, margin: '0 auto 20px' }}>
+            <div style={{ flex: 1, height: 1, background: c.border }} />
+            <span style={{ fontSize: 11, color: c.text3, textTransform: 'uppercase', letterSpacing: '0.5px' }}>or</span>
+            <div style={{ flex: 1, height: 1, background: c.border }} />
+          </div>
+
+          <p style={{ fontSize: 12, color: c.text3, marginBottom: 10 }}>Send crypto directly</p>
+          <CryptoCard entries={CRYPTO_ADDRESSES} />
         </section>
       </div>
 
