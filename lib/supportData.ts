@@ -19,7 +19,7 @@ export interface CryptoAddress {
   address: string
 }
 
-export const MONTHLY_GOAL_USD = 32
+export const MONTHLY_GOAL_USD = 37
 export const MONTHLY_RAISED_USD = 0
 
 export const COST_ITEMS: CostItem[] = [
