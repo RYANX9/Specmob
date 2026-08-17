@@ -1,4 +1,3 @@
-// lib/supportData.ts
 export interface CostItem {
   label: string
   detail: string
@@ -6,19 +5,15 @@ export interface CostItem {
   status: 'covered' | 'needed'
 }
 
-// Update monthlyUsd/status as your actual bills change — this is the
-// single source of truth the page renders from.
 export const COST_ITEMS: CostItem[] = [
-  { label: 'Domain renewal', detail: 'specmob.vercel.app custom domain, annual', monthlyUsd: 1, status: 'needed' },
-  { label: 'Database storage', detail: 'Postgres storage tier upgrade', monthlyUsd: 15, status: 'needed' },
-  { label: 'API hosting', detail: 'Render — upgrading off the free tier to remove cold starts', monthlyUsd: 7, status: 'needed' },
-  { label: 'AI copy generation', detail: 'Gemini API usage for match/verdict copy', monthlyUsd: 5, status: 'covered' },
+  { label: 'Domain renewal', detail: 'specmob.com — $11.28/yr renewal (first-year promo price does not apply)', monthlyUsd: 0.94, status: 'needed' },
+  { label: 'Database storage', detail: 'Postgres instance', monthlyUsd: 0, status: 'needed' },
+  { label: 'API hosting', detail: 'FastAPI backend', monthlyUsd: 0, status: 'needed' },
+  { label: 'AI copy generation', detail: 'Gemini API calls for verdicts/match copy', monthlyUsd: 0, status: 'needed' },
 ]
 
-export const MONTHLY_GOAL_USD = COST_ITEMS.reduce((sum, item) => sum + item.monthlyUsd, 0)
-export const MONTHLY_RAISED_USD = COST_ITEMS
-  .filter(item => item.status === 'covered')
-  .reduce((sum, item) => sum + item.monthlyUsd, 0)
+export const MONTHLY_GOAL_USD = 0
+export const MONTHLY_RAISED_USD = 0
 
 export interface SupportLink {
   label: string
@@ -27,6 +22,14 @@ export interface SupportLink {
 }
 
 export const SUPPORT_LINKS: SupportLink[] = [
-  { label: 'GitHub Sponsors', url: 'https://github.com/sponsors/yourhandle', note: 'One-time or monthly' },
-  { label: 'Ko-fi', url: 'https://ko-fi.com/yourhandle', note: 'One-time' },
+  { label: 'Ko-fi', url: 'https://ko-fi.com/YOUR_HANDLE', note: 'via PayPal' },
+]
+
+export interface CryptoAddress {
+  network: string
+  address: string
+}
+
+export const CRYPTO_ADDRESSES: CryptoAddress[] = [
+  { network: 'USDT (TRC20)', address: 'PASTE_YOUR_TRC20_ADDRESS' },
 ]
