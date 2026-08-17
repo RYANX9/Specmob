@@ -19,14 +19,14 @@ export interface CryptoAddress {
   address: string
 }
 
-export const MONTHLY_GOAL_USD = 37
+export const MONTHLY_GOAL_USD = 32
 export const MONTHLY_RAISED_USD = 0
 
 export const COST_ITEMS: CostItem[] = [
   {
     label: 'Domain renewal',
     detail: 'specmob.vercel.app custom domain, annual',
-    monthlyUsd: 10,
+    monthlyUsd: 5,
     status: 'needed',
   },
   {
@@ -59,6 +59,11 @@ export const SUPPORT_LINKS: SupportLink[] = [
     label: 'Buy Me a Coffee',
     url: 'https://buymeacoffee.com/specmob',
     note: 'One-time card/Apple Pay',
+  },
+  {
+    label: 'Patreon',
+    url: 'https://patreon.com/specmob',
+    note: 'Monthly recurring tiers',
   },
 ]
 
