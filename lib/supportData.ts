@@ -60,11 +60,7 @@ export const SUPPORT_LINKS: SupportLink[] = [
     url: 'https://buymeacoffee.com/specmob',
     note: 'One-time card/Apple Pay',
   },
-  {
-    label: 'Patreon',
-    url: 'https://patreon.com/specmob',
-    note: 'Monthly recurring tiers',
-  },
+
 ]
 
 export const CRYPTO_ADDRESSES: CryptoAddress[] = [
