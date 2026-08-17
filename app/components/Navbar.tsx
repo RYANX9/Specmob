@@ -349,7 +349,7 @@ export default function Navbar() {
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = c.text1 }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = c.text3 }}
                   >
-                    See all results for &ldquo;{query}&rdquo; →
+                    See all results for &ldquo;{query}&rdquo; &rarr;
                   </button>
                 )}
               </div>
@@ -479,8 +479,7 @@ export default function Navbar() {
         </div>
       </nav>
       
-      <AdSlot placement="leaderboard" />
-
+      {pathname !== '/support' && <AdSlot placement="leaderboard" />}
 
       {/* Mobile drawer */}
       {mobileOpen && (
