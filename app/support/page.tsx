@@ -123,34 +123,40 @@ export default function SupportPage() {
             Entirely optional. The site stays free and unbiased either way.
           </p>
 
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 28 }}>
-            {SUPPORT_LINKS.map(link => (
-              <a
-                key={link.label}
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="support-link"
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8, padding: '12px 24px',
-                  background: c.primary, color: '#fff', borderRadius: r.full,
-                  fontSize: 14, fontWeight: 600, textDecoration: 'none', transition: 'background 0.15s',
-                }}
-              >
-                <Heart size={15} strokeWidth={2} /> {link.label}
-                <span style={{ fontSize: 11, fontWeight: 400, color: 'rgba(255,255,255,0.6)' }}>{link.note}</span>
-              </a>
-            ))}
-          </div>
+          {SUPPORT_LINKS.length > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 28 }}>
+              {SUPPORT_LINKS.map(link => (
+                <a
+                  key={link.label}
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="support-link"
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8, padding: '12px 24px',
+                    background: c.primary, color: '#fff', borderRadius: r.full,
+                    fontSize: 14, fontWeight: 600, textDecoration: 'none', transition: 'background 0.15s',
+                  }}
+                >
+                  <Heart size={15} strokeWidth={2} /> {link.label}
+                  <span style={{ fontSize: 11, fontWeight: 400, color: 'rgba(255,255,255,0.6)' }}>{link.note}</span>
+                </a>
+              ))}
+            </div>
+          )}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, maxWidth: 420, margin: '0 auto 20px' }}>
-            <div style={{ flex: 1, height: 1, background: c.border }} />
-            <span style={{ fontSize: 11, color: c.text3, textTransform: 'uppercase', letterSpacing: '0.5px' }}>or</span>
-            <div style={{ flex: 1, height: 1, background: c.border }} />
-          </div>
-
-          <p style={{ fontSize: 12, color: c.text3, marginBottom: 10 }}>Send crypto directly</p>
-          <CryptoCard entries={CRYPTO_ADDRESSES} />
+          {CRYPTO_ADDRESSES.length > 0 && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
+                <div style={{ flex: 1, height: 1, background: c.border }} />
+                <span style={{ fontSize: 11, fontWeight: 600, color: c.text3, textTransform: 'uppercase', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>
+                  Or send crypto directly
+                </span>
+                <div style={{ flex: 1, height: 1, background: c.border }} />
+              </div>
+              <CryptoCard entries={CRYPTO_ADDRESSES} />
+            </div>
+          )}
         </section>
       </div>
 
