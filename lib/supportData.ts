@@ -56,9 +56,9 @@ export const SUPPORT_LINKS: SupportLink[] = [
     note: 'One-time or monthly',
   },
   {
-    label: 'Buy Me a Coffee',
-    url: 'https://buymeacoffee.com/specmob',
-    note: 'One-time card/Apple Pay',
+    label: 'Direct PayPal',
+    url: 'https://paypal.me/specmob',
+    note: 'Direct payment via PayPal balance or card',
   },
 
 ]
