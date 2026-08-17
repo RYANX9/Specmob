@@ -19,14 +19,14 @@ export interface CryptoAddress {
   address: string
 }
 
-export const MONTHLY_GOAL_USD = 32
+export const MONTHLY_GOAL_USD = 37
 export const MONTHLY_RAISED_USD = 0
 
 export const COST_ITEMS: CostItem[] = [
   {
     label: 'Domain renewal',
     detail: 'specmob.vercel.app custom domain, annual',
-    monthlyUsd: 5,
+    monthlyUsd: 10,
     status: 'needed',
   },
   {
