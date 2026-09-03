@@ -1,0 +1,189 @@
+import type { Phone } from './types'
+
+export function stripHtml(raw: string): string {
+  return raw
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&deg;/g, '°')
+    .replace(/&mdash;/g, '—')
+    .replace(/&ndash;/g, '–')
+    .replace(/&times;/g, '×')
+    .replace(/&copy;/g, '©')
+    .replace(/&reg;/g, '®')
+    .replace(/&trade;/g, '™')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+export function specValueToString(v: unknown): string {
+  if (v === null || v === undefined) return '—'
+  if (typeof v === 'boolean') return v ? 'Yes' : 'No'
+  if (typeof v === 'number') return String(v)
+  if (typeof v === 'string') return stripHtml(v) || '—'
+  if (Array.isArray(v)) return v.map(specValueToString).filter(s => s !== '—').join(', ') || '—'
+  if (typeof v === 'object') {
+    return Object.entries(v as Record<string, unknown>)
+      .filter(([, val]) => {
+        const s = String(val ?? '')
+        return !s.startsWith('http') && s !== 'null' && s !== ''
+      })
+      .map(([k, val]) => `${k}: ${specValueToString(val)}`)
+      .join(' · ') || '—'
+  }
+  return String(v)
+}
+
+function specRoot(phone: { full_specifications?: any }): Record<string, any> | null {
+  const fs = phone.full_specifications as any
+  if (!fs || typeof fs !== 'object') return null
+  return fs.specifications && typeof fs.specifications === 'object' ? fs.specifications : fs
+}
+
+
+export function getBuildMaterial(phone: { build_material?: string | null; full_specifications?: any }): string {
+  if (phone.build_material) return stripHtml(phone.build_material)
+  return findSpecValue(phone, ['Body'], ['Build']) ?? '—'
+}
+
+export function getWaterResistance(phone: { water_resistance?: string | null; full_specifications?: any }): string {
+  if (phone.water_resistance) return stripHtml(phone.water_resistance)
+  const build = findSpecValue(phone, ['Body'], ['Build'])
+  const match = build?.match(/IP\d{2}[A-Z]?/i)
+  return match ? match[0].toUpperCase() : '—'
+}
+
+export function getThicknessMm(phone: { thickness_mm?: number | null; full_specifications?: any }): number | null {
+  if (phone.thickness_mm != null) return phone.thickness_mm
+  const dims = findSpecValue(phone, ['Body'], ['Dimensions'])
+  const nums = dims?.match(/[\d.]+/g)
+  return nums && nums.length >= 3 ? parseFloat(nums[2]) : null
+}
+
+export function getPeakBrightnessNits(phone: { peak_brightness_nits?: number | null; full_specifications?: any }): number | null {
+  if (phone.peak_brightness_nits != null) return phone.peak_brightness_nits
+  const type = findSpecValue(phone, ['Display'], ['Type'])
+  const match = type?.match(/(\d{3,5})\s*nits?\s*\(peak\)/i)
+  return match ? parseInt(match[1], 10) : null
+}
+
+export function getGeekbenchSingle(phone: { geekbench_single?: number | null; full_specifications?: any }): number | null {
+  if (phone.geekbench_single != null) return phone.geekbench_single
+  const perf = findSpecValue(phone, ['Tests'], ['Performance'])
+  const match = perf?.match(/GeekBench:\s*(\d+)/i)
+  return match ? parseInt(match[1], 10) : null
+}
+
+export function getFeaturesText(phone: { features?: string[] | null; full_specifications?: any }): string {
+  if (phone.features?.length) return phone.features.join(', ')
+  return findSpecValue(phone, ['Features'], ['Sensors']) ?? '—'
+}
+
+/** Searches spec groups by name (substring match); within matched groups tries
+ * each field name in priority order, returns the first hit. */
+export function findSpecValue(
+  phone: { full_specifications?: any },
+  groupNames: string[],
+  fieldNames: string[],
+): string | null {
+  const root = specRoot(phone)
+  if (!root) return null
+
+  const matchedGroups = Object.entries(root).filter(
+    ([groupName, groupVal]) =>
+      groupVal && typeof groupVal === 'object' && !Array.isArray(groupVal) &&
+      groupNames.some(g => groupName.toLowerCase().includes(g.toLowerCase())),
+  ) as [string, Record<string, unknown>][]
+
+  for (const wanted of fieldNames) {
+    for (const [, groupVal] of matchedGroups) {
+      const entry = Object.entries(groupVal).find(([fieldName]) =>
+        fieldName.toLowerCase().includes(wanted.toLowerCase()),
+      )
+      if (entry) {
+        const str = specValueToString(entry[1])
+        if (str && str !== '—') return str
+      }
+    }
+  }
+  return null
+}
+
+/** Finds a spec group by name and returns the first field matching `contentPattern`
+ * (tested against the field's stringified value), or the first non-excluded field
+ * if no pattern hits. Covers scrapes where the field key doesn't match the known
+ * vocabulary in findSpecValue but the group itself is present. */
+function scanGroupByContent(
+  phone: { full_specifications?: any },
+  groupNamePattern: RegExp,
+  contentPattern?: RegExp,
+  excludeKeyPattern?: RegExp,
+): string | null {
+  const root = specRoot(phone)
+  if (!root) return null
+
+  const group = Object.entries(root).find(([name]) => groupNamePattern.test(name))?.[1] as
+    | Record<string, unknown>
+    | undefined
+  if (!group) return null
+
+  if (contentPattern) {
+    for (const val of Object.values(group)) {
+      const str = specValueToString(val)
+      if (str !== '—' && contentPattern.test(str)) return str
+    }
+  }
+
+  const entry = Object.entries(group).find(
+    ([k]) => !excludeKeyPattern || !excludeKeyPattern.test(k),
+  )
+  if (entry) {
+    const str = specValueToString(entry[1])
+    if (str && str !== '—') return str
+  }
+  return null
+}
+
+export function getPanelType(phone: Phone): string {
+  const qs = (phone.full_specifications as any)?.quick_specs?.displaytype
+  if (qs) return stripHtml(String(qs))
+
+  const direct = findSpecValue(phone, ['Display', 'Screen'], ['Type', 'Panel', 'Technology'])
+  if (direct) return direct
+
+  const scanned = scanGroupByContent(
+    phone,
+    /display|screen/i,
+    /OLED|AMOLED|IPS|LCD|TFT|Retina|LTPO/i,
+    /size|resolution|protection|ratio/i,
+  )
+  return scanned ?? '—'
+}
+
+export function getFrontCamera(phone: Phone): string {
+  const qs = (phone.full_specifications as any)?.quick_specs?.cam2modules
+  if (qs) return stripHtml(String(qs))
+
+  const direct = findSpecValue(
+    phone,
+    ['Selfie Camera', 'Front Camera', 'Secondary Camera'],
+    ['Single', 'Dual', 'Triple', 'Quad'],
+  )
+  if (direct) return direct
+
+  const scanned = scanGroupByContent(
+    phone,
+    /selfie|front camera|secondary camera/i,
+    /\bMP\b/i,
+    /video|feature/i,
+  )
+  return scanned ?? '—'
+}

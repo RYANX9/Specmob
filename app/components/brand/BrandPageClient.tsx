@@ -1,0 +1,623 @@
+'use client'
+
+import { useState, useEffect, useRef, useCallback, Suspense, Fragment } from 'react'
+import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
+import {
+  ChevronRight, ChevronLeft, ArrowUpDown,
+  LayoutGrid, List, GitCompare,
+  Smartphone, ChevronDown,
+} from 'lucide-react'
+import { api } from '@/lib/api'
+import { useCompare } from '@/lib/compareStore'
+import { ROUTES, brandSlug, phoneSlug, MAX_COMPARE } from '@/lib/config'
+import { c, f, z, mq } from '@/lib/tokens'
+import type { Phone, SearchFilters, BrandStats } from '@/lib/types'
+import { getBrandInfo, getBrandInitial } from '@/lib/brandData'
+import Navbar from '@/app/components/Navbar'
+import Footer from '@/app/components/Footer'
+import { useToast } from '@/app/components/Toast'
+import CompareBar from '@/app/components/CompareBar'
+import FilterPanel from '@/app/components/FilterPanel'
+import PhoneCard, { PhoneCardSkeleton } from '@/app/components/PhoneCard'
+import { formatDisplayPrice } from '@/lib/price'
+import { parseFilterParams, serializeFilterParams } from '@/lib/filterParams'
+import { featureTagLabel } from '@/lib/featureTags'
+import AdSlot from '@/app/components/ads/AdSlot'
+import AdCard from '@/app/components/ads/AdCard'
+
+interface SortOption { label: string; value: string; order: 'asc' | 'desc' }
+
+const SORT_OPTIONS: SortOption[] = [
+  { label: 'Newest First',       value: 'release_year',     order: 'desc' },
+  { label: 'Oldest First',       value: 'release_year',     order: 'asc'  },
+  { label: 'Price: Low to High', value: 'price_usd',        order: 'asc'  },
+  { label: 'Price: High to Low', value: 'price_usd',        order: 'desc' },
+  { label: 'Best Camera',        value: 'main_camera_mp',   order: 'desc' },
+  { label: 'Best Battery',       value: 'battery_capacity', order: 'desc' },
+  { label: 'Best Performance',   value: 'antutu_score',     order: 'desc' },
+]
+
+const PAGE_SIZE = 24
+const EMPTY_FILTERS: SearchFilters = {}
+
+function parseFiltersFromParams(sp: URLSearchParams): SearchFilters {
+  return parseFilterParams(sp)
+}
+
+function buildUrl(base: string, filters: SearchFilters, page: number, sortIdx: number): string {
+  const p = new URLSearchParams()
+  serializeFilterParams(p, filters)
+  if (page > 1) p.set('page', String(page))
+  if (sortIdx > 0) p.set('sort', String(sortIdx))
+  const str = p.toString()
+  return str ? `${base}?${str}` : base
+}
+
+function isRecentRelease(phone: Phone): boolean {
+  if (!phone.release_year) return false
+  const released = new Date(phone.release_year, (phone.release_month ?? 1) - 1, phone.release_day ?? 1)
+  const diff = Date.now() - released.getTime()
+  return diff >= 0 && diff <= 60 * 24 * 60 * 60 * 1000
+}
+
+function fmt(n: number | null | undefined, prefix = '', suffix = '') {
+  if (n == null) return '—'
+  return `${prefix}${Math.round(n).toLocaleString()}${suffix}`
+}
+
+function BrandLogoImg({ info, name }: { info: ReturnType<typeof getBrandInfo>; name: string }) {
+  const [err, setErr] = useState(false)
+  const wrap: React.CSSProperties = {
+    flexShrink: 0, width: 72, height: 72,
+    background: c.surface, border: `1px solid ${c.border}`,
+    borderRadius: 'var(--r-md)', display: 'flex',
+    alignItems: 'center', justifyContent: 'center',
+    boxShadow: 'var(--shadow-sm)',
+  }
+  if (info?.logo && !err) {
+    return (
+      <div style={{ ...wrap, padding: 10 }}>
+        <img
+          src={info.logo}
+          alt={name}
+          loading="lazy"
+          decoding="async"
+          onError={() => setErr(true)}
+          style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+        />
+      </div>
+    )
+  }
+  return (
+    <div style={{ ...wrap, fontFamily: f.serif, fontSize: 28, fontWeight: 700, color: c.primary, letterSpacing: -1 }}>
+      {getBrandInitial(name)}
+    </div>
+  )
+}
+
+function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  const [hov, setHov] = useState(false)
+  return (
+    <div
+      style={{ background: c.surface, border: `1px solid ${hov ? c.borderHover : c.border}`, borderRadius: 'var(--r-md)', padding: '18px 20px', boxShadow: hov ? 'var(--shadow-sm)' : 'none', transition: 'all 0.15s' }}
+      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+    >
+      <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', color: c.text3, marginBottom: 6 }}>{label}</div>
+      <div style={{ fontFamily: f.serif, fontSize: 22, color: c.text1, lineHeight: 1.1, marginBottom: 4, wordBreak: 'break-word' }}>{value}</div>
+      {sub && <div style={{ fontSize: 12, color: c.text3 }}>{sub}</div>}
+    </div>
+  )
+}
+
+function MiniPhoneCard({ phone }: { phone: Phone }) {
+  const [imgErr, setImgErr] = useState(false)
+  const isNew = isRecentRelease(phone)
+  return (
+    <Link
+      href={ROUTES.phone(brandSlug(phone.brand), phoneSlug(phone))}
+      style={{ flexShrink: 0, width: 158, scrollSnapAlign: 'start', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-md)', padding: '16px 14px', transition: 'all 0.15s', position: 'relative', display: 'block', textDecoration: 'none' }}
+      onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = c.borderHover; el.style.transform = 'translateY(-2px)'; el.style.boxShadow = 'var(--shadow-md)' }}
+      onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = c.border; el.style.transform = 'none'; el.style.boxShadow = 'none' }}
+    >
+      {isNew && (
+        <span style={{ position: 'absolute', top: 8, right: 8, background: c.accent, color: '#fff', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px', padding: '2px 6px', borderRadius: 'var(--r-full)' }}>New</span>
+      )}
+      <div style={{ width: '100%', aspectRatio: '1', background: c.bg, borderRadius: 'var(--r-sm)', marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {phone.main_image_url && !imgErr
+          ? <img src={phone.main_image_url} alt={phone.model_name} loading="lazy" decoding="async" onError={() => setImgErr(true)} style={{ width: '80%', height: '80%', objectFit: 'contain' }} />
+          : <Smartphone size={32} color={c.border} strokeWidth={1} />}
+      </div>
+      <div style={{ fontFamily: f.serif, fontSize: 13, color: c.text1, lineHeight: 1.3, marginBottom: 6 }}>{phone.model_name}</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: c.text1, marginBottom: 4 }}>{formatDisplayPrice(phone)}</div>
+      {(phone.main_camera_mp || phone.battery_capacity) && (
+        <div style={{ fontSize: 11, color: c.text3 }}>
+          {[phone.main_camera_mp ? `${phone.main_camera_mp}MP` : null, phone.battery_capacity ? `${phone.battery_capacity.toLocaleString()}mAh` : null].filter(Boolean).join(' · ')}
+        </div>
+      )}
+    </Link>
+  )
+}
+
+function PhoneListRow({ phone, inCompare, onCompareToggle }: { phone: Phone; inCompare: boolean; onCompareToggle: (p: Phone) => void }) {
+  const [imgErr, setImgErr] = useState(false)
+  const [hov, setHov] = useState(false)
+  return (
+    <div
+      style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 16px', background: c.surface, border: `1px solid ${hov ? c.borderHover : c.border}`, borderRadius: 'var(--r-md)', boxShadow: hov ? 'var(--shadow-sm)' : 'none', transition: 'all 0.15s', position: 'relative' }}
+      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+    >
+      <div style={{ width: 56, height: 56, flexShrink: 0, background: c.bg, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {phone.main_image_url && !imgErr
+          ? <img src={phone.main_image_url} alt="" loading="lazy" decoding="async" onError={() => setImgErr(true)} style={{ width: 44, height: 44, objectFit: 'contain' }} />
+          : <Smartphone size={24} color={c.border} strokeWidth={1} />}
+      </div>
+      <Link href={ROUTES.phone(brandSlug(phone.brand), phoneSlug(phone))} style={{ flex: 1, minWidth: 0, textDecoration: 'none' }}>
+        <div style={{ fontSize: 15, fontWeight: 600, color: c.text1, marginBottom: 3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{phone.model_name}</div>
+        <div style={{ fontSize: 13, color: c.text3 }}>
+          {[
+            phone.release_year ? String(phone.release_year) : null,
+            phone.screen_size ? `${phone.screen_size}"` : null,
+            phone.main_camera_mp ? `${phone.main_camera_mp}MP` : null,
+            phone.battery_capacity ? `${phone.battery_capacity.toLocaleString()}mAh` : null,
+            phone.ram_options?.length ? `${Math.max(...phone.ram_options)}GB RAM` : null,
+          ].filter(Boolean).join(' · ')}
+        </div>
+      </Link>
+      <div style={{ fontSize: 16, fontWeight: 600, color: c.text1, flexShrink: 0 }}>{formatDisplayPrice(phone)}</div>
+      <button
+        onClick={e => { e.preventDefault(); e.stopPropagation(); onCompareToggle(phone) }}
+        aria-pressed={inCompare}
+        aria-label={inCompare ? `Remove ${phone.model_name} from compare` : `Add ${phone.model_name} to compare`}
+        style={{ width: 32, height: 32, borderRadius: 'var(--r-sm)', flexShrink: 0, border: `1px solid ${inCompare ? c.accent : c.border}`, background: inCompare ? c.accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: inCompare ? '#fff' : c.text3, cursor: 'pointer', transition: 'all 0.15s' }}
+      >
+        <GitCompare size={13} />
+      </button>
+      <ChevronRight size={16} color={c.text3} style={{ flexShrink: 0 }} />
+    </div>
+  )
+}
+
+function Pagination({ page, total, pageSize, onChange }: { page: number; total: number; pageSize: number; onChange: (p: number) => void }) {
+  const totalPages = Math.ceil(total / pageSize)
+  if (totalPages <= 1) return null
+  const pages: (number | '…')[] = []
+  if (totalPages <= 7) {
+    for (let i = 1; i <= totalPages; i++) pages.push(i)
+  } else {
+    pages.push(1)
+    if (page > 3) pages.push('…')
+    for (let i = Math.max(2, page - 1); i <= Math.min(totalPages - 1, page + 1); i++) pages.push(i)
+    if (page < totalPages - 2) pages.push('…')
+    pages.push(totalPages)
+  }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, marginBottom: 64 }}>
+      <button disabled={page === 1} onClick={() => onChange(page - 1)} aria-label="Previous page" style={{ minWidth: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--r-sm)', border: 'none', cursor: page === 1 ? 'default' : 'pointer', color: page === 1 ? c.border : c.text2, background: 'transparent' }}>
+        <ChevronLeft size={16} />
+      </button>
+      {pages.map((p, i) =>
+        p === '…'
+          ? <span key={`e${i}`} style={{ width: 36, textAlign: 'center', color: c.text3, fontSize: 14 }}>…</span>
+          : (
+            <button key={p} onClick={() => onChange(p as number)} aria-label={`Page ${p}`} aria-current={p === page ? 'page' : undefined} style={{ minWidth: 36, height: 36, padding: '0 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, borderRadius: 'var(--r-sm)', border: 'none', cursor: 'pointer', transition: 'all 0.15s', background: p === page ? c.primary : 'transparent', color: p === page ? '#fff' : c.text2, fontWeight: p === page ? 600 : 400 }}>
+              {p}
+            </button>
+          )
+      )}
+      <button disabled={page === Math.ceil(total / pageSize)} onClick={() => onChange(page + 1)} aria-label="Next page" style={{ minWidth: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--r-sm)', border: 'none', cursor: page === totalPages ? 'default' : 'pointer', color: page === Math.ceil(total / pageSize) ? c.border : c.text2, background: 'transparent' }}>
+        <ChevronRight size={16} />
+      </button>
+    </div>
+  )
+}
+
+function FilterChips({ filters, onChange }: { filters: SearchFilters; onChange: (f: SearchFilters) => void }) {
+  const chips: { label: string; clear: () => void }[] = []
+  if (filters.min_price || filters.max_price) {
+    const lo = filters.min_price ? `$${filters.min_price}` : ''
+    const hi = filters.max_price ? `$${filters.max_price}` : ''
+    chips.push({ label: lo && hi ? `${lo} – ${hi}` : lo ? `From ${lo}` : `Up to ${hi}`, clear: () => onChange({ ...filters, min_price: undefined, max_price: undefined }) })
+  }
+  if (filters.min_year)        chips.push({ label: `${filters.min_year}+`, clear: () => onChange({ ...filters, min_year: undefined }) })
+  if (filters.min_ram)         chips.push({ label: `${filters.min_ram}GB+ RAM`, clear: () => onChange({ ...filters, min_ram: undefined }) })
+  if (filters.min_battery)     chips.push({ label: `${filters.min_battery.toLocaleString()}+ mAh`, clear: () => onChange({ ...filters, min_battery: undefined }) })
+  if (filters.min_camera_mp)   chips.push({ label: `${filters.min_camera_mp}+ MP`, clear: () => onChange({ ...filters, min_camera_mp: undefined }) })
+  if (filters.chipset_tier)    chips.push({ label: filters.chipset_tier, clear: () => onChange({ ...filters, chipset_tier: undefined }) })
+  if (filters.min_charging_w)  chips.push({ label: `${filters.min_charging_w}W+`, clear: () => onChange({ ...filters, min_charging_w: undefined }) })
+  if (filters.max_weight)      chips.push({ label: `Under ${filters.max_weight}g`, clear: () => onChange({ ...filters, max_weight: undefined }) })
+  if (filters.min_storage)      chips.push({ label: `${filters.min_storage >= 1000 ? filters.min_storage / 1000 + 'TB' : filters.min_storage + 'GB'}+ Storage`, clear: () => onChange({ ...filters, min_storage: undefined }) })
+  if (filters.min_refresh_rate) chips.push({ label: `${filters.min_refresh_rate}Hz+`, clear: () => onChange({ ...filters, min_refresh_rate: undefined }) })
+  if (filters.min_antutu)       chips.push({ label: `${(filters.min_antutu / 1_000_000).toFixed(1)}M+ AnTuTu`, clear: () => onChange({ ...filters, min_antutu: undefined }) })
+  if (filters.max_year)         chips.push({ label: `Up to ${filters.max_year}`, clear: () => onChange({ ...filters, max_year: undefined }) })
+  if (filters.camera_setup_type) chips.push({ label: `${filters.camera_setup_type[0].toUpperCase()}${filters.camera_setup_type.slice(1)} Camera`, clear: () => onChange({ ...filters, camera_setup_type: undefined }) })
+  if (filters.is_premium_gaming) chips.push({ label: 'Gaming Optimized', clear: () => onChange({ ...filters, is_premium_gaming: undefined }) })
+  if (filters.features) {
+    for (const tag of filters.features.split(',').filter(Boolean)) {
+      chips.push({
+        label: featureTagLabel(tag),
+        clear: () => onChange({
+          ...filters,
+          features: filters.features!.split(',').filter(t => t !== tag).join(',') || undefined,
+        }),
+      })
+    }
+  }
+  if (chips.length === 0) return null
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+      {chips.map(chip => (
+        <div key={chip.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-full)', fontSize: 12, color: c.text2 }}>
+          {chip.label}
+          <button onClick={chip.clear} aria-label={`Remove ${chip.label} filter`} style={{ color: c.text3, display: 'flex', transition: 'color 0.1s' }} onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = c.accent }} onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = c.text3 }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      ))}
+      <button onClick={() => onChange(EMPTY_FILTERS)} style={{ fontSize: 12, fontWeight: 500, color: c.accent, padding: '4px 8px', borderRadius: 'var(--r-full)', transition: 'background 0.1s' }} onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)' }} onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
+        Clear all
+      </button>
+    </div>
+  )
+}
+
+interface BrandPageClientProps {
+  slug: string
+  brandName: string
+  initialStats: BrandStats
+  initialLatest: Phone[]
+  initialPhones: Phone[]
+  initialTotal: number
+  initialFilters: SearchFilters
+  initialPage: number
+  initialSortIdx: number
+}
+
+function BrandPageContent({
+  slug, brandName, initialStats, initialLatest, initialPhones, initialTotal,
+  initialFilters, initialPage, initialSortIdx,
+}: BrandPageClientProps) {
+  const router       = useRouter()
+  const searchParams = useSearchParams()
+  const { toast }    = useToast()
+  const { phones: comparePhones, add: addCompare, remove: removeCompare } = useCompare()
+
+  const basePath = `/brand/${slug}`
+
+  const [stats]   = useState<BrandStats>(initialStats)
+  const [latest]  = useState<Phone[]>(initialLatest)
+  const [phones, setPhones]               = useState<Phone[]>(initialPhones)
+  const [total, setTotal]                 = useState(initialTotal)
+  const [phonesLoading, setPhonesLoading] = useState(false)
+  const [gridView, setGridView]           = useState(true)
+  const [sortOpen, setSortOpen]           = useState(false)
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
+
+  const [filters, setFilters] = useState<SearchFilters>(initialFilters)
+  const [page, setPage]       = useState(initialPage)
+  const [sortIdx, setSortIdx] = useState(initialSortIdx)
+
+  const scrollRef  = useRef<HTMLDivElement>(null)
+  const gridRef    = useRef<HTMLDivElement>(null)
+  const ownUpdate  = useRef(false)
+  const initialLoadDone = useRef(false)
+  const info = getBrandInfo(slug)
+
+  const activeFilterCount = Object.values(filters).filter(v => v !== undefined && v !== '').length
+
+  useEffect(() => {
+    if (!sortOpen) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSortOpen(false) }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [sortOpen])
+
+  useEffect(() => {
+    if (!mobileFiltersOpen) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMobileFiltersOpen(false) }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [mobileFiltersOpen])
+
+  useEffect(() => {
+    if (ownUpdate.current) { ownUpdate.current = false; return }
+    setFilters(parseFiltersFromParams(new URLSearchParams(searchParams.toString())))
+    setPage(parseInt(searchParams.get('page') ?? '1', 10))
+    setSortIdx(parseInt(searchParams.get('sort') ?? '0', 10))
+  }, [searchParams.toString()])
+
+  const commit = (f: SearchFilters, p: number, s: number) => {
+    ownUpdate.current = true
+    router.replace(buildUrl(basePath, f, p, s), { scroll: false })
+  }
+
+  const loadPhones = useCallback(async (signal: AbortSignal) => {
+    setPhonesLoading(true)
+    const sort = SORT_OPTIONS[sortIdx]
+    try {
+      const res = await api.phones.search({
+        brand: brandName,
+        ...filters,
+        sort_by: sort.value,
+        sort_order: sort.order,
+        page,
+        page_size: PAGE_SIZE,
+      }, signal)
+      setPhones(res.results)
+      setTotal(res.total)
+    } catch (err) {
+      if (signal.aborted || (err instanceof Error && err.name === 'AbortError')) return
+      toast('Failed to load phones', 'error')
+    } finally {
+      if (!signal.aborted) setPhonesLoading(false)
+    }
+  }, [brandName, page, sortIdx, filters, toast])
+
+  useEffect(() => {
+    if (!initialLoadDone.current) {
+      initialLoadDone.current = true
+      return
+    }
+    const controller = new AbortController()
+    loadPhones(controller.signal)
+    return () => controller.abort()
+  }, [loadPhones])
+
+  const handleFiltersChange = (f: SearchFilters) => { setFilters(f); setPage(1); commit(f, 1, sortIdx) }
+  const handleReset = () => { setFilters(EMPTY_FILTERS); setPage(1); commit(EMPTY_FILTERS, 1, sortIdx) }
+  const handleSortChange = (idx: number) => { setSortIdx(idx); setPage(1); setSortOpen(false); commit(filters, 1, idx) }
+  const handlePageChange = (p: number) => {
+    setPage(p)
+    commit(filters, p, sortIdx)
+    setTimeout(() => gridRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+  }
+
+  const handleCompareToggle = (phone: Phone) => {
+    if (comparePhones.find(p => p.id === phone.id)) {
+      removeCompare(phone.id)
+      toast('Removed from compare', 'info')
+      return
+    }
+    if (comparePhones.length >= MAX_COMPARE) { toast(`Maximum ${MAX_COMPARE} phones`, 'error'); return }
+    addCompare(phone)
+    toast('Added to compare', 'success')
+  }
+
+  const compareIds = comparePhones.map(p => p.id)
+  const displayBrandName = brandName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+
+  return (
+    <div style={{ minHeight: '100vh', background: c.bg }}>
+      <Navbar />
+
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 24px 80px' }}>
+        <nav style={{ padding: '16px 0 0', fontSize: 13, color: c.text3, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <Link href={ROUTES.home} style={{ color: c.text2 }}>Home</Link>
+          <ChevronRight size={12} />
+          <span>{stats.brand}</span>
+        </nav>
+
+        <div style={{ padding: '28px 0 36px', display: 'flex', alignItems: 'flex-start', gap: 28, flexWrap: 'wrap' }}>
+          <BrandLogoImg info={info} name={stats.brand} />
+          <div style={{ flex: 1, minWidth: 260 }}>
+            <h1 style={{ fontFamily: f.serif, fontSize: 'clamp(30px,4vw,48px)', color: c.text1, letterSpacing: -1, lineHeight: 1.1, marginBottom: 10 }}>
+              {stats.brand}
+            </h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', fontSize: 14, color: c.text2, marginBottom: 12 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <Smartphone size={14} /> {stats.total_phones} phones
+              </span>
+              {stats.latest_year && (
+                <><span style={{ width: 3, height: 3, borderRadius: '50%', background: c.borderHover, display: 'inline-block' }} /><span>Latest: {stats.latest_year}</span></>
+              )}
+              {info?.highlights[0] && (
+                <><span style={{ width: 3, height: 3, borderRadius: '50%', background: c.borderHover, display: 'inline-block' }} /><span style={{ color: 'var(--green)' }}>✓ {info.highlights[0]}</span></>
+              )}
+            </div>
+            {info?.description && <p style={{ fontSize: 15, color: c.text2, maxWidth: 620, lineHeight: 1.7, marginBottom: 16 }}>{info.description}</p>}
+            {info?.tags && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {info.tags.map(tag => (
+                  <span key={tag} style={{ padding: '4px 12px', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-full)', fontSize: 12, fontWeight: 500, color: c.text2 }}>{tag}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="brand-stats-grid" style={{ marginBottom: 40 }}>
+          <StatCard label="Average Price" value={fmt(stats.price_range.avg, '$')} sub={`Across ${stats.total_phones} models`} />
+          <StatCard
+            label="Price Range"
+            value={stats.price_range.min != null && stats.price_range.max != null ? `$${Math.round(stats.price_range.min).toLocaleString()} – $${Math.round(stats.price_range.max).toLocaleString()}` : '—'}
+          />
+          <StatCard label="Latest Model" value={stats.latest_phone?.model_name ?? '—'} sub={stats.latest_year ? `Released ${stats.latest_year}` : undefined} />
+          <StatCard label="Avg Battery" value={fmt(stats.avg_battery, '', ' mAh')} sub="Across current lineup" />
+        </div>
+
+        {latest.length > 0 && (
+          <div style={{ marginBottom: 52 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 20 }}>
+              <h2 style={{ fontFamily: f.serif, fontSize: 24, color: c.text1 }}>Latest Releases</h2>
+              <button onClick={() => gridRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })} style={{ fontSize: 13, color: c.text3, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                View all {stats.total_phones} <ChevronRight size={13} />
+              </button>
+            </div>
+            <div style={{ position: 'relative' }}>
+              <button onClick={() => scrollRef.current?.scrollBy({ left: -360, behavior: 'smooth' })} aria-label="Scroll left" className="scroll-arrow-btn" style={{ position: 'absolute', left: -16, top: '50%', transform: 'translateY(-50%)', width: 36, height: 36, borderRadius: '50%', background: c.surface, border: `1px solid ${c.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.text2, cursor: 'pointer', zIndex: z.badge, boxShadow: 'var(--shadow-md)' }}>
+                <ChevronLeft size={16} />
+              </button>
+              <div ref={scrollRef} className="scrollbar-none" style={{ display: 'flex', gap: 14, overflowX: 'auto', scrollSnapType: 'x mandatory', paddingBottom: 4 }}>
+                {latest.map(p => <MiniPhoneCard key={p.id} phone={p} />)}
+              </div>
+              <button onClick={() => scrollRef.current?.scrollBy({ left: 360, behavior: 'smooth' })} aria-label="Scroll right" className="scroll-arrow-btn" style={{ position: 'absolute', right: -16, top: '50%', transform: 'translateY(-50%)', width: 36, height: 36, borderRadius: '50%', background: c.surface, border: `1px solid ${c.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.text2, cursor: 'pointer', zIndex: z.badge, boxShadow: 'var(--shadow-md)' }}>
+                <ChevronRight size={16} />
+              </button>
+              <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 48, background: `linear-gradient(-90deg, ${c.bg} 0%, transparent 100%)`, pointerEvents: 'none' }} />
+            </div>
+          </div>
+        )}
+
+        <div ref={gridRef} id="brand-grid" style={{ display: 'grid', gap: 32, alignItems: 'start' }} className="brand-grid-layout">
+          <div className="brand-filter-sidebar">
+            <FilterPanel filters={filters} onChange={handleFiltersChange} onReset={handleReset} showBrandFilter={false} />
+            <div style={{ marginTop: 20 }}>
+              <AdSlot placement="skyscraper" />
+            </div>
+          </div>
+
+          <div>
+            <FilterChips filters={filters} onChange={handleFiltersChange} />
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, gap: 12, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => setMobileFiltersOpen(true)}
+                  style={{ display: 'none', alignItems: 'center', gap: 6, padding: '7px 14px', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-sm)', fontSize: 13, fontWeight: 500, color: c.text1 }}
+                  className="brand-mobile-filter-btn"
+                  aria-label="Open filters"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="12" y1="18" x2="20" y2="18"/></svg>
+                  Filters
+                  {activeFilterCount > 0 && (
+                    <span style={{ background: c.accent, color: '#fff', fontSize: 10, fontWeight: 700, width: 16, height: 16, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{activeFilterCount}</span>
+                  )}
+                </button>
+
+                <div style={{ position: 'relative' }}>
+                  <button
+                    onClick={() => setSortOpen(o => !o)}
+                    aria-expanded={sortOpen}
+                    aria-haspopup="listbox"
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', fontSize: 13, fontWeight: 500, color: c.text1, background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-sm)', cursor: 'pointer', fontFamily: 'inherit' }}
+                  >
+                    <ArrowUpDown size={14} color={c.text3} />
+                    {SORT_OPTIONS[sortIdx].label}
+                    <ChevronDown size={13} color={c.text3} style={{ transform: sortOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+                  </button>
+                  {sortOpen && (
+                    <>
+                      <div style={{ position: 'fixed', inset: 0, zIndex: z.dropdown - 1 }} onClick={() => setSortOpen(false)} />
+                      <div role="listbox" aria-label="Sort options" style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-md)', overflow: 'hidden', boxShadow: 'var(--shadow-md)', zIndex: z.dropdown, minWidth: 190 }}>
+                        {SORT_OPTIONS.map((opt, i) => (
+                          <button key={i} role="option" aria-selected={i === sortIdx} onClick={() => handleSortChange(i)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 16px', fontSize: 13, fontFamily: 'inherit', color: i === sortIdx ? c.primary : c.text2, fontWeight: i === sortIdx ? 600 : 400, background: i === sortIdx ? 'rgba(26,26,46,0.04)' : 'transparent', border: 'none', cursor: 'pointer' }}>
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                <span style={{ fontSize: 13, color: c.text3 }}>
+                  <strong style={{ color: c.text1 }}>{total.toLocaleString()}</strong> phones
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', gap: 2, background: c.bg, border: `1px solid ${c.border}`, borderRadius: 'var(--r-sm)', padding: 3 }}>
+                <button
+                  onClick={() => setGridView(true)}
+                  aria-label="Grid view"
+                  aria-pressed={gridView}
+                  style={{ width: 32, height: 32, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', color: gridView ? c.text1 : c.text3, background: gridView ? c.surface : 'transparent', border: 'none', cursor: 'pointer', transition: 'all 0.15s', boxShadow: gridView ? 'var(--shadow-sm)' : 'none' }}
+                >
+                  <LayoutGrid size={14} />
+                </button>
+                <button
+                  onClick={() => setGridView(false)}
+                  aria-label="List view"
+                  aria-pressed={!gridView}
+                  style={{ width: 32, height: 32, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', color: !gridView ? c.text1 : c.text3, background: !gridView ? c.surface : 'transparent', border: 'none', cursor: 'pointer', transition: 'all 0.15s', boxShadow: !gridView ? 'var(--shadow-sm)' : 'none' }}
+                >
+                  <List size={14} />
+                </button>
+              </div>
+            </div>
+
+            {phonesLoading ? (
+              gridView
+                ? <div className="brand-phone-grid" style={{ marginBottom: 40 }}>{Array.from({ length: 8 }).map((_, i) => <PhoneCardSkeleton key={i} />)}</div>
+                : <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 40 }}>{Array.from({ length: 6 }).map((_, i) => <div key={i} className="skeleton" style={{ height: 84, borderRadius: 'var(--r-md)' }} />)}</div>
+            ) : phones.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '64px 0', color: c.text3 }}>
+                <Smartphone size={48} color={c.border} strokeWidth={1} style={{ margin: '0 auto 12px' }} />
+                <p style={{ fontSize: 15, marginBottom: 16 }}>No phones match these filters.</p>
+                <button onClick={handleReset} style={{ padding: '9px 22px', background: c.primary, color: '#fff', borderRadius: 'var(--r-full)', fontSize: 14, fontWeight: 500, cursor: 'pointer', border: 'none' }}>
+                  Clear filters
+                </button>
+              </div>
+            ) : gridView ? (
+              <div className="brand-phone-grid" style={{ marginBottom: 40 }}>
+                  {phones.map((p, i) => (
+                  <Fragment key={p.id}>
+                    <PhoneCard phone={p} compareIds={compareIds} onCompareToggle={handleCompareToggle} compact />
+                    {(i + 1) % 12 === 0 && <AdCard />}
+                  </Fragment>
+                ))}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 40 }}>
+                {phones.map(p => <PhoneListRow key={p.id} phone={p} inCompare={compareIds.includes(p.id)} onCompareToggle={handleCompareToggle} />)}
+              </div>
+            )}
+
+            <Pagination page={page} total={total} pageSize={PAGE_SIZE} onChange={handlePageChange} />
+          </div>
+        </div>
+      </div>
+
+      <Footer />
+      <CompareBar />
+
+      {mobileFiltersOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Filters"
+          style={{ position: 'fixed', inset: 0, zIndex: z.drawer, background: 'rgba(0,0,0,0.45)' }}
+          onClick={() => setMobileFiltersOpen(false)}
+        >
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: c.surface, borderRadius: 'var(--r-xl) var(--r-xl) 0 0', maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', animation: 'slideUp 0.25s ease' }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding: '10px 0 0', display: 'flex', justifyContent: 'center' }}><div style={{ width: 36, height: 4, background: c.border, borderRadius: 2 }} /></div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 20px' }}>
+              <FilterPanel filters={filters} onChange={f => { handleFiltersChange(f); setMobileFiltersOpen(false) }} onReset={() => { handleReset(); setMobileFiltersOpen(false) }} showBrandFilter={false} />
+            </div>
+            <div style={{ padding: '12px 16px', borderTop: `1px solid ${c.border}`, display: 'flex', gap: 10 }}>
+              <button onClick={() => { handleReset(); setMobileFiltersOpen(false) }} style={{ flex: 1, padding: '11px 0', background: c.bg, border: `1px solid ${c.border}`, borderRadius: 'var(--r-md)', fontSize: 14, fontWeight: 600, color: c.text1, cursor: 'pointer' }}>Reset</button>
+              <button onClick={() => setMobileFiltersOpen(false)} style={{ flex: 2, padding: '11px 0', background: c.primary, borderRadius: 'var(--r-md)', fontSize: 14, fontWeight: 600, color: '#fff', border: 'none', cursor: 'pointer' }}>Apply Filters</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        .scrollbar-none { scrollbar-width: none; }
+        .scrollbar-none::-webkit-scrollbar { display: none; }
+        @media (max-width: 768px) { .scroll-arrow-btn { display: none !important; } }
+        .brand-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+        .brand-phone-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+        .brand-grid-layout { grid-template-columns: var(--sidebar-w) 1fr; }
+        ${mq.xl} { .brand-phone-grid { grid-template-columns: repeat(3, 1fr); } }
+        ${mq.lg} {
+          .brand-stats-grid { grid-template-columns: repeat(2, 1fr); }
+          .brand-grid-layout { grid-template-columns: 1fr !important; }
+          .brand-filter-sidebar { display: none !important; }
+          .brand-mobile-filter-btn { display: flex !important; }
+          .brand-phone-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        }
+        ${mq.md} {
+          .brand-phone-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+          .brand-stats-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+        }
+      `}</style>
+    </div>
+  )
+}
+
+export default function BrandPageClient(props: BrandPageClientProps) {
+  return (
+    <Suspense fallback={null}>
+      <BrandPageContent {...props} />
+    </Suspense>
+  )
+}
