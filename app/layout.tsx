@@ -1,9 +1,9 @@
 // app/layout.tsx
 import type { Metadata, Viewport } from 'next'
 import { Inter, Instrument_Serif } from 'next/font/google'
-import Script from 'next/script'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
+import { GoogleAnalytics } from '@next/third-parties/google'
 import { ToastProvider } from '@/app/components/Toast'
 import { CompareProvider } from '@/lib/compareStore'
 import DataNoticeBanner from '@/app/components/DataNoticeBanner'
@@ -30,7 +30,7 @@ const SITE_NAME = 'Specmob'
 const SITE_DESCRIPTION =
   'No clutter. No discontinued junk. Find and compare phones you can actually buy today.'
 const SOCIAL_DESCRIPTION = 'Compare phones side-by-side with honest specs and verdicts.'
-const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_ID ?? 'GA4552110706'
+const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_ID ?? 'G-T7WV2C51YF'
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -113,18 +113,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </RegionProvider>
         <Analytics />
         <SpeedInsights />
-        <Script
-          src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
-          strategy="afterInteractive"
-        />
-        <Script id="ga-init" strategy="afterInteractive">
-          {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', '${GA_MEASUREMENT_ID}');
-          `}
-        </Script>
+        <GoogleAnalytics gaId={GA_MEASUREMENT_ID} />
       </body>
     </html>
   )
