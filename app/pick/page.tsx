@@ -20,6 +20,7 @@ import { PRICE_TIERS, getPriceTier, type PriceTierId } from '@/lib/priceTiers'
 import { getTierStyle } from '@/lib/tiers'
 import { c, r } from '@/lib/tokens'
 import type { Phone } from '@/lib/types'
+
 import { analytics } from '@/lib/analytics'
 
 const STEPS = [1, 2, 3]
@@ -764,6 +765,12 @@ function PickPageContent() {
         limit: 5,
       })
       setResults(data.phones as (Phone & { match_score?: number; in_requested_budget?: boolean | null })[])
+      analytics.pickComplete({
+        priorities: priorityList.join(','),
+        result_count: data.phones.length,
+        min_price: minPrice,
+        max_price: maxPrice,
+      })
       setRecommendMeta({
         budgetWidened: data.budget_widened,
         insufficientMatches: data.insufficient_matches,
