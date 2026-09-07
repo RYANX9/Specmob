@@ -20,6 +20,7 @@ import { PRICE_TIERS, getPriceTier, type PriceTierId } from '@/lib/priceTiers'
 import { getTierStyle } from '@/lib/tiers'
 import { c, r } from '@/lib/tokens'
 import type { Phone } from '@/lib/types'
+import { analytics } from '@/lib/analytics'
 
 const STEPS = [1, 2, 3]
 
@@ -691,6 +692,11 @@ function PickPageContent() {
     effectiveMax: number | null
   } | null>(null)
 
+  useEffect(() => {
+    analytics.pickStart()
+  }, [])
+
+  
   const commit = useCallback((s: number, tid: PriceTierId | null, cMin: string, cMax: string, pSet: Set<string>) => {
     const params = new URLSearchParams()
     params.set('step', String(s))
