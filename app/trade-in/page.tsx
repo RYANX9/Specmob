@@ -26,6 +26,7 @@ import { ROUTES, phoneSlug } from '@/lib/config'
 import { c, f, r, space } from '@/lib/tokens'
 import { formatDisplayPrice } from '@/lib/price'
 import type { Phone, TradeInResponse, TradeInRequest } from '@/lib/types'
+import { analytics } from '@/lib/analytics'
 
 const SCREEN_OPTIONS = [
   { id: 'perfect', label: 'Perfect', desc: 'No visible marks' },
@@ -1514,6 +1515,11 @@ function TradeInContent() {
         ...payload,
       })
       setResult(res)
+      analytics.tradeinComplete({
+        phone_id: phone.id,
+        estimated_low: res.estimated_range.low,
+        estimated_high: res.estimated_range.high,
+      })
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch {
       toast('Could not calculate a trade-in estimate', 'error')
@@ -1555,7 +1561,7 @@ function TradeInContent() {
               padding: `${space['2xl']}px 0 ${space['4xl']}px`,
             }}
           >
-            <PhonePicker onSelect={setPhone} />
+            <PhonePicker onSelect={p => { analytics.tradeinStart({ id: p.id, brand: p.brand, model_name: p.model_name }); setPhone(p) }} />
           </div>
         )}
 
