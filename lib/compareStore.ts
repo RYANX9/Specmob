@@ -19,7 +19,9 @@ export function CompareProvider({ children }: { children: React.ReactNode }) {
   const add = useCallback((phone: Phone) => {
     setPhones((prev) => {
       if (prev.some((p) => p.id === phone.id)) return prev
-      return [...prev, phone]
+      const next = [...prev, phone]
+      analytics.compareAddPhone(phone, next.length)
+      return next
     })
   }, [])
 
