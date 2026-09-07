@@ -28,6 +28,8 @@ import { useRegion } from '@/lib/regionStore'
 import { resolveOffersForVariant, buyButtonLabel, inferRetailerLabelFromUrl, inferRegionTagFromUrl, type RetailerOffer } from '@/lib/retailer'
 import AlternateOfferPicker from '@/app/components/phone-detail/AlternateOfferPicker'
 
+import { analytics } from '@/lib/analytics'
+
 const SKIP_SPEC_KEYS = new Set([
   'metadata', 'media', 'benchmarks', 'price_info',
   'quick_specs', 'processed_at', 'source_url', 'specifications',
