@@ -359,6 +359,10 @@ function PhoneDetailInner({ phone, similar, initialFullSpecs }: PhoneDetailClien
   }
 
   useEffect(() => {
+    analytics.phoneView({ id: phone.id, brand: phone.brand, model_name: phone.model_name, price_usd: phone.price_usd })
+  }, [phone.id])
+
+  useEffect(() => {
     const controller = new AbortController()
     setPriceHistoryLoading(true)
     api.phones.priceHistory(phone.id, { scope: 'global' }, controller.signal)
