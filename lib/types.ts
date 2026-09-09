@@ -257,12 +257,14 @@ export type CategorySlug =
 
 export interface TradeInRequest {
   phone_id: number
+  variant_id?: number   // added — id from PhoneVariant, when the model has more than one
   screen_condition: 'perfect' | 'minor_scratches' | 'deep_scratches' | 'cracked_touch_ok' | 'cracked_unresponsive'
   body_condition: 'flawless' | 'light_wear' | 'moderate_wear' | 'heavy_wear' | 'cracked_back'
   battery_health: number
   battery_non_original: boolean
   broken_components: string[]
 }
+ 
 
 export interface TradeInResponse {
   phone_id: number
