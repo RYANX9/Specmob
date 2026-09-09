@@ -17,15 +17,16 @@ import {
   Frame,
   Activity,
   Scale,
+  HardDrive,
 } from 'lucide-react'
 import Navbar from '@/app/components/Navbar'
 import Footer from '@/app/components/Footer'
 import { useToast } from '@/app/components/Toast'
 import { api } from '@/lib/api'
-import { ROUTES, phoneSlug } from '@/lib/config'
+import { ROUTES, phoneSlug, formatPrice } from '@/lib/config'
 import { c, f, r, space } from '@/lib/tokens'
 import { formatDisplayPrice } from '@/lib/price'
-import type { Phone, TradeInResponse, TradeInRequest } from '@/lib/types'
+import type { Phone, PhoneVariant, TradeInResponse, TradeInRequest } from '@/lib/types'
 import { analytics } from '@/lib/analytics'
 
 const SCREEN_OPTIONS = [
@@ -68,7 +69,7 @@ const STEPS = [
   {
     icon: ClipboardList,
     title: 'Describe condition',
-    desc: 'Screen, body, battery health, and any functional issues. Be honest — it keeps the estimate accurate.',
+    desc: 'Storage variant, screen, body, battery health, and any functional issues. Be honest — it keeps the estimate accurate.',
   },
   {
     icon: Banknote,
@@ -348,8 +349,32 @@ function StepsGuide({ hasStarted }: { hasStarted: boolean }) {
 }
 
 // ─── selected phone chip ────────────────────────────────────────────────────
-function SelectedPhoneChip({ phone, onChange }: { phone: Phone; onChange: () => void }) {
+function SelectedPhoneChip({
+  phone,
+  variant,
+  onChangePhone,
+  onChangeVariant,
+}: {
+  phone: Phone
+  variant: PhoneVariant | null
+  onChangePhone: () => void
+  onChangeVariant?: () => void
+}) {
   const [imgErr, setImgErr] = useState(false)
+
+  const ghostButtonStyle: React.CSSProperties = {
+    fontSize: 12,
+    fontWeight: 600,
+    color: c.text2,
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    padding: '6px 10px',
+    borderRadius: r.sm,
+    flexShrink: 0,
+    transition: 'all 0.12s',
+  }
+
   return (
     <div
       className="selected-phone-chip"
@@ -393,32 +418,32 @@ function SelectedPhoneChip({ phone, onChange }: { phone: Phone; onChange: () => 
           {phone.model_name}
         </div>
         <div style={{ fontSize: 12, color: c.text3, marginTop: 2 }}>
-          {phone.brand} · Tracked price {formatDisplayPrice(phone)}
+          {phone.brand}
+          {variant
+            ? ` · ${variant.storage_gb}GB · ${formatPrice(variant.price_usd)}`
+            : ` · Tracked price ${formatDisplayPrice(phone)}`}
         </div>
       </div>
-      <button
-        onClick={onChange}
-        style={{
-          fontSize: 12,
-          fontWeight: 600,
-          color: c.text2,
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          padding: '6px 10px',
-          borderRadius: r.sm,
-          flexShrink: 0,
-          transition: 'all 0.12s',
-        }}
-        onMouseEnter={(e) => {
-          ;(e.currentTarget as HTMLElement).style.background = c.bg
-        }}
-        onMouseLeave={(e) => {
-          ;(e.currentTarget as HTMLElement).style.background = 'transparent'
-        }}
-      >
-        Change phone
-      </button>
+      <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+        {variant && onChangeVariant && (
+          <button
+            onClick={onChangeVariant}
+            style={ghostButtonStyle}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = c.bg }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+          >
+            Change storage
+          </button>
+        )}
+        <button
+          onClick={onChangePhone}
+          style={ghostButtonStyle}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = c.bg }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+        >
+          Change phone
+        </button>
+      </div>
     </div>
   )
 }
@@ -570,6 +595,136 @@ function PhonePicker({ onSelect }: { onSelect: (p: Phone) => void }) {
   )
 }
 
+// ─── variant (storage) step ──────────────────────────────────────────────
+function VariantStep({
+  phone,
+  variants,
+  loading,
+  onSelect,
+  onBack,
+}: {
+  phone: Phone
+  variants: PhoneVariant[]
+  loading: boolean
+  onSelect: (v: PhoneVariant) => void
+  onBack: () => void
+}) {
+  return (
+    <div style={{ maxWidth: 720, margin: '0 auto' }}>
+      <div
+        style={{
+          background: c.surface,
+          border: `1px solid ${c.border}`,
+          borderRadius: r.lg,
+          padding: `${space.xl}px`,
+          marginBottom: space.xl,
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            marginBottom: space.lg,
+          }}
+        >
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: r.md,
+              background: c.bg,
+              border: `1px solid ${c.border}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <HardDrive size={15} color={c.text2} />
+          </div>
+          <h3 style={{ fontFamily: f.serif, fontSize: 18, color: c.text1 }}>
+            Select your storage
+          </h3>
+        </div>
+
+        <p style={{ fontSize: 13, color: c.text3, marginBottom: space.lg, lineHeight: 1.6 }}>
+          The {phone.model_name} comes in more than one storage size, each tracked at a different retailer price. Pick the one you own.
+        </p>
+
+        {loading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
+            <Loader2 size={20} style={{ animation: 'spin 1s linear infinite', color: c.text3 }} />
+          </div>
+        ) : (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+              gap: 10,
+            }}
+          >
+            {variants.map((v) => (
+              <button
+                key={v.id}
+                onClick={() => onSelect(v)}
+                style={{
+                  textAlign: 'left',
+                  padding: '16px 18px',
+                  borderRadius: r.lg,
+                  cursor: 'pointer',
+                  border: `2px solid ${c.border}`,
+                  background: c.surface,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 6,
+                  transition: 'all 0.12s',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = c.primary }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = c.border }}
+              >
+                <span style={{ fontSize: 14, fontWeight: 700, color: c.text1 }}>
+                  {v.storage_gb}GB{v.ram_gb ? ` · ${v.ram_gb}GB RAM` : ''}
+                </span>
+                <span style={{ fontSize: 13, color: c.text3 }}>{formatPrice(v.price_usd)}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <button
+          onClick={onBack}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '10px 22px',
+            borderRadius: r.md,
+            fontSize: 14,
+            fontWeight: 500,
+            color: c.text2,
+            border: `1px solid ${c.border}`,
+            background: 'transparent',
+            cursor: 'pointer',
+            transition: 'all 0.12s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = c.primary
+            e.currentTarget.style.color = c.text1
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = c.border
+            e.currentTarget.style.color = c.text2
+          }}
+        >
+          <ArrowLeft size={14} /> Back
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ─── option group (card-based selection) ────────────────────────────────────
 function OptionGroup<T extends string>({
   options,
@@ -660,7 +815,7 @@ function ConditionForm({
   submitting,
   onBack,
 }: {
-  onSubmit: (payload: Omit<TradeInRequest, 'phone_id'>) => void
+  onSubmit: (payload: Omit<TradeInRequest, 'phone_id' | 'variant_id'>) => void
   submitting: boolean
   onBack: () => void
 }) {
@@ -1499,19 +1654,53 @@ function ResultsView({
 function TradeInContent() {
   const { toast } = useToast()
   const [phone, setPhone] = useState<Phone | null>(null)
+  const [variants, setVariants] = useState<PhoneVariant[]>([])
+  const [variantsLoading, setVariantsLoading] = useState(false)
+  const [variant, setVariant] = useState<PhoneVariant | null>(null)
   const [result, setResult] = useState<TradeInResponse | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
   const hasStarted = phone !== null
 
+  // Fetch storage variants whenever a new phone is selected. A phone with
+  // one or zero variants skips the picker step automatically.
+  useEffect(() => {
+    if (!phone) {
+      setVariants([])
+      setVariant(null)
+      return
+    }
+    let cancelled = false
+    setVariantsLoading(true)
+    api.phones
+      .variants(phone.id)
+      .then((res) => {
+        if (cancelled) return
+        setVariants(res.variants)
+        if (res.variants.length <= 1) {
+          setVariant(res.variants[0] ?? null)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setVariants([])
+      })
+      .finally(() => {
+        if (!cancelled) setVariantsLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [phone])
+
+  const showVariantStep = hasStarted && variant === null && (variantsLoading || variants.length > 1)
+
   const handleSubmit = async (
-    payload: Omit<TradeInRequest, 'phone_id'>,
+    payload: Omit<TradeInRequest, 'phone_id' | 'variant_id'>,
   ) => {
     if (!phone) return
     setSubmitting(true)
     try {
       const res = await api.tradein.estimate({
         phone_id: phone.id,
+        variant_id: variant?.id,
         ...payload,
       })
       setResult(res)
@@ -1530,9 +1719,23 @@ function TradeInContent() {
 
   const changePhone = () => {
     setPhone(null)
+    setVariants([])
+    setVariant(null)
     setResult(null)
   }
-  const backFromForm = () => setPhone(null)
+  const changeVariant = () => setVariant(null)
+  const backFromVariant = () => {
+    setPhone(null)
+    setVariants([])
+    setVariant(null)
+  }
+  const backFromForm = () => {
+    if (variants.length > 1) {
+      setVariant(null)
+    } else {
+      setPhone(null)
+    }
+  }
   const backFromResults = () => setResult(null)
 
   return (
@@ -1568,12 +1771,28 @@ function TradeInContent() {
         {/* Selected chip */}
         {phone && (
           <div style={{ maxWidth: 720, margin: '0 auto' }}>
-            <SelectedPhoneChip phone={phone} onChange={changePhone} />
+            <SelectedPhoneChip
+              phone={phone}
+              variant={variant}
+              onChangePhone={changePhone}
+              onChangeVariant={variants.length > 1 ? changeVariant : undefined}
+            />
           </div>
         )}
 
+        {/* Storage variant picker */}
+        {showVariantStep && phone && (
+          <VariantStep
+            phone={phone}
+            variants={variants}
+            loading={variantsLoading}
+            onSelect={setVariant}
+            onBack={backFromVariant}
+          />
+        )}
+
         {/* Condition form */}
-        {phone && !result && (
+        {phone && !showVariantStep && !result && (
           <ConditionForm
             onSubmit={handleSubmit}
             submitting={submitting}
