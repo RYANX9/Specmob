@@ -15,7 +15,7 @@ export const metadata: Metadata = {
       'Compare up to 4 smartphones with detailed specs, winners highlighted, and honest verdicts.',
   },
   twitter: {
-    card: 'summary',
+    card: 'summary_large_image', // was 'summary'
     title: 'Compare Phones | Specmob',
     description: 'Side-by-side spec comparison for up to 4 smartphones.',
   },
