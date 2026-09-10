@@ -2,107 +2,248 @@
 import { ImageResponse } from 'next/og'
 import { getPhone } from '@/lib/api'
 import { resolveDisplayPrice } from '@/lib/price'
-import { SITE_URL } from '@/lib/config'
+import { SITE_URL, stripBrandFromDisplayName } from '@/lib/config'
 
 export const runtime = 'edge'
-export const size = { width: 1200, height: 630 }
+
+export const size = {
+  width: 1200,
+  height: 630,
+}
+
 export const contentType = 'image/png'
+
 export const alt = 'Phone specs and price on Specmob'
 
 const IMAGE_FETCH_TIMEOUT_MS = 8_000
 
+/**
+ * Load the Instrument Serif font used by the Specmob wordmark.
+ */
 async function loadWordmarkFont() {
-  return fetch(new URL('./InstrumentSerif-Italic.ttf', import.meta.url)).then(
-    (res) => res.arrayBuffer()
+  const res = await fetch(
+    new URL('./InstrumentSerif-Italic.ttf', import.meta.url)
   )
+
+  if (!res.ok) {
+    throw new Error(`Failed to load wordmark font: ${res.status}`)
+  }
+
+  return res.arrayBuffer()
 }
 
+/**
+ * Homepage fallback if the entire OG render fails.
+ */
 async function homepageOgFallback() {
   const res = await fetch(`${SITE_URL}/og-image.png`)
+
+  if (!res.ok) {
+    throw new Error(`Failed to load homepage OG image: ${res.status}`)
+  }
+
   const buffer = await res.arrayBuffer()
-  return new Response(buffer, { headers: { 'content-type': 'image/png' } })
+
+  return new Response(buffer, {
+    headers: {
+      'content-type': 'image/png',
+    },
+  })
 }
 
+/**
+ * Convert a Uint8Array to base64 safely.
+ *
+ * We do this in chunks instead of:
+ *
+ * String.fromCharCode(...bytes)
+ *
+ * because spreading a large image into a function call can
+ * exceed the Edge runtime's argument/call-stack limits.
+ */
 function uint8ArrayToBase64(bytes: Uint8Array): string {
   let binary = ''
-  const CHUNK = 0x8000
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
+
+  const CHUNK_SIZE = 0x8000
+
+  for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+    const chunk = bytes.subarray(
+      i,
+      Math.min(i + CHUNK_SIZE, bytes.length)
+    )
+
+    binary += String.fromCharCode(...chunk)
   }
+
   return btoa(binary)
 }
 
 /**
- * Routes the image through Vercel's image optimizer before fetching it.
- * This resizes any large source image (even multi-MB JPEGs) down to
- * a small WebP before we base64-encode it, so the Edge function never
- * has to handle the raw large file.
+ * Convert a Supabase public Storage URL into a resized
+ * Supabase image transformation URL.
+ *
+ * Example:
+ *
+ * /storage/v1/object/public/phone-images/phones/foo.jpg
+ *
+ * becomes:
+ *
+ * /storage/v1/render/image/public/phone-images/phones/foo.jpg
+ * ?width=400&height=400&resize=contain&quality=80
+ *
+ * This means the OG Edge function doesn't need to download
+ * the original multi-megabyte phone image.
+ */
+function getResizedSupabaseImageUrl(
+  url: string | null | undefined
+): string | null {
+  if (!url) {
+    return null
+  }
+
+  try {
+    const parsed = new URL(url)
+
+    const isSupabaseStorage =
+      parsed.hostname.endsWith('.supabase.co') &&
+      parsed.pathname.includes('/storage/v1/object/public/')
+
+    if (!isSupabaseStorage) {
+      // If this isn't a Supabase Storage URL, just use
+      // the original URL.
+      return url
+    }
+
+    parsed.pathname = parsed.pathname.replace(
+      '/storage/v1/object/public/',
+      '/storage/v1/render/image/public/'
+    )
+
+    /**
+     * 400x400 gives Satori enough resolution for the
+     * ~300x380 display area while still keeping the
+     * downloaded image small.
+     */
+    parsed.searchParams.set('width', '400')
+    parsed.searchParams.set('height', '400')
+    parsed.searchParams.set('resize', 'contain')
+    parsed.searchParams.set('quality', '80')
+
+    return parsed.toString()
+  } catch (error) {
+    console.error(
+      'OG image: failed to create resized image URL:',
+      error
+    )
+
+    return url
+  }
+}
+
+/**
+ * Fetch the phone image server-side, after resizing it through
+ * Supabase, then convert it into a data URI for Satori.
  */
 async function fetchImageDataUri(
   url: string | null | undefined
 ): Promise<string | null> {
-  if (!url) return null
+  const resizedUrl = getResizedSupabaseImageUrl(url)
 
-  // Route through Vercel's image optimizer: resize to 400px wide, WebP output.
-  // This is the same endpoint Next.js uses for <Image> components.
-  const optimizedUrl = `${SITE_URL}/_next/image?url=${encodeURIComponent(url)}&w=400&q=80`
+  if (!resizedUrl) {
+    console.warn(
+      'OG image: phone does not have a main_image_url'
+    )
+
+    return null
+  }
 
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), IMAGE_FETCH_TIMEOUT_MS)
+
+  const timeoutId = setTimeout(() => {
+    controller.abort()
+  }, IMAGE_FETCH_TIMEOUT_MS)
 
   try {
-    const res = await fetch(optimizedUrl, {
+    console.log(
+      'OG image: fetching phone image:',
+      resizedUrl
+    )
+
+    const res = await fetch(resizedUrl, {
       signal: controller.signal,
-      // No cache: always get fresh image in case source URL changed
       cache: 'no-store',
     })
 
     if (!res.ok) {
-      // Fall back to fetching the original URL directly if optimizer fails
       console.error(
-        'OG image: optimizer fetch failed:',
+        'OG image: phone image request failed:',
         res.status,
-        optimizedUrl
+        res.statusText,
+        resizedUrl
       )
-      return await fetchOriginalDirectly(url)
+
+      return null
+    }
+
+    const contentType =
+      res.headers.get('content-type') || 'image/jpeg'
+
+    if (!contentType.startsWith('image/')) {
+      console.error(
+        'OG image: response is not an image:',
+        contentType,
+        resizedUrl
+      )
+
+      return null
     }
 
     const buffer = await res.arrayBuffer()
-    if (buffer.byteLength === 0) return null
 
-    const contentType = res.headers.get('content-type') || 'image/webp'
-    const base64 = uint8ArrayToBase64(new Uint8Array(buffer))
-    return `data:${contentType};base64,${base64}`
-  } catch (err) {
-    console.error('OG image: optimized fetch error:', err)
-    return await fetchOriginalDirectly(url)
-  } finally {
-    clearTimeout(timeoutId)
-  }
-}
+    if (buffer.byteLength === 0) {
+      console.error(
+        'OG image: image response is empty:',
+        resizedUrl
+      )
 
-/** Direct fetch of the original URL as a last resort. */
-async function fetchOriginalDirectly(url: string): Promise<string | null> {
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), IMAGE_FETCH_TIMEOUT_MS)
-  try {
-    const res = await fetch(url, { signal: controller.signal, cache: 'no-store' })
-    if (!res.ok) return null
-    const buffer = await res.arrayBuffer()
-    if (buffer.byteLength === 0) return null
-    const contentType = res.headers.get('content-type') || 'image/jpeg'
-    const base64 = uint8ArrayToBase64(new Uint8Array(buffer))
+      return null
+    }
+
+    console.log(
+      'OG image: resized image downloaded:',
+      buffer.byteLength,
+      'bytes'
+    )
+
+    const bytes = new Uint8Array(buffer)
+
+    const base64 = uint8ArrayToBase64(bytes)
+
     return `data:${contentType};base64,${base64}`
-  } catch {
+  } catch (error) {
+    console.error(
+      'OG image: failed to fetch phone image:',
+      resizedUrl,
+      error
+    )
+
     return null
   } finally {
     clearTimeout(timeoutId)
   }
 }
 
+/**
+ * Specmob wordmark.
+ */
 function Wordmark() {
   return (
-    <div style={{ display: 'flex', alignItems: 'baseline' }}>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'baseline',
+      }}
+    >
       <div
         style={{
           fontFamily: 'Instrument Serif',
@@ -113,6 +254,7 @@ function Wordmark() {
       >
         Specmob
       </div>
+
       <div
         style={{
           fontFamily: 'Instrument Serif',
@@ -127,16 +269,25 @@ function Wordmark() {
   )
 }
 
+/**
+ * Generate the model OG image.
+ */
 export default async function Image({
   params,
 }: {
-  params: Promise<{ brand: string; model: string }>
+  params: Promise<{
+    brand: string
+    model: string
+  }>
 }) {
-  const { model } = await params
+  const { brand, model } = await params
 
   try {
+    /**
+     * Load the phone and font at the same time.
+     */
     const [phone, fontData] = await Promise.all([
-      getPhone(model),
+      getPhone(`${brand}-${model}`),
       loadWordmarkFont(),
     ])
 
@@ -149,6 +300,9 @@ export default async function Image({
       },
     ]
 
+    /**
+     * Phone wasn't found.
+     */
     if (!phone) {
       return new ImageResponse(
         (
@@ -165,20 +319,36 @@ export default async function Image({
             <Wordmark />
           </div>
         ),
-        { ...size, fonts }
+        {
+          ...size,
+          fonts,
+        }
       )
     }
 
+    /**
+     * Resolve price and fetch the resized phone image
+     * simultaneously.
+     */
     const [price, imageUri] = await Promise.all([
       Promise.resolve(resolveDisplayPrice(phone)),
       fetchImageDataUri(phone.main_image_url),
     ])
 
-    // Strip brand prefix from model name for display (e.g. "Apple iPhone Duo" -> "iPhone Duo")
-    const modelDisplayName = phone.model_name
-      .replace(new RegExp(`^${phone.brand}\\s+`, 'i'), '')
-      .trim()
+    console.log('OG image result:', {
+      phone: phone.model_name,
+      originalImageUrl: phone.main_image_url,
+      hasImage: Boolean(imageUri),
+    })
 
+    const modelDisplayName = stripBrandFromDisplayName(
+      phone.model_name,
+      phone.brand
+    )
+
+    /**
+     * Generate final OG image.
+     */
     return new ImageResponse(
       (
         <div
@@ -191,10 +361,20 @@ export default async function Image({
             padding: 64,
           }}
         >
-          <div style={{ display: 'flex' }}>
+          {/* ============================================
+              WORDMARK
+          ============================================ */}
+          <div
+            style={{
+              display: 'flex',
+            }}
+          >
             <Wordmark />
           </div>
 
+          {/* ============================================
+              MAIN CONTENT
+          ============================================ */}
           <div
             style={{
               display: 'flex',
@@ -203,18 +383,25 @@ export default async function Image({
               marginTop: 32,
             }}
           >
-            {/* Phone image box */}
+            {/* ==========================================
+                PHONE IMAGE
+            ========================================== */}
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+
                 width: 420,
                 height: 420,
+
                 background: '#FFFFFF',
+
                 border: '1px solid #E7E2D8',
                 borderRadius: 32,
+
                 marginRight: 56,
+
                 overflow: 'hidden',
               }}
             >
@@ -222,30 +409,46 @@ export default async function Image({
                 <img
                   src={imageUri}
                   alt=""
-                  width={340}
+                  width={300}
                   height={380}
-                  style={{ objectFit: 'contain', width: 340, height: 380 }}
+                  style={{
+                    objectFit: 'contain',
+                    width: 300,
+                    height: 380,
+                  }}
                 />
               ) : (
-                // Fallback when image can't be loaded
+                /**
+                 * If the phone image cannot be loaded,
+                 * don't leave an unexplained empty box.
+                 */
                 <div
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    width: '100%',
-                    height: '100%',
-                    fontSize: 16,
+                    fontFamily: 'Instrument Serif',
+                    fontStyle: 'italic',
+                    fontSize: 28,
                     color: '#9A9689',
                   }}
                 >
-                  {phone.brand}
+                  Specmob.
                 </div>
               )}
             </div>
 
-            {/* Text info */}
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {/* ==========================================
+                PHONE INFORMATION
+            ========================================== */}
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                flex: 1,
+              }}
+            >
+              {/* Brand */}
               <div
                 style={{
                   display: 'flex',
@@ -258,6 +461,8 @@ export default async function Image({
               >
                 {phone.brand}
               </div>
+
+              {/* Model */}
               <div
                 style={{
                   display: 'flex',
@@ -270,6 +475,8 @@ export default async function Image({
               >
                 {modelDisplayName}
               </div>
+
+              {/* Price */}
               {price != null && (
                 <div
                   style={{
@@ -283,6 +490,8 @@ export default async function Image({
                   ${Math.round(price).toLocaleString()}
                 </div>
               )}
+
+              {/* Description */}
               <div
                 style={{
                   display: 'flex',
@@ -297,10 +506,17 @@ export default async function Image({
           </div>
         </div>
       ),
-      { ...size, fonts }
+      {
+        ...size,
+        fonts,
+      }
     )
   } catch (err) {
-    console.error('OG image failed for model route:', err)
+    console.error(
+      'OG image failed for model route:',
+      err
+    )
+
     return homepageOgFallback()
   }
 }
