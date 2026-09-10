@@ -1,67 +1,332 @@
+// app/compare/[phones]/opengraph-image.tsx
+
 import { ImageResponse } from 'next/og'
 import { parseCompareSlug, resolveComparePhones } from '@/lib/api'
 import { SITE_URL } from '@/lib/config'
 
 export const runtime = 'edge'
-export const size = { width: 1200, height: 630 }
+
+export const size = {
+  width: 1200,
+  height: 630,
+}
+
 export const contentType = 'image/png'
+
 export const alt = 'Phone comparison on Specmob'
 
-const IMAGE_FETCH_TIMEOUT_MS = 4_000
-const RENDER_TIMEOUT_MS = 8_000
+const IMAGE_FETCH_TIMEOUT_MS = 8_000
+const RENDER_TIMEOUT_MS = 10_000
 
+/**
+ * Load the Specmob wordmark font.
+ */
 async function loadWordmarkFont() {
-  return fetch(new URL('./InstrumentSerif-Italic.ttf', import.meta.url)).then(res => res.arrayBuffer())
+  const res = await fetch(
+    new URL('./InstrumentSerif-Italic.ttf', import.meta.url)
+  )
+
+  if (!res.ok) {
+    throw new Error(
+      `Failed to load wordmark font: ${res.status}`
+    )
+  }
+
+  return res.arrayBuffer()
 }
 
+/**
+ * Fallback OG image.
+ */
 async function homepageOgFallback() {
   const res = await fetch(`${SITE_URL}/og-image.png`)
+
+  if (!res.ok) {
+    throw new Error(
+      `Failed to load homepage OG image: ${res.status}`
+    )
+  }
+
   const buffer = await res.arrayBuffer()
-  return new Response(buffer, { headers: { 'content-type': 'image/png' } })
+
+  return new Response(buffer, {
+    headers: {
+      'content-type': 'image/png',
+    },
+  })
 }
 
-// Fetches a remote image and inlines it as a data URI so ImageResponse never
-// has to reach out to Supabase itself. Runs with its own short timeout so one
-// slow phone photo can't drag the whole comparison render past the function
-// limit — on any failure it just resolves to null and that phone renders
-// without an image instead of stalling everyone else.
-async function fetchImageDataUri(url: string | null | undefined): Promise<string | null> {
-  if (!url) return null
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), IMAGE_FETCH_TIMEOUT_MS)
+/**
+ * Convert Uint8Array to base64 safely.
+ *
+ * DO NOT use:
+ *
+ * String.fromCharCode(...bytes)
+ *
+ * on the entire image because large images can exceed
+ * Edge runtime argument limits.
+ */
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  let binary = ''
+
+  const CHUNK_SIZE = 0x8000
+
+  for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+    const chunk = bytes.subarray(
+      i,
+      Math.min(i + CHUNK_SIZE, bytes.length)
+    )
+
+    binary += String.fromCharCode(...chunk)
+  }
+
+  return btoa(binary)
+}
+
+/**
+ * Convert a Supabase public Storage URL into a resized
+ * Supabase image transformation URL.
+ *
+ * Original:
+ *
+ * /storage/v1/object/public/phone-images/phones/foo.jpg
+ *
+ * Becomes:
+ *
+ * /storage/v1/render/image/public/phone-images/phones/foo.jpg
+ * ?width=400&height=400&resize=contain&quality=80
+ *
+ * This prevents the Edge function from downloading the
+ * original multi-megabyte phone image.
+ */
+function getResizedSupabaseImageUrl(
+  url: string | null | undefined
+): string | null {
+  if (!url) {
+    return null
+  }
+
   try {
-    const res = await fetch(url, { signal: controller.signal })
-    if (!res.ok) return null
+    const parsed = new URL(url)
+
+    const isSupabaseStorage =
+      parsed.hostname.endsWith('.supabase.co') &&
+      parsed.pathname.includes('/storage/v1/object/public/')
+
+    if (!isSupabaseStorage) {
+      /**
+       * Non-Supabase image.
+       *
+       * We leave it alone rather than breaking existing
+       * image URLs from another provider.
+       */
+      return url
+    }
+
+    parsed.pathname = parsed.pathname.replace(
+      '/storage/v1/object/public/',
+      '/storage/v1/render/image/public/'
+    )
+
+    /**
+     * Resize before downloading.
+     *
+     * 400x400 is intentional.
+     *
+     * The comparison image is displayed around 180x280,
+     * so 400x400 gives Satori enough resolution while
+     * remaining dramatically smaller than the original.
+     */
+    parsed.searchParams.set('width', '400')
+    parsed.searchParams.set('height', '400')
+    parsed.searchParams.set('resize', 'contain')
+    parsed.searchParams.set('quality', '80')
+
+    return parsed.toString()
+  } catch (error) {
+    console.error(
+      'Compare OG: failed to create resized URL:',
+      error
+    )
+
+    return url
+  }
+}
+
+/**
+ * Fetch one phone image, resize it through Supabase,
+ * then convert it to a data URI.
+ */
+async function fetchImageDataUri(
+  url: string | null | undefined
+): Promise<string | null> {
+  const resizedUrl = getResizedSupabaseImageUrl(url)
+
+  if (!resizedUrl) {
+    console.warn(
+      'Compare OG: phone has no main_image_url'
+    )
+
+    return null
+  }
+
+  const controller = new AbortController()
+
+  const timeoutId = setTimeout(() => {
+    controller.abort()
+  }, IMAGE_FETCH_TIMEOUT_MS)
+
+  try {
+    console.log(
+      'Compare OG: fetching resized image:',
+      resizedUrl
+    )
+
+    const res = await fetch(resizedUrl, {
+      signal: controller.signal,
+      cache: 'no-store',
+    })
+
+    if (!res.ok) {
+      console.error(
+        'Compare OG: image request failed:',
+        res.status,
+        res.statusText,
+        resizedUrl
+      )
+
+      return null
+    }
+
+    const contentType =
+      res.headers.get('content-type') || 'image/jpeg'
+
+    /**
+     * Make sure Supabase actually returned an image.
+     */
+    if (!contentType.startsWith('image/')) {
+      console.error(
+        'Compare OG: response is not an image:',
+        contentType,
+        resizedUrl
+      )
+
+      return null
+    }
+
     const buffer = await res.arrayBuffer()
-    const contentType = res.headers.get('content-type') || 'image/png'
-    const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)))
+
+    if (buffer.byteLength === 0) {
+      console.error(
+        'Compare OG: image response is empty:',
+        resizedUrl
+      )
+
+      return null
+    }
+
+    console.log(
+      'Compare OG: resized image downloaded:',
+      buffer.byteLength,
+      'bytes'
+    )
+
+    const bytes = new Uint8Array(buffer)
+
+    /**
+     * Safe base64 conversion.
+     */
+    const base64 = uint8ArrayToBase64(bytes)
+
     return `data:${contentType};base64,${base64}`
-  } catch {
+  } catch (error) {
+    console.error(
+      'Compare OG: failed to fetch image:',
+      resizedUrl,
+      error
+    )
+
     return null
   } finally {
     clearTimeout(timeoutId)
   }
 }
 
+/**
+ * Specmob wordmark.
+ */
 function Wordmark() {
   return (
-    <div style={{ display: 'flex', alignItems: 'baseline' }}>
-      <div style={{ fontFamily: 'Instrument Serif', fontStyle: 'italic', fontSize: 34, color: '#15151F' }}>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'baseline',
+      }}
+    >
+      <div
+        style={{
+          fontFamily: 'Instrument Serif',
+          fontStyle: 'italic',
+          fontSize: 34,
+          color: '#15151F',
+        }}
+      >
         Specmob
       </div>
-      <div style={{ fontFamily: 'Instrument Serif', fontSize: 34, color: '#E13847', marginLeft: 2 }}>.</div>
+
+      <div
+        style={{
+          fontFamily: 'Instrument Serif',
+          fontSize: 34,
+          color: '#E13847',
+          marginLeft: 2,
+        }}
+      >
+        .
+      </div>
     </div>
   )
 }
 
-async function buildResponse(phonesSlug: string | undefined): Promise<Response> {
+/**
+ * Build the comparison OG image.
+ */
+async function buildResponse(
+  phonesSlug: string | undefined
+): Promise<Response> {
+  /**
+   * Load font first.
+   */
   const fontData = await loadWordmarkFont()
-  const fonts = [{ name: 'Instrument Serif', data: fontData, style: 'italic' as const, weight: 400 as const }]
 
-  const slugParts = phonesSlug?.trim() ? parseCompareSlug(phonesSlug) : []
-  const { phones } = slugParts.length ? await resolveComparePhones(slugParts) : { phones: [] }
+  const fonts = [
+    {
+      name: 'Instrument Serif',
+      data: fontData,
+      style: 'italic' as const,
+      weight: 400 as const,
+    },
+  ]
+
+  /**
+   * Resolve comparison phones.
+   */
+  const slugParts = phonesSlug?.trim()
+    ? parseCompareSlug(phonesSlug)
+    : []
+
+  const { phones } = slugParts.length
+    ? await resolveComparePhones(slugParts)
+    : { phones: [] }
+
+  /**
+   * Never show more than 3 phones in the OG image.
+   */
   const shown = phones.slice(0, 3)
 
+  /**
+   * No phones found.
+   */
   if (shown.length === 0) {
     return new ImageResponse(
       (
@@ -78,14 +343,38 @@ async function buildResponse(phonesSlug: string | undefined): Promise<Response> 
           <Wordmark />
         </div>
       ),
-      { ...size, fonts },
+      {
+        ...size,
+        fonts,
+      }
     )
   }
 
-  // Fetch every phone image in parallel instead of letting ImageResponse
-  // pull each one sequentially — see fetchImageDataUri for why.
-  const imageUris = await Promise.all(shown.map(p => fetchImageDataUri(p.main_image_url)))
+  /**
+   * Fetch every image in parallel.
+   *
+   * Each image is resized by Supabase BEFORE the Edge
+   * function receives it.
+   */
+  const imageUris = await Promise.all(
+    shown.map((phone) =>
+      fetchImageDataUri(phone.main_image_url)
+    )
+  )
 
+  console.log(
+    'Compare OG: image results:',
+    shown.map((phone, index) => ({
+      id: phone.id,
+      name: phone.model_name,
+      imageUrl: phone.main_image_url,
+      hasImage: Boolean(imageUris[index]),
+    }))
+  )
+
+  /**
+   * Generate the final OG image.
+   */
   return new ImageResponse(
     (
       <div
@@ -98,39 +387,124 @@ async function buildResponse(phonesSlug: string | undefined): Promise<Response> 
           padding: '56px 64px',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {/* ============================================
+            HEADER
+        ============================================ */}
+
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
           <Wordmark />
-          <div style={{ display: 'flex', fontSize: 22, fontWeight: 700, color: '#9A9689', letterSpacing: 1 }}>
+
+          <div
+            style={{
+              display: 'flex',
+              fontSize: 22,
+              fontWeight: 700,
+              color: '#9A9689',
+              letterSpacing: 1,
+            }}
+          >
             COMPARE
           </div>
         </div>
 
-        <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        {/* ============================================
+            COMPARISON
+        ============================================ */}
+
+        <div
+          style={{
+            display: 'flex',
+            flex: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
           {shown.map((phone, i) => (
-            <div key={phone.id} style={{ display: 'flex', alignItems: 'center' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 280 }}>
+            <div
+              key={phone.id}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              {/* ======================================
+                  PHONE COLUMN
+              ====================================== */}
+
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  width: 280,
+                }}
+              >
+                {/* ====================================
+                    PHONE IMAGE BOX
+                ==================================== */}
+
                 <div
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
+
                     width: 240,
                     height: 320,
+
                     background: '#FFFFFF',
+
                     border: '1px solid #E7E2D8',
                     borderRadius: 24,
+
+                    overflow: 'hidden',
                   }}
                 >
-                  {imageUris[i] && (
+                  {imageUris[i] ? (
                     <img
                       src={imageUris[i]!}
                       alt=""
                       width={180}
                       height={280}
-                      style={{ objectFit: 'contain', width: 180, height: 280 }}
+                      style={{
+                        objectFit: 'contain',
+                        width: 180,
+                        height: 280,
+                      }}
                     />
+                  ) : (
+                    /**
+                     * Image fallback.
+                     *
+                     * Instead of displaying an unexplained
+                     * blank box, show the Specmob wordmark.
+                     */
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontFamily: 'Instrument Serif',
+                        fontStyle: 'italic',
+                        fontSize: 26,
+                        color: '#9A9689',
+                      }}
+                    >
+                      Specmob.
+                    </div>
                   )}
                 </div>
+
+                {/* ====================================
+                    PHONE NAME
+                ==================================== */}
+
                 <div
                   style={{
                     display: 'flex',
@@ -144,8 +518,21 @@ async function buildResponse(phonesSlug: string | undefined): Promise<Response> 
                   {phone.brand} {phone.model_name}
                 </div>
               </div>
+
+              {/* ======================================
+                  VS
+              ====================================== */}
+
               {i < shown.length - 1 && (
-                <div style={{ display: 'flex', fontSize: 28, fontWeight: 700, color: '#E13847', margin: '0 20px' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    fontSize: 28,
+                    fontWeight: 700,
+                    color: '#E13847',
+                    margin: '0 20px',
+                  }}
+                >
                   VS
                 </div>
               )}
@@ -154,23 +541,52 @@ async function buildResponse(phonesSlug: string | undefined): Promise<Response> 
         </div>
       </div>
     ),
-    { ...size, fonts },
+    {
+      ...size,
+      fonts,
+    }
   )
 }
 
-export default async function Image({ params }: { params: Promise<{ phones: string }> }) {
+/**
+ * Main OG image handler.
+ */
+export default async function Image({
+  params,
+}: {
+  params: Promise<{
+    phones: string
+  }>
+}) {
   const { phones: phonesSlug } = await params
 
   try {
-    // Overall guard: if the whole render (data fetch + image fetch + satori)
-    // takes too long, bail to the static homepage image rather than risk a
-    // hard function timeout with no response at all.
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('OG render timeout')), RENDER_TIMEOUT_MS),
+    /**
+     * Overall timeout.
+     *
+     * If something unexpectedly takes too long,
+     * return the homepage OG image instead of allowing
+     * the Edge function to fail completely.
+     */
+    const timeoutPromise = new Promise<never>(
+      (_, reject) =>
+        setTimeout(() => {
+          reject(
+            new Error('Compare OG render timeout')
+          )
+        }, RENDER_TIMEOUT_MS)
     )
-    return await Promise.race([buildResponse(phonesSlug), timeoutPromise])
+
+    return await Promise.race([
+      buildResponse(phonesSlug),
+      timeoutPromise,
+    ])
   } catch (err) {
-    console.error('OG image failed for compare route:', err)
+    console.error(
+      'OG image failed for compare route:',
+      err
+    )
+
     return homepageOgFallback()
   }
 }
