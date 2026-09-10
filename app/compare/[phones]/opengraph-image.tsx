@@ -1,5 +1,4 @@
 // app/compare/[phones]/opengraph-image.tsx
-
 import { ImageResponse } from 'next/og'
 import { parseCompareSlug, resolveComparePhones } from '@/lib/api'
 import { SITE_URL } from '@/lib/config'
@@ -503,6 +502,12 @@ async function buildResponse(
 
                 {/* ====================================
                     PHONE NAME
+                    (model_name already includes the brand
+                    as its first word, e.g. "Apple iPhone
+                    17 Pro Max" or "Samsung Galaxy S26
+                    Ultra" — so we render it alone and do
+                    NOT prepend phone.brand again, to avoid
+                    duplicating the brand name)
                 ==================================== */}
 
                 <div
@@ -515,7 +520,7 @@ async function buildResponse(
                     textAlign: 'center',
                   }}
                 >
-                  {phone.brand} {phone.model_name}
+                  {phone.model_name}
                 </div>
               </div>
 
