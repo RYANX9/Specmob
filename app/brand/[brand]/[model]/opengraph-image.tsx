@@ -1,5 +1,4 @@
 // app/brand/[brand]/[model]/opengraph-image.tsx
-
 import { ImageResponse } from 'next/og'
 import { getPhone } from '@/lib/api'
 import { resolveDisplayPrice } from '@/lib/price'
@@ -10,6 +9,8 @@ export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
 export const alt = 'Phone specs and price on Specmob'
 
+const IMAGE_FETCH_TIMEOUT_MS = 4_000
+
 async function loadWordmarkFont() {
   return fetch(new URL('./InstrumentSerif-Italic.ttf', import.meta.url)).then(res => res.arrayBuffer())
 }
@@ -18,6 +19,31 @@ async function homepageOgFallback() {
   const res = await fetch(`${SITE_URL}/og-image.png`)
   const buffer = await res.arrayBuffer()
   return new Response(buffer, { headers: { 'content-type': 'image/png' } })
+}
+
+// Fetches the phone photo server-side and inlines it as a data URI so the
+// render never depends on a live remote fetch succeeding at generation
+// time. Previously this route passed main_image_url straight to <img>,
+// which renders blank with no error if the fetch hiccups even once — and
+// since social platforms cache that render per-URL, one bad crawl stuck
+// permanently until manually revalidated. Short timeout, resolves to null
+// on any failure so a bad photo never blocks the rest of the image.
+async function fetchImageDataUri(url: string | null | undefined): Promise<string | null> {
+  if (!url) return null
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), IMAGE_FETCH_TIMEOUT_MS)
+  try {
+    const res = await fetch(url, { signal: controller.signal })
+    if (!res.ok) return null
+    const buffer = await res.arrayBuffer()
+    const contentType = res.headers.get('content-type') || 'image/png'
+    const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)))
+    return `data:${contentType};base64,${base64}`
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timeoutId)
+  }
 }
 
 function Wordmark() {
@@ -61,7 +87,10 @@ export default async function Image({ params }: { params: Promise<{ brand: strin
       )
     }
 
-    const price = resolveDisplayPrice(phone)
+    const [price, imageUri] = await Promise.all([
+      Promise.resolve(resolveDisplayPrice(phone)),
+      fetchImageDataUri(phone.main_image_url),
+    ])
     const modelDisplayName = stripBrandFromDisplayName(phone.model_name, phone.brand)
 
     return new ImageResponse(
@@ -94,9 +123,9 @@ export default async function Image({ params }: { params: Promise<{ brand: strin
                 marginRight: 56,
               }}
             >
-              {phone.main_image_url && (
+              {imageUri && (
                 <img
-                  src={phone.main_image_url}
+                  src={imageUri}
                   alt=""
                   width={300}
                   height={380}
