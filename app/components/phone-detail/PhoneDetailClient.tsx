@@ -1,3 +1,4 @@
+// app\components\phone-detail\PhoneDetailClient.tsx
 'use client'
 
 import { useState, useEffect, useRef, useMemo, Suspense } from 'react'
@@ -27,8 +28,6 @@ import AdSlot from '@/app/components/ads/AdSlot'
 import { useRegion } from '@/lib/regionStore'
 import { resolveOffersForVariant, buyButtonLabel, inferRetailerLabelFromUrl, inferRegionTagFromUrl, type RetailerOffer } from '@/lib/retailer'
 import AlternateOfferPicker from '@/app/components/phone-detail/AlternateOfferPicker'
-
-import { analytics } from '@/lib/analytics'
 
 const SKIP_SPEC_KEYS = new Set([
   'metadata', 'media', 'benchmarks', 'price_info',
@@ -83,16 +82,23 @@ type TabType = 'overview' | 'specs' | 'compare'
 
 function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button onClick={onClick} style={{
-      padding: '14px 20px', fontSize: 14, fontWeight: 500,
-      color: active ? c.text1 : c.text3,
-      borderBottom: `2px solid ${active ? c.accent : 'transparent'}`,
-      transition: 'all 0.15s', whiteSpace: 'nowrap',
-      background: 'none', border: 'none', cursor: 'pointer',
-    }}>
+    <button 
+      onClick={onClick} 
+      style={{
+        padding: '14px 20px', 
+        fontSize: 14, 
+        fontWeight: 500,
+        color: active ? c.text1 : c.text3,
+        borderStyle: 'solid',
+        borderWidth: '0 0 2px 0',
+        borderColor: `transparent transparent ${active ? c.accent : 'transparent'} transparent`,
+        background: 'none',
+        outline: 'none',
+      }}
+    >
       {children}
     </button>
-  )
+  );
 }
 
 function SpecRow({ label, value, alt }: { label: string; value: string; alt: boolean }) {
@@ -359,10 +365,6 @@ function PhoneDetailInner({ phone, similar, initialFullSpecs }: PhoneDetailClien
     const str = p.toString()
     router.replace(str ? `?${str}` : window.location.pathname, { scroll: false })
   }
-
-  useEffect(() => {
-    analytics.phoneView({ id: phone.id, brand: phone.brand, model_name: phone.model_name, price_usd: phone.price_usd })
-  }, [phone.id])
 
   useEffect(() => {
     const controller = new AbortController()
