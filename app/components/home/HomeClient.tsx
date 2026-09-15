@@ -249,17 +249,100 @@ function BestMatchCard({
   )
 }
 
+function MobileBestMatchCard({
+  phones, loading, priorityCount, value,
+}: {
+  phones: Phone[]
+  loading: boolean
+  priorityCount: number
+  value: number
+}) {
+  const phone = phones[0]
+
+  if (loading) {
+    return (
+      <div className="mobile-match-card" aria-live="polite" aria-busy="true">
+        <div className="mobile-match-head">
+          <span className="mobile-match-kicker">BEST MATCH</span>
+          <span className="mobile-match-price">Around ${value.toLocaleString()}</span>
+        </div>
+        <div className="mobile-match-body">
+          <div className="skeleton mobile-match-image-skeleton" />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="skeleton" style={{ height: 10, width: 52, marginBottom: 8 }} />
+            <div className="skeleton" style={{ height: 20, width: '82%', marginBottom: 12 }} />
+            <div className="skeleton" style={{ height: 11, width: '65%' }} />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!phone) {
+    return (
+      <div className="mobile-match-card mobile-match-empty">
+        <span className="mobile-match-kicker">YOUR RANGE</span>
+        <p>We don't have a strong match here yet. Try moving the budget a little.</p>
+      </div>
+    )
+  }
+
+  const tier = getTierStyle(phone.chipset_tier)
+  const priceLabel = formatDisplayPrice(phone)
+  const whyText = priorityCount > 0
+    ? `Ranked around your ${priorityCount === 1 ? 'priority' : 'priorities'}.`
+    : 'Strongest phone in this price range.'
+
+  return (
+    <Link
+      href={ROUTES.phone(brandSlug(phone.brand), phoneSlug(phone))}
+      className="mobile-match-card"
+      aria-label={`View ${phone.brand} ${phone.model_name} full specs`}
+    >
+      <div className="mobile-match-head">
+        <span className="mobile-match-kicker">
+          <Star size={10} fill={c.accent} color={c.accent} />
+          BEST MATCH
+        </span>
+        <span className="mobile-match-price">{priceLabel}</span>
+      </div>
+
+      <div className="mobile-match-body">
+        <div className="mobile-match-image">
+          {phone.main_image_url
+            ? <img src={phone.main_image_url} alt={`${phone.brand} ${phone.model_name}`} />
+            : <Smartphone size={30} color={c.border} strokeWidth={1} />}
+        </div>
+        <div className="mobile-match-info">
+          <div className="mobile-match-brand">
+            {tier && <span style={{ width: 5, height: 5, borderRadius: '50%', background: tier.color, flexShrink: 0 }} />}
+            {phone.brand}
+          </div>
+          <div className="mobile-match-name">{phone.model_name}</div>
+          <div className="mobile-match-specs">
+            {phone.main_camera_mp && <span>{phone.main_camera_mp}MP camera</span>}
+            {phone.battery_capacity && <span>{Math.round(phone.battery_capacity / 100) / 10}k battery</span>}
+          </div>
+          <div className="mobile-match-why">{whyText}</div>
+        </div>
+        <ArrowRight className="mobile-match-arrow" size={18} strokeWidth={2} />
+      </div>
+    </Link>
+  )
+}
+
 // ─── Price dial ───────────────────────────────────────────────────────────
 
 function PriceDial() {
   const router = useRouter()
-  const [value, setValue] = useState(500)
+  const [value, setValue] = useState(550)
   const [touched, setTouched] = useState(false)
   const [priorities, setPriorities] = useState<Set<string>>(new Set())
   const [previewPhones, setPreviewPhones] = useState<Phone[]>([])
   const [previewLoading, setPreviewLoading] = useState(true)
   const trackRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef(false)
+  const [mobilePrioritiesOpen, setMobilePrioritiesOpen] = useState(false)
 
   const tier = tierForDialValue(value)
   const pct = ((value - DIAL_MIN) / (DIAL_MAX - DIAL_MIN)) * 100
@@ -317,6 +400,7 @@ function PriceDial() {
   }
 
   const ready = touched && priorities.size >= 2
+  const mobileReady = priorities.size >= 2
 
   const handleGo = () => {
     const { min, max } = pointPriceBounds(value)
@@ -333,6 +417,7 @@ function PriceDial() {
 
   return (
     <section style={{ background: c.bg, position: 'relative' }}>
+      <div className="pricedial-desktop">
       <div className="pricedial-grid" style={{ maxWidth: 1060, margin: '0 auto', padding: '64px var(--page-px) 60px' }}>
         <div className="pricedial-controls">
           <div style={{
@@ -366,7 +451,7 @@ function PriceDial() {
 
           <div
             ref={trackRef}
-            onPointerDown={e => { draggingRef.current = true; (e.target as HTMLElement).setPointerCapture?.(e.pointerId); setFromClientX(e.clientX) }}
+            onPointerDown={e => { trackRef.current = e.currentTarget; draggingRef.current = true; e.currentTarget.setPointerCapture?.(e.pointerId); setFromClientX(e.clientX) }}
             role="slider"
             aria-label="Budget"
             aria-valuemin={DIAL_MIN}
@@ -463,6 +548,82 @@ function PriceDial() {
 
         <div className="pricedial-preview">
           <BestMatchCard phones={previewPhones} loading={previewLoading} priorityCount={priorities.size} />
+        </div>
+      </div>
+      </div>
+
+      <div className="pricedial-mobile">
+        <div className="mobile-pricedial-inner">
+          <div className="mobile-trust-pill">
+            <span />
+            No sponsored picks — ranked on specs only
+          </div>
+
+          <p className="mobile-budget-label">How much do you want to spend?</p>
+          <div className="mobile-budget-value">
+            <span>$</span>{displayValue}
+          </div>
+          <div className="mobile-budget-tier">
+            {touched ? `That's ${tier.id === 's' ? 'ultra-flagship' : tier.id === 'a' ? 'flagship' : tier.id === 'b' ? 'upper mid-range' : tier.id === 'c' ? 'mid-range' : 'budget'} territory` : 'Drag to set your budget'}
+          </div>
+
+          <div
+            className="mobile-budget-slider"
+            onPointerDown={e => { trackRef.current = e.currentTarget; draggingRef.current = true; e.currentTarget.setPointerCapture?.(e.pointerId); setFromClientX(e.clientX) }}
+            role="slider"
+            aria-label="Budget"
+            aria-valuemin={DIAL_MIN}
+            aria-valuemax={DIAL_MAX}
+            aria-valuenow={value}
+            tabIndex={0}
+            onKeyDown={e => {
+              if (e.key === 'ArrowRight') { setValue(v => Math.min(DIAL_MAX, v + 50)); setTouched(true) }
+              if (e.key === 'ArrowLeft')  { setValue(v => Math.max(DIAL_MIN, v - 50)); setTouched(true) }
+            }}
+          >
+            <div className="mobile-slider-ticks">
+              {Array.from({ length: 41 }).map((_, i) => <span key={i} style={{ height: i % 5 === 0 ? 12 : 6 }} />)}
+            </div>
+            <div className="mobile-slider-track"><div style={{ width: `${pct}%` }} /></div>
+            <div className="mobile-slider-thumb" style={{ left: `${pct}%` }} />
+            <span className="mobile-slider-min">$0</span>
+            <span className="mobile-slider-max">$2,000+</span>
+          </div>
+
+          <MobileBestMatchCard phones={previewPhones} loading={previewLoading} priorityCount={priorities.size} value={value} />
+
+          <div className="mobile-priority-section">
+            <div className="mobile-priority-heading">
+              <span>What matters most?</span>
+              <span className={priorities.size >= 2 ? 'ready' : ''}>({priorities.size}/3)</span>
+            </div>
+            <div className="mobile-priority-grid">
+              {(mobilePrioritiesOpen ? QUICK_PRIORITIES : QUICK_PRIORITIES.slice(0, 6)).map(p => {
+                const active = priorities.has(p.id)
+                const dimmed = priorities.size >= 3 && !active
+                return (
+                  <button key={p.id} onClick={() => togglePriority(p.id)} disabled={dimmed} className={`mobile-priority-chip${active ? ' active' : ''}${dimmed ? ' dimmed' : ''}`}>
+                    <span>{p.icon}</span>
+                    {p.label}
+                  </button>
+                )
+              })}
+            </div>
+            {QUICK_PRIORITIES.length > 6 && (
+              <button className="mobile-more-priorities" onClick={() => setMobilePrioritiesOpen(v => !v)}>
+                {mobilePrioritiesOpen ? 'Show fewer' : 'More priorities'} <ChevronDown size={13} style={{ transform: mobilePrioritiesOpen ? 'rotate(180deg)' : undefined, transition: 'transform 150ms ease' }} />
+              </button>
+            )}
+          </div>
+
+          <button className={`mobile-primary-cta${mobileReady ? ' ready' : ''}`} onClick={handleGo} disabled={!mobileReady}>
+            <span>{mobileReady ? 'Show my top 5 matches' : `Pick ${2 - priorities.size} more ${2 - priorities.size === 1 ? 'priority' : 'priorities'}`}</span>
+            {ready && <ArrowRight size={17} strokeWidth={2.4} />}
+          </button>
+
+          <Link href="#catalog" className="mobile-catalog-link">
+            Already know the model? Search the catalog directly <ArrowRight size={12} />
+          </Link>
         </div>
       </div>
     </section>
@@ -1124,6 +1285,79 @@ function HomeContent({ initialTrending, initialStats }: HomeClientProps) {
         ${mq.sm} {
           .phone-grid-layout { grid-template-columns: repeat(2, 1fr); gap: 8px; }
           .ticker-item { padding: 2px 12px !important; }
+        }
+
+
+        .pricedial-mobile { display: none; }
+
+        @media (max-width: 700px) {
+          .pricedial-desktop { display: none; }
+          .pricedial-mobile { display: block; }
+
+          .mobile-pricedial-inner {
+            max-width: 520px;
+            margin: 0 auto;
+            padding: 30px var(--page-px) 42px;
+          }
+          .mobile-trust-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 12px;
+            margin-bottom: 26px;
+            background: #FFFFFF;
+            border: 1px solid #E3E0D8;
+            border-radius: var(--r-full);
+            font-size: 10px;
+            font-weight: 700;
+            color: #68655B;
+            text-transform: uppercase;
+            letter-spacing: 1.1px;
+          }
+          .mobile-trust-pill span { width: 6px; height: 6px; border-radius: 50%; background: #E63946; }
+          .mobile-budget-label { margin: 0 0 5px; font-size: 15px; color: #9B988E; font-weight: 500; }
+          .mobile-budget-value { display: flex; align-items: baseline; gap: 3px; margin: 0; font-family: var(--font-serif, Georgia, 'Times New Roman', serif); font-size: clamp(64px, 18vw, 88px); line-height: .98; letter-spacing: -3px; color: #1A1A2E; font-variant-numeric: tabular-nums; user-select: none; }
+          .mobile-budget-value span { font-family: var(--font-sans); font-size: .42em; font-weight: 300; color: #9B988E; letter-spacing: 0; }
+          .mobile-budget-tier { min-height: 18px; margin: 6px 0 24px; font-size: 13px; font-weight: 600; color: #E63946; }
+          .mobile-budget-slider { position: relative; height: 55px; margin-bottom: 22px; cursor: pointer; touch-action: none; }
+          .mobile-slider-ticks { position: absolute; inset: 0 0 auto; height: 16px; display: flex; justify-content: space-between; pointer-events: none; }
+          .mobile-slider-ticks span { display: block; width: 1px; background: #E3E0D8; }
+          .mobile-slider-track { position: absolute; left: 0; right: 0; top: 23px; height: 6px; border-radius: 3px; background: #E3E0D8; overflow: hidden; }
+          .mobile-slider-track div { height: 100%; background: #1A1A2E; border-radius: 3px; }
+          .mobile-slider-thumb { position: absolute; top: 26px; transform: translate(-50%, -50%); width: 27px; height: 27px; border-radius: 50%; background: #FFFFFF; border: 3px solid #1A1A2E; box-shadow: var(--shadow-md); }
+          .mobile-slider-min, .mobile-slider-max { position: absolute; top: 39px; font-size: 11px; color: #9B988E; }
+          .mobile-slider-min { left: 0; } .mobile-slider-max { right: 0; }
+
+          .mobile-match-card { display: block; padding: 15px; margin: 0 0 27px; background: #FFFFFF; border: 1px solid #E3E0D8; border-radius: var(--r-xl); box-shadow: var(--shadow-md); text-decoration: none; color: inherit; }
+          .mobile-match-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 11px; }
+          .mobile-match-kicker { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 700; letter-spacing: .7px; text-transform: uppercase; color: #E63946; }
+          .mobile-match-price { font-size: 12px; font-weight: 700; color: #1A1A2E; }
+          .mobile-match-body { position: relative; display: flex; align-items: center; gap: 13px; min-height: 104px; }
+          .mobile-match-image, .mobile-match-image-skeleton { width: 91px; height: 104px; flex: 0 0 91px; border-radius: var(--r-lg); background: #F7F5F0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+          .mobile-match-image img { width: 78%; height: 84%; object-fit: contain; }
+          .mobile-match-info { min-width: 0; padding-right: 20px; }
+          .mobile-match-brand { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; font-size: 10px; font-weight: 600; color: #9B988E; text-transform: uppercase; letter-spacing: .4px; }
+          .mobile-match-name { margin-bottom: 7px; font-family: var(--font-serif, Georgia, 'Times New Roman', serif); font-size: 18px; line-height: 1.15; color: #1A1A2E; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+          .mobile-match-specs { display: flex; flex-wrap: wrap; gap: 5px 10px; margin-bottom: 7px; font-size: 10.5px; color: #68655B; }
+          .mobile-match-why { font-size: 10.5px; line-height: 1.35; color: #9B988E; }
+          .mobile-match-arrow { position: absolute; right: 0; top: 50%; transform: translateY(-50%); color: #9B988E; }
+          .mobile-match-empty { padding: 18px; } .mobile-match-empty p { margin: 7px 0 0; font-size: 12px; line-height: 1.5; color: #9B988E; }
+
+          .mobile-priority-section { margin-bottom: 20px; }
+          .mobile-priority-heading { display: flex; align-items: baseline; gap: 5px; margin-bottom: 11px; font-size: 13px; font-weight: 600; color: #68655B; }
+          .mobile-priority-heading span:last-child { color: #9B988E; } .mobile-priority-heading span:last-child.ready { color: #E63946; }
+          .mobile-priority-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+          .mobile-priority-chip { min-width: 0; display: flex; align-items: center; gap: 7px; min-height: 40px; padding: 8px 11px; border-radius: var(--r-full); border: 1px solid #E3E0D8; background: #FFFFFF; color: #68655B; font-size: 12px; font-weight: 500; text-align: left; cursor: pointer; transition: all 120ms ease; }
+          .mobile-priority-chip > span { display: flex; flex: 0 0 auto; color: #9B988E; }
+          .mobile-priority-chip.active { border-color: #1A1A2E; background: #1A1A2E; color: #fff; }
+          .mobile-priority-chip.active > span { color: #fff; }
+          .mobile-priority-chip.dimmed { opacity: .38; cursor: not-allowed; }
+          .mobile-priority-more { margin-top: 2px; }
+          .mobile-more-priorities { display: inline-flex; align-items: center; gap: 4px; margin-top: 10px; padding: 3px 0; border: none; background: none; color: #9B988E; font-size: 12px; font-weight: 600; cursor: pointer; }
+          .mobile-extra-priorities { margin-top: 8px; }
+          .mobile-primary-cta { width: 100%; min-height: 52px; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 2px; padding: 14px 18px; border: none; border-radius: var(--r-full); background: #E3E0D8; color: #9B988E; font-size: 14px; font-weight: 700; cursor: not-allowed; transition: all 150ms ease; }
+          .mobile-primary-cta.ready { background: #E63946; color: #fff; cursor: pointer; box-shadow: 0 9px 24px rgba(230,57,70,0.22); }
+          .mobile-catalog-link { display: flex; align-items: center; justify-content: center; gap: 5px; margin-top: 16px; color: #9B988E; font-size: 12px; text-decoration: none; }
         }
 
         @media (prefers-reduced-motion: reduce) {
