@@ -50,47 +50,66 @@ const CACHE = {
   trending:    { next: { revalidate: 900    } } as RequestInit,
 } as const
 
-const DEFAULT_TIMEOUT_MS = 12_000
+
+const DEFAULT_TIMEOUT_MS = 45_000
+const COLD_START_RETRY_DELAY_MS = 3_000
+
+// lib/api.ts
+function isRetryableNetworkError(err: unknown): boolean {
+  if (err instanceof DOMException && err.name === 'TimeoutError') return true
+  if (err instanceof TypeError && /fetch failed/i.test(err.message)) return true
+  return false
+}
 
 async function req<T>(
   path: string,
-  init: RequestInit & { signal?: AbortSignal } = {},
+  init: RequestInit & { signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<T> {
-  const timeoutCtrl = new AbortController()
-  const timeoutId   = setTimeout(
-    () => timeoutCtrl.abort(new DOMException('Request timed out', 'TimeoutError')),
-    DEFAULT_TIMEOUT_MS,
-  )
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, signal: externalSignal, ...rest } = init
+  const method = (rest.method ?? 'GET').toUpperCase()
+  const retryable = method === 'GET'
 
-  const signal = init.signal
-    ? anySignal([init.signal, timeoutCtrl.signal])
-    : timeoutCtrl.signal
-
-  try {
-    const res = await fetch(`${API_BASE}${path}`, {
-      ...init,
-      signal,
-      headers: { 'Content-Type': 'application/json', ...init.headers },
-    })
-
-    clearTimeout(timeoutId)
-
-    if (!res.ok) {
-      let msg = `HTTP ${res.status}`
-      try {
-        const body = await res.json()
-        msg = body.detail || body.message || msg
-      } catch { /* body may not be JSON */ }
-      throw new APIError(res.status, msg)
+  const attempt = async (): Promise<Response> => {
+    const timeoutCtrl = new AbortController()
+    const timeoutId = setTimeout(
+      () => timeoutCtrl.abort(new DOMException('Request timed out', 'TimeoutError')),
+      timeoutMs,
+    )
+    const signal = externalSignal ? anySignal([externalSignal, timeoutCtrl.signal]) : timeoutCtrl.signal
+    try {
+      return await fetch(`${API_BASE}${path}`, {
+        ...rest,
+        signal,
+        headers: { 'Content-Type': 'application/json', ...rest.headers },
+      })
+    } finally {
+      clearTimeout(timeoutId)
     }
-
-    return res.json() as Promise<T>
-  } catch (err) {
-    clearTimeout(timeoutId)
-    throw err
   }
-}
 
+  let res: Response
+  try {
+    res = await attempt()
+  } catch (err) {
+    if (retryable && isRetryableNetworkError(err) && !externalSignal?.aborted) {
+      await new Promise(r => setTimeout(r, COLD_START_RETRY_DELAY_MS))
+      res = await attempt()
+    } else {
+      throw err
+    }
+  }
+
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`
+    try {
+      const body = await res.json()
+      msg = body.detail || body.message || msg
+    } catch {}
+    throw new APIError(res.status, msg)
+  }
+
+  return res.json() as Promise<T>
+}
 
 export async function getPhone(idOrSlug: string): Promise<Phone | null> {
   try {
