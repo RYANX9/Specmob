@@ -17,9 +17,6 @@ export const alt = 'Phone comparison on Specmob'
 const IMAGE_FETCH_TIMEOUT_MS = 8_000
 const RENDER_TIMEOUT_MS = 10_000
 
-/**
- * Load the Specmob wordmark font.
- */
 async function loadWordmarkFont() {
   const res = await fetch(
     new URL('./InstrumentSerif-Italic.ttf', import.meta.url)
@@ -34,9 +31,6 @@ async function loadWordmarkFont() {
   return res.arrayBuffer()
 }
 
-/**
- * Fallback OG image.
- */
 async function homepageOgFallback() {
   const res = await fetch(`${SITE_URL}/og-image.png`)
 
@@ -55,16 +49,6 @@ async function homepageOgFallback() {
   })
 }
 
-/**
- * Convert Uint8Array to base64 safely.
- *
- * DO NOT use:
- *
- * String.fromCharCode(...bytes)
- *
- * on the entire image because large images can exceed
- * Edge runtime argument limits.
- */
 function uint8ArrayToBase64(bytes: Uint8Array): string {
   let binary = ''
 
@@ -82,22 +66,6 @@ function uint8ArrayToBase64(bytes: Uint8Array): string {
   return btoa(binary)
 }
 
-/**
- * Convert a Supabase public Storage URL into a resized
- * Supabase image transformation URL.
- *
- * Original:
- *
- * /storage/v1/object/public/phone-images/phones/foo.jpg
- *
- * Becomes:
- *
- * /storage/v1/render/image/public/phone-images/phones/foo.jpg
- * ?width=400&height=400&resize=contain&quality=80
- *
- * This prevents the Edge function from downloading the
- * original multi-megabyte phone image.
- */
 function getResizedSupabaseImageUrl(
   url: string | null | undefined
 ): string | null {
@@ -113,12 +81,6 @@ function getResizedSupabaseImageUrl(
       parsed.pathname.includes('/storage/v1/object/public/')
 
     if (!isSupabaseStorage) {
-      /**
-       * Non-Supabase image.
-       *
-       * We leave it alone rather than breaking existing
-       * image URLs from another provider.
-       */
       return url
     }
 
@@ -127,19 +89,10 @@ function getResizedSupabaseImageUrl(
       '/storage/v1/render/image/public/'
     )
 
-    /**
-     * Resize before downloading.
-     *
-     * 400x400 is intentional.
-     *
-     * The comparison image is displayed around 180x280,
-     * so 400x400 gives Satori enough resolution while
-     * remaining dramatically smaller than the original.
-     */
-    parsed.searchParams.set('width', '400')
-    parsed.searchParams.set('height', '400')
+    parsed.searchParams.set('width', '700')
+    parsed.searchParams.set('height', '700')
     parsed.searchParams.set('resize', 'contain')
-    parsed.searchParams.set('quality', '80')
+    parsed.searchParams.set('quality', '85')
 
     return parsed.toString()
   } catch (error) {
@@ -152,10 +105,6 @@ function getResizedSupabaseImageUrl(
   }
 }
 
-/**
- * Fetch one phone image, resize it through Supabase,
- * then convert it to a data URI.
- */
 async function fetchImageDataUri(
   url: string | null | undefined
 ): Promise<string | null> {
@@ -200,9 +149,6 @@ async function fetchImageDataUri(
     const contentType =
       res.headers.get('content-type') || 'image/jpeg'
 
-    /**
-     * Make sure Supabase actually returned an image.
-     */
     if (!contentType.startsWith('image/')) {
       console.error(
         'Compare OG: response is not an image:',
@@ -231,10 +177,6 @@ async function fetchImageDataUri(
     )
 
     const bytes = new Uint8Array(buffer)
-
-    /**
-     * Safe base64 conversion.
-     */
     const base64 = uint8ArrayToBase64(bytes)
 
     return `data:${contentType};base64,${base64}`
@@ -251,9 +193,6 @@ async function fetchImageDataUri(
   }
 }
 
-/**
- * Specmob wordmark.
- */
 function Wordmark() {
   return (
     <div
@@ -287,15 +226,9 @@ function Wordmark() {
   )
 }
 
-/**
- * Build the comparison OG image.
- */
 async function buildResponse(
   phonesSlug: string | undefined
 ): Promise<Response> {
-  /**
-   * Load font first.
-   */
   const fontData = await loadWordmarkFont()
 
   const fonts = [
@@ -307,9 +240,6 @@ async function buildResponse(
     },
   ]
 
-  /**
-   * Resolve comparison phones.
-   */
   const slugParts = phonesSlug?.trim()
     ? parseCompareSlug(phonesSlug)
     : []
@@ -318,14 +248,8 @@ async function buildResponse(
     ? await resolveComparePhones(slugParts)
     : { phones: [] }
 
-  /**
-   * Never show more than 3 phones in the OG image.
-   */
-  const shown = phones.slice(0, 3)
+  const shown = phones.slice(0, 4)
 
-  /**
-   * No phones found.
-   */
   if (shown.length === 0) {
     return new ImageResponse(
       (
@@ -349,12 +273,6 @@ async function buildResponse(
     )
   }
 
-  /**
-   * Fetch every image in parallel.
-   *
-   * Each image is resized by Supabase BEFORE the Edge
-   * function receives it.
-   */
   const imageUris = await Promise.all(
     shown.map((phone) =>
       fetchImageDataUri(phone.main_image_url)
@@ -371,9 +289,33 @@ async function buildResponse(
     }))
   )
 
-  /**
-   * Generate the final OG image.
+  /*
+   * Layout sizing
+   *
+   * 1–3 phones:
+   *   Stage: 380px
+   *   Image: 360px
+   *
+   * 4 phones:
+   *   Stage: 270px
+   *   Image: 255px
+   *
+   * This keeps the 4-phone comparison inside the 1200px canvas
+   * while preserving the same oversized/cropped visual treatment.
    */
+  const isFourPhones = shown.length === 4
+
+  const stageWidth = isFourPhones ? 270 : 380
+  const imageWidth = isFourPhones ? 255 : 360
+  const stageHeight = 570
+  const imageHeight = 560
+
+  const vsMargin = isFourPhones ? 5 : 12
+  const vsFontSize = isFourPhones ? 20 : 28
+
+  const modelNameFontSize = isFourPhones ? 23 : 26
+  const modelNameHeight = isFourPhones ? 54 : 58
+
   return new ImageResponse(
     (
       <div
@@ -383,18 +325,18 @@ async function buildResponse(
           display: 'flex',
           flexDirection: 'column',
           background: '#F7F5F0',
-          padding: '56px 64px',
+          padding: '42px 64px 0 64px',
+          overflow: 'hidden',
         }}
       >
-        {/* ============================================
-            HEADER
-        ============================================ */}
-
+        {/* Header */}
         <div
           style={{
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
+            height: 46,
+            flexShrink: 0,
           }}
         >
           <Wordmark />
@@ -412,16 +354,16 @@ async function buildResponse(
           </div>
         </div>
 
-        {/* ============================================
-            COMPARISON
-        ============================================ */}
-
+        {/* Comparison area */}
         <div
           style={{
             display: 'flex',
             flex: 1,
-            alignItems: 'center',
+            alignItems: 'flex-start',
             justifyContent: 'center',
+            paddingTop: 18,
+            paddingBottom: 0,
+            overflow: 'visible',
           }}
         >
           {shown.map((phone, i) => (
@@ -432,110 +374,110 @@ async function buildResponse(
                 alignItems: 'center',
               }}
             >
-              {/* ======================================
-                  PHONE COLUMN
-              ====================================== */}
-
+              {/* Phone column */}
               <div
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  width: 280,
+                  width: stageWidth,
+                  margin: 0,
+                  padding: 0,
                 }}
               >
-                {/* ====================================
-                    PHONE IMAGE BOX
-                ==================================== */}
-
+                {/* Phone image stage */}
                 <div
                   style={{
                     display: 'flex',
+                    flexDirection: 'column',
                     alignItems: 'center',
-                    justifyContent: 'center',
-
-                    width: 240,
-                    height: 320,
-
+                    width: stageWidth,
+                    height: stageHeight,
                     background: '#FFFFFF',
-
                     border: '1px solid #E7E2D8',
-                    borderRadius: 24,
-
+                    borderRadius: '24px 24px 0 0',
                     overflow: 'hidden',
+                    position: 'relative',
+                    margin: 0,
+                    padding: 0,
+                    boxSizing: 'border-box',
                   }}
                 >
+                  {/* Model name */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '100%',
+                      height: modelNameHeight,
+                      flexShrink: 0,
+                      padding: '0 10px',
+                      fontSize: modelNameFontSize,
+                      fontWeight: 700,
+                      color: '#15151F',
+                      textAlign: 'center',
+                      lineHeight: 1.15,
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    {phone.model_name}
+                  </div>
+
+                  {/* Phone image */}
                   {imageUris[i] ? (
                     <img
                       src={imageUris[i]!}
                       alt=""
-                      width={180}
-                      height={280}
+                      width={imageWidth}
+                      height={imageHeight}
                       style={{
+                        width: imageWidth,
+                        height: imageHeight,
                         objectFit: 'contain',
-                        width: 180,
-                        height: 280,
+                        objectPosition: 'center top',
+                        flexShrink: 0,
+                        display: 'block',
+                        margin: 0,
+                        padding: 0,
                       }}
                     />
                   ) : (
-                    /**
-                     * Image fallback.
-                     *
-                     * Instead of displaying an unexplained
-                     * blank box, show the Specmob wordmark.
-                     */
                     <div
                       style={{
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        width: imageWidth,
+                        height: imageHeight,
+                        flexShrink: 0,
                         fontFamily: 'Instrument Serif',
                         fontStyle: 'italic',
                         fontSize: 26,
                         color: '#9A9689',
+                        margin: 0,
+                        padding: 0,
                       }}
                     >
                       Specmob.
                     </div>
                   )}
                 </div>
-
-                {/* ====================================
-                    PHONE NAME
-                    (model_name already includes the brand
-                    as its first word, e.g. "Apple iPhone
-                    17 Pro Max" or "Samsung Galaxy S26
-                    Ultra" — so we render it alone and do
-                    NOT prepend phone.brand again, to avoid
-                    duplicating the brand name)
-                ==================================== */}
-
-                <div
-                  style={{
-                    display: 'flex',
-                    fontSize: 20,
-                    fontWeight: 700,
-                    color: '#15151F',
-                    marginTop: 20,
-                    textAlign: 'center',
-                  }}
-                >
-                  {phone.model_name}
-                </div>
               </div>
 
-              {/* ======================================
-                  VS
-              ====================================== */}
-
+              {/* VS */}
               {i < shown.length - 1 && (
                 <div
                   style={{
                     display: 'flex',
-                    fontSize: 28,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: vsFontSize,
                     fontWeight: 700,
                     color: '#E13847',
-                    margin: '0 20px',
+                    margin: `0 ${vsMargin}px`,
+                    height: stageHeight,
+                    flexShrink: 0,
                   }}
                 >
                   VS
@@ -553,9 +495,6 @@ async function buildResponse(
   )
 }
 
-/**
- * Main OG image handler.
- */
 export default async function Image({
   params,
 }: {
@@ -566,13 +505,6 @@ export default async function Image({
   const { phones: phonesSlug } = await params
 
   try {
-    /**
-     * Overall timeout.
-     *
-     * If something unexpectedly takes too long,
-     * return the homepage OG image instead of allowing
-     * the Edge function to fail completely.
-     */
     const timeoutPromise = new Promise<never>(
       (_, reject) =>
         setTimeout(() => {
