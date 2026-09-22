@@ -1,6 +1,6 @@
 // lib/config.ts
 
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://renderphones.onrender.com'
 export const SITE_URL = 'https://specmob.vercel.app'
 
 // value_score color scale lives in lib/valueScore.ts (single source of
