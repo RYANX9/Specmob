@@ -1,7 +1,8 @@
-// app/compare/[phones]/opengraph-image.tsx
+// app/brand/[brand]/[model]/opengraph-image.tsx
 import { ImageResponse } from 'next/og'
-import { parseCompareSlug, resolveComparePhones } from '@/lib/api'
-import { SITE_URL } from '@/lib/config'
+import { getPhone } from '@/lib/api'
+import { resolveDisplayPrice } from '@/lib/price'
+import { SITE_URL, stripBrandFromDisplayName } from '@/lib/config'
 
 export const runtime = 'edge'
 
@@ -12,11 +13,13 @@ export const size = {
 
 export const contentType = 'image/png'
 
-export const alt = 'Phone comparison on Specmob'
+export const alt = 'Phone specs and price on Specmob'
 
 const IMAGE_FETCH_TIMEOUT_MS = 8_000
-const RENDER_TIMEOUT_MS = 10_000
 
+/**
+ * Load the Instrument Serif fonts used by the Specmob wordmark and text.
+ */
 async function loadFonts() {
   const [italicRes, regularRes] = await Promise.all([
     fetch(new URL('./InstrumentSerif-Italic.ttf', import.meta.url)),
@@ -35,13 +38,14 @@ async function loadFonts() {
   return { italicData, regularData }
 }
 
+/**
+ * Homepage fallback if the entire OG render fails.
+ */
 async function homepageOgFallback() {
   const res = await fetch(`${SITE_URL}/og-image.png`)
 
   if (!res.ok) {
-    throw new Error(
-      `Failed to load homepage OG image: ${res.status}`
-    )
+    throw new Error(`Failed to load homepage OG image: ${res.status}`)
   }
 
   const buffer = await res.arrayBuffer()
@@ -53,6 +57,16 @@ async function homepageOgFallback() {
   })
 }
 
+/**
+ * Convert a Uint8Array to base64 safely.
+ *
+ * We do this in chunks instead of:
+ *
+ * String.fromCharCode(...bytes)
+ *
+ * because spreading a large image into a function call can
+ * exceed the Edge runtime's argument/call-stack limits.
+ */
 function uint8ArrayToBase64(bytes: Uint8Array): string {
   let binary = ''
 
@@ -70,6 +84,22 @@ function uint8ArrayToBase64(bytes: Uint8Array): string {
   return btoa(binary)
 }
 
+/**
+ * Convert a Supabase public Storage URL into a resized
+ * Supabase image transformation URL.
+ *
+ * Example:
+ *
+ * /storage/v1/object/public/phone-images/phones/foo.jpg
+ *
+ * becomes:
+ *
+ * /storage/v1/render/image/public/phone-images/phones/foo.jpg
+ * ?width=400&height=400&resize=contain&quality=80
+ *
+ * This means the OG Edge function doesn't need to download
+ * the original multi-megabyte phone image.
+ */
 function getResizedSupabaseImageUrl(
   url: string | null | undefined
 ): string | null {
@@ -85,6 +115,8 @@ function getResizedSupabaseImageUrl(
       parsed.pathname.includes('/storage/v1/object/public/')
 
     if (!isSupabaseStorage) {
+      // If this isn't a Supabase Storage URL, just use
+      // the original URL.
       return url
     }
 
@@ -93,15 +125,20 @@ function getResizedSupabaseImageUrl(
       '/storage/v1/render/image/public/'
     )
 
-    parsed.searchParams.set('width', '700')
-    parsed.searchParams.set('height', '700')
+    /**
+     * 400x400 gives Satori enough resolution for the
+     * ~300x380 display area while still keeping the
+     * downloaded image small.
+     */
+    parsed.searchParams.set('width', '400')
+    parsed.searchParams.set('height', '400')
     parsed.searchParams.set('resize', 'contain')
-    parsed.searchParams.set('quality', '85')
+    parsed.searchParams.set('quality', '80')
 
     return parsed.toString()
   } catch (error) {
     console.error(
-      'Compare OG: failed to create resized URL:',
+      'OG image: failed to create resized image URL:',
       error
     )
 
@@ -109,6 +146,10 @@ function getResizedSupabaseImageUrl(
   }
 }
 
+/**
+ * Fetch the phone image server-side, after resizing it through
+ * Supabase, then convert it into a data URI for Satori.
+ */
 async function fetchImageDataUri(
   url: string | null | undefined
 ): Promise<string | null> {
@@ -116,7 +157,7 @@ async function fetchImageDataUri(
 
   if (!resizedUrl) {
     console.warn(
-      'Compare OG: phone has no main_image_url'
+      'OG image: phone does not have a main_image_url'
     )
 
     return null
@@ -130,7 +171,7 @@ async function fetchImageDataUri(
 
   try {
     console.log(
-      'Compare OG: fetching resized image:',
+      'OG image: fetching phone image:',
       resizedUrl
     )
 
@@ -141,7 +182,7 @@ async function fetchImageDataUri(
 
     if (!res.ok) {
       console.error(
-        'Compare OG: image request failed:',
+        'OG image: phone image request failed:',
         res.status,
         res.statusText,
         resizedUrl
@@ -155,7 +196,7 @@ async function fetchImageDataUri(
 
     if (!contentType.startsWith('image/')) {
       console.error(
-        'Compare OG: response is not an image:',
+        'OG image: response is not an image:',
         contentType,
         resizedUrl
       )
@@ -167,7 +208,7 @@ async function fetchImageDataUri(
 
     if (buffer.byteLength === 0) {
       console.error(
-        'Compare OG: image response is empty:',
+        'OG image: image response is empty:',
         resizedUrl
       )
 
@@ -175,18 +216,19 @@ async function fetchImageDataUri(
     }
 
     console.log(
-      'Compare OG: resized image downloaded:',
+      'OG image: resized image downloaded:',
       buffer.byteLength,
       'bytes'
     )
 
     const bytes = new Uint8Array(buffer)
+
     const base64 = uint8ArrayToBase64(bytes)
 
     return `data:${contentType};base64,${base64}`
   } catch (error) {
     console.error(
-      'Compare OG: failed to fetch image:',
+      'OG image: failed to fetch phone image:',
       resizedUrl,
       error
     )
@@ -197,6 +239,9 @@ async function fetchImageDataUri(
   }
 }
 
+/**
+ * Specmob wordmark.
+ */
 function Wordmark() {
   return (
     <div
@@ -230,37 +275,92 @@ function Wordmark() {
   )
 }
 
-async function buildResponse(
-  phonesSlug: string | undefined
-): Promise<Response> {
-  const { italicData, regularData } = await loadFonts()
+/**
+ * Generate the model OG image.
+ */
+export default async function Image({
+  params,
+}: {
+  params: Promise<{
+    brand: string
+    model: string
+  }>
+}) {
+  const { brand, model } = await params
 
-  const fonts = [
-    {
-      name: 'Instrument Serif',
-      data: italicData,
-      style: 'italic' as const,
-      weight: 400 as const,
-    },
-    {
-      name: 'Instrument Serif',
-      data: regularData,
-      style: 'normal' as const,
-      weight: 400 as const,
-    },
-  ]
+  try {
+    /**
+     * Load the phone and fonts at the same time.
+     */
+    const [phone, { italicData, regularData }] = await Promise.all([
+      getPhone(`${brand}-${model}`),
+      loadFonts(),
+    ])
 
-  const slugParts = phonesSlug?.trim()
-    ? parseCompareSlug(phonesSlug)
-    : []
+    const fonts = [
+      {
+        name: 'Instrument Serif',
+        data: italicData,
+        style: 'italic' as const,
+        weight: 400 as const,
+      },
+      {
+        name: 'Instrument Serif',
+        data: regularData,
+        style: 'normal' as const,
+        weight: 400 as const,
+      },
+    ]
 
-  const { phones } = slugParts.length
-    ? await resolveComparePhones(slugParts)
-    : { phones: [] }
+    /**
+     * Phone wasn't found.
+     */
+    if (!phone) {
+      return new ImageResponse(
+        (
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: '#F7F5F0',
+            }}
+          >
+            <Wordmark />
+          </div>
+        ),
+        {
+          ...size,
+          fonts,
+        }
+      )
+    }
 
-  const shown = phones.slice(0, 4)
+    /**
+     * Resolve price and fetch the resized phone image
+     * simultaneously.
+     */
+    const [price, imageUri] = await Promise.all([
+      Promise.resolve(resolveDisplayPrice(phone)),
+      fetchImageDataUri(phone.main_image_url),
+    ])
 
-  if (shown.length === 0) {
+    console.log('OG image result:', {
+      phone: phone.model_name,
+      originalImageUrl: phone.main_image_url,
+      hasImage: Boolean(imageUri),
+    })
+
+    const modelDisplayName = stripBrandFromDisplayName(
+      phone.model_name,
+      phone.brand
+    )
+
+    /**
+     * Generate final OG image.
+     */
     return new ImageResponse(
       (
         <div
@@ -268,12 +368,158 @@ async function buildResponse(
             width: '100%',
             height: '100%',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            flexDirection: 'column',
             background: '#F7F5F0',
+            padding: 64,
           }}
         >
-          <Wordmark />
+          {/* ============================================
+              WORDMARK
+          ============================================ */}
+          <div
+            style={{
+              display: 'flex',
+            }}
+          >
+            <Wordmark />
+          </div>
+
+          {/* ============================================
+              MAIN CONTENT
+          ============================================ */}
+          <div
+            style={{
+              display: 'flex',
+              flex: 1,
+              alignItems: 'center',
+              marginTop: 32,
+            }}
+          >
+            {/* ==========================================
+                PHONE IMAGE
+            ========================================== */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+
+                width: 420,
+                height: 420,
+
+                background: '#FFFFFF',
+
+                border: '1px solid #E7E2D8',
+                borderRadius: 32,
+
+                marginRight: 56,
+
+                overflow: 'hidden',
+              }}
+            >
+              {imageUri ? (
+                <img
+                  src={imageUri}
+                  alt=""
+                  width={300}
+                  height={380}
+                  style={{
+                    objectFit: 'contain',
+                    width: 300,
+                    height: 380,
+                  }}
+                />
+              ) : (
+                /**
+                 * If the phone image cannot be loaded,
+                 * don't leave an unexplained empty box.
+                 */
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontFamily: 'Instrument Serif',
+                    fontStyle: 'italic',
+                    fontSize: 28,
+                    color: '#9A9689',
+                  }}
+                >
+                  Specmob.
+                </div>
+              )}
+            </div>
+
+            {/* ==========================================
+                PHONE INFORMATION
+            ========================================== */}
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                flex: 1,
+              }}
+            >
+              {/* Brand */}
+              <div
+                style={{
+                  display: 'flex',
+                  fontFamily: 'Instrument Serif',
+                  fontSize: 23,
+                  fontWeight: 700,
+                  letterSpacing: 2,
+                  color: '#9A9689',
+                  textTransform: 'uppercase',
+                }}
+              >
+                {phone.brand}
+              </div>
+
+              {/* Model */}
+              <div
+                style={{
+                  display: 'flex',
+                  fontFamily: 'Instrument Serif',
+                  fontSize: 55,
+                  fontWeight: 700,
+                  color: '#15151F',
+                  marginTop: 8,
+                  lineHeight: 1.1,
+                }}
+              >
+                {modelDisplayName}
+              </div>
+
+              {/* Price */}
+              {price != null && (
+                <div
+                  style={{
+                    display: 'flex',
+                    fontFamily: 'Instrument Serif',
+                    fontSize: 41,
+                    fontWeight: 700,
+                    color: '#E13847',
+                    marginTop: 28,
+                  }}
+                >
+                  ${Math.round(price).toLocaleString()}
+                </div>
+              )}
+
+              {/* Description */}
+              <div
+                style={{
+                  display: 'flex',
+                  fontFamily: 'Instrument Serif',
+                  fontSize: 21,
+                  color: '#59564D',
+                  marginTop: 24,
+                }}
+              >
+                Full specs &amp; price comparison
+              </div>
+            </div>
+          </div>
         </div>
       ),
       {
@@ -281,272 +527,9 @@ async function buildResponse(
         fonts,
       }
     )
-  }
-
-  const imageUris = await Promise.all(
-    shown.map((phone) =>
-      fetchImageDataUri(phone.main_image_url)
-    )
-  )
-
-  console.log(
-    'Compare OG: image results:',
-    shown.map((phone, index) => ({
-      id: phone.id,
-      name: phone.model_name,
-      imageUrl: phone.main_image_url,
-      hasImage: Boolean(imageUris[index]),
-    }))
-  )
-
-  /*
-   * Layout sizing
-   *
-   * 1–3 phones:
-   *   Stage: 380px
-   *   Image: 360px
-   *
-   * 4 phones:
-   *   Stage: 270px
-   *   Image: 255px
-   *
-   * This keeps the 4-phone comparison inside the 1200px canvas
-   * while preserving the same oversized/cropped visual treatment.
-   */
-  const isFourPhones = shown.length === 4
-
-  const stageWidth = isFourPhones ? 270 : 380
-  const imageWidth = isFourPhones ? 255 : 360
-  const stageHeight = 570
-  const imageHeight = 560
-
-  const vsMargin = isFourPhones ? 5 : 12
-  const vsFontSize = isFourPhones ? 22 : 30
-  const vsCircleSize = isFourPhones ? 36 : 48
-
-  const modelNameFontSize = isFourPhones ? 25 : 28
-  const modelNameHeight = isFourPhones ? 54 : 58
-
-  return new ImageResponse(
-    (
-      <div
-        style={{
-          width: '100%',
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          background: '#F7F5F0',
-          padding: '42px 64px 0 64px',
-          overflow: 'hidden',
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            height: 46,
-            flexShrink: 0,
-          }}
-        >
-          <Wordmark />
-
-          <div
-            style={{
-              display: 'flex',
-              fontFamily: 'Instrument Serif',
-              fontSize: 23,
-              fontWeight: 700,
-              color: '#9A9689',
-              letterSpacing: 1,
-            }}
-          >
-            COMPARE
-          </div>
-        </div>
-
-        {/* Comparison area */}
-        <div
-          style={{
-            display: 'flex',
-            flex: 1,
-            alignItems: 'flex-start',
-            justifyContent: 'center',
-            paddingTop: 18,
-            paddingBottom: 0,
-            overflow: 'visible',
-          }}
-        >
-          {shown.map((phone, i) => (
-            <div
-              key={phone.id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-              }}
-            >
-              {/* Phone column */}
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  width: stageWidth,
-                  margin: 0,
-                  padding: 0,
-                }}
-              >
-                {/* Phone image stage */}
-                <div
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    width: stageWidth,
-                    height: stageHeight,
-                    background: '#FFFFFF',
-                    border: '1px solid #E7E2D8',
-                    borderRadius: '24px 24px 0 0',
-                    overflow: 'hidden',
-                    position: 'relative',
-                    margin: 0,
-                    padding: 0,
-                    boxSizing: 'border-box',
-                  }}
-                >
-                  {/* Model name */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: '100%',
-                      height: modelNameHeight,
-                      flexShrink: 0,
-                      padding: '0 10px',
-                      fontFamily: 'Instrument Serif',
-                      fontSize: modelNameFontSize,
-                      fontWeight: 700,
-                      color: '#15151F',
-                      textAlign: 'center',
-                      lineHeight: 1.15,
-                      boxSizing: 'border-box',
-                    }}
-                  >
-                    {phone.model_name}
-                  </div>
-
-                  {/* Phone image */}
-                  {imageUris[i] ? (
-                    <img
-                      src={imageUris[i]!}
-                      alt=""
-                      width={imageWidth}
-                      height={imageHeight}
-                      style={{
-                        width: imageWidth,
-                        height: imageHeight,
-                        objectFit: 'contain',
-                        objectPosition: 'center top',
-                        flexShrink: 0,
-                        display: 'block',
-                        margin: 0,
-                        padding: 0,
-                      }}
-                    />
-                  ) : (
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: imageWidth,
-                        height: imageHeight,
-                        flexShrink: 0,
-                        fontFamily: 'Instrument Serif',
-                        fontStyle: 'italic',
-                        fontSize: 27,
-                        color: '#9A9689',
-                        margin: 0,
-                        padding: 0,
-                      }}
-                    >
-                      Specmob.
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* VS */}
-              {i < shown.length - 1 && (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    margin: `0 ${vsMargin}px`,
-                    height: stageHeight,
-                    flexShrink: 0,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: vsCircleSize,
-                      height: vsCircleSize,
-                      borderRadius: '50%',
-                      background: '#E13847',
-                      color: '#FFFFFF',
-                      fontFamily: 'Instrument Serif',
-                      fontSize: vsFontSize,
-                      fontWeight: 700,
-                    }}
-                  >
-                    VS
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    ),
-    {
-      ...size,
-      fonts,
-    }
-  )
-}
-
-export default async function Image({
-  params,
-}: {
-  params: Promise<{
-    phones: string
-  }>
-}) {
-  const { phones: phonesSlug } = await params
-
-  try {
-    const timeoutPromise = new Promise<never>(
-      (_, reject) =>
-        setTimeout(() => {
-          reject(
-            new Error('Compare OG render timeout')
-          )
-        }, RENDER_TIMEOUT_MS)
-    )
-
-    return await Promise.race([
-      buildResponse(phonesSlug),
-      timeoutPromise,
-    ])
   } catch (err) {
     console.error(
-      'OG image failed for compare route:',
+      'OG image failed for model route:',
       err
     )
 
