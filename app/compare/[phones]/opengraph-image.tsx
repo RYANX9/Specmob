@@ -17,18 +17,22 @@ export const alt = 'Phone comparison on Specmob'
 const IMAGE_FETCH_TIMEOUT_MS = 8_000
 const RENDER_TIMEOUT_MS = 10_000
 
-async function loadWordmarkFont() {
-  const res = await fetch(
-    new URL('./InstrumentSerif-Italic.ttf', import.meta.url)
-  )
+async function loadFonts() {
+  const [italicRes, regularRes] = await Promise.all([
+    fetch(new URL('./InstrumentSerif-Italic.ttf', import.meta.url)),
+    fetch(new URL('./InstrumentSerif-Regular.ttf', import.meta.url)),
+  ])
 
-  if (!res.ok) {
-    throw new Error(
-      `Failed to load wordmark font: ${res.status}`
-    )
+  if (!italicRes.ok || !regularRes.ok) {
+    throw new Error('Failed to load wordmark fonts')
   }
 
-  return res.arrayBuffer()
+  const [italicData, regularData] = await Promise.all([
+    italicRes.arrayBuffer(),
+    regularRes.arrayBuffer(),
+  ])
+
+  return { italicData, regularData }
 }
 
 async function homepageOgFallback() {
@@ -229,13 +233,19 @@ function Wordmark() {
 async function buildResponse(
   phonesSlug: string | undefined
 ): Promise<Response> {
-  const fontData = await loadWordmarkFont()
+  const { italicData, regularData } = await loadFonts()
 
   const fonts = [
     {
       name: 'Instrument Serif',
-      data: fontData,
+      data: italicData,
       style: 'italic' as const,
+      weight: 400 as const,
+    },
+    {
+      name: 'Instrument Serif',
+      data: regularData,
+      style: 'normal' as const,
       weight: 400 as const,
     },
   ]
@@ -311,9 +321,9 @@ async function buildResponse(
   const imageHeight = 560
 
   const vsMargin = isFourPhones ? 5 : 12
-  const vsFontSize = isFourPhones ? 20 : 28
+  const vsFontSize = isFourPhones ? 21 : 29
 
-  const modelNameFontSize = isFourPhones ? 23 : 26
+  const modelNameFontSize = isFourPhones ? 24 : 27
   const modelNameHeight = isFourPhones ? 54 : 58
 
   return new ImageResponse(
@@ -344,7 +354,8 @@ async function buildResponse(
           <div
             style={{
               display: 'flex',
-              fontSize: 22,
+              fontFamily: 'Instrument Serif',
+              fontSize: 23,
               fontWeight: 700,
               color: '#9A9689',
               letterSpacing: 1,
@@ -413,6 +424,7 @@ async function buildResponse(
                       height: modelNameHeight,
                       flexShrink: 0,
                       padding: '0 10px',
+                      fontFamily: 'Instrument Serif',
                       fontSize: modelNameFontSize,
                       fontWeight: 700,
                       color: '#15151F',
@@ -453,7 +465,7 @@ async function buildResponse(
                         flexShrink: 0,
                         fontFamily: 'Instrument Serif',
                         fontStyle: 'italic',
-                        fontSize: 26,
+                        fontSize: 27,
                         color: '#9A9689',
                         margin: 0,
                         padding: 0,
@@ -472,6 +484,7 @@ async function buildResponse(
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
+                    fontFamily: 'Instrument Serif',
                     fontSize: vsFontSize,
                     fontWeight: 700,
                     color: '#E13847',
