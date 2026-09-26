@@ -2,7 +2,7 @@
 
 import type { Metadata } from 'next'
 import { notFound, permanentRedirect } from 'next/navigation'
-import { ROUTES, brandSlug, phoneSlug, stripBrandWord, stripBrandFromDisplayName } from '@/lib/config'
+import { ROUTES, brandSlug, phoneSlug, stripBrandWord } from '@/lib/config'
 import { resolveDisplayPrice } from '@/lib/price'
 import PhoneDetailClient from '@/app/components/phone-detail/PhoneDetailClient'
 import type { Phone } from '@/lib/types'
@@ -10,14 +10,38 @@ import { api, getPhone } from '@/lib/api'
 
 export const revalidate = 86400
 
+const SITE_NAME = 'Specmob'
+
 interface PageProps {
   params: Promise<{ brand: string; model: string }>
 }
 
+function buildFullDisplayName(phone: Phone): string {
+  const brand = phone.brand.trim()
+  const model = phone.model_name.trim()
+  const alreadyIncludesBrand = model.toLowerCase().startsWith(brand.toLowerCase() + ' ')
+  return alreadyIncludesBrand ? model : `${brand} ${model}`
+}
+
+interface ResolvedPhone {
+  phone: Phone
+  isCanonicalSlug: boolean
+}
+
+async function resolvePhone(brand: string, model: string): Promise<ResolvedPhone | null> {
+  const phone = await getPhone(`${brand}-${model}`)
+  if (phone) return { phone, isCanonicalSlug: true }
+
+  if (model.startsWith(`${brand}-`)) {
+    const legacyPhone = await getPhone(model)
+    if (legacyPhone) return { phone: legacyPhone, isCanonicalSlug: false }
+  }
+
+  return null
+}
+
 function buildDescription(phone: Phone): string {
-  const modelDisplayName = stripBrandFromDisplayName(phone.model_name, phone.brand)
-  const fullDisplayName = `${phone.brand} ${modelDisplayName}`
-  
+  const fullDisplayName = buildFullDisplayName(phone)
   const parts = [
     phone.main_camera_mp ? `${phone.main_camera_mp}MP main camera` : null,
     phone.battery_capacity ? `${phone.battery_capacity.toLocaleString()}mAh battery` : null,
@@ -29,8 +53,7 @@ function buildDescription(phone: Phone): string {
 }
 
 function buildProductJsonLd(phone: Phone, displayPrice: number | null): object {
-  const modelDisplayName = stripBrandFromDisplayName(phone.model_name, phone.brand)
-  const fullDisplayName = `${phone.brand} ${modelDisplayName}`
+  const fullDisplayName = buildFullDisplayName(phone)
 
   return {
     '@context': 'https://schema.org',
@@ -60,26 +83,25 @@ function buildBreadcrumbJsonLd(phone: Phone): object {
     itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://specmob.vercel.app' },
       { '@type': 'ListItem', position: 2, name: phone.brand, item: brandHref },
-      { '@type': 'ListItem', position: 3, name: phone.model_name, item: phoneHref },
+      { '@type': 'ListItem', position: 3, name: buildFullDisplayName(phone), item: phoneHref },
     ],
   }
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { brand, model } = await params
-  const phone = await getPhone(`${brand}-${model}`)
-  if (!phone) return { title: 'Phone not found' }
+  const resolved = await resolvePhone(brand, model)
+  if (!resolved) return { title: 'Phone not found' }
 
-  const modelDisplayName = stripBrandFromDisplayName(phone.model_name, phone.brand)
-  const fullDisplayName = `${phone.brand} ${modelDisplayName}`
-
+  const { phone } = resolved
+  const fullDisplayName = buildFullDisplayName(phone)
   const title = `${fullDisplayName} — Specs & Price`
   const description = buildDescription(phone)
 
   return {
     title,
     description,
-    openGraph: { title, description },
+    openGraph: { title, description, siteName: SITE_NAME },
     twitter: { card: 'summary_large_image', title, description },
     alternates: {
       canonical: ROUTES.phone(brandSlug(phone.brand), phoneSlug(phone)),
@@ -89,12 +111,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function PhoneDetailPage({ params }: PageProps) {
   const { brand, model } = await params
-  const phone = await getPhone(`${brand}-${model}`)
-  if (!phone) notFound()
+  const resolved = await resolvePhone(brand, model)
+  if (!resolved) notFound()
 
+  const { phone, isCanonicalSlug } = resolved
   const canonicalBrand = brandSlug(phone.brand)
   const canonicalModel = stripBrandWord(phoneSlug(phone), canonicalBrand)
-  if (brand !== canonicalBrand || model !== canonicalModel) {
+
+  if (!isCanonicalSlug || brand !== canonicalBrand || model !== canonicalModel) {
     permanentRedirect(ROUTES.phone(canonicalBrand, phoneSlug(phone)))
   }
 
