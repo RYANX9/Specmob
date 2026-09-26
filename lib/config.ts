@@ -24,10 +24,18 @@ export function stripBrandWord(slug: string, brandSlugValue: string): string {
  * JSON-LD, and OG images. NOT for slugs — use stripBrandWord for those.
  */
 export function stripBrandFromDisplayName(name: string, brand: string): string {
-  const prefix = `${brand} `
-  return name.toLowerCase().startsWith(prefix.toLowerCase())
-    ? name.slice(prefix.length)
-    : name
+  const brandWords = brand.trim().split(/\s+/).filter(Boolean)
+  const nameWords = name.trim().split(/\s+/).filter(Boolean)
+
+  const leadingWordsMatchBrand = brandWords.every(
+    (word, i) => nameWords[i]?.toLowerCase() === word.toLowerCase()
+  )
+
+  const stripped = leadingWordsMatchBrand
+    ? nameWords.slice(brandWords.length).join(' ')
+    : name.trim()
+
+  return stripped || name.trim()
 }
 
 export const ROUTES = {
