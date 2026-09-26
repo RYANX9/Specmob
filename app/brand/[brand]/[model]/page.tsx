@@ -2,7 +2,7 @@
 
 import type { Metadata } from 'next'
 import { notFound, permanentRedirect } from 'next/navigation'
-import { ROUTES, brandSlug, phoneSlug, stripBrandWord } from '@/lib/config'
+import { ROUTES, brandSlug, phoneSlug, stripBrandWord, buildFullDisplayName } from '@/lib/config'
 import { resolveDisplayPrice } from '@/lib/price'
 import PhoneDetailClient from '@/app/components/phone-detail/PhoneDetailClient'
 import type { Phone } from '@/lib/types'
@@ -14,13 +14,6 @@ const SITE_NAME = 'Specmob'
 
 interface PageProps {
   params: Promise<{ brand: string; model: string }>
-}
-
-function buildFullDisplayName(phone: Phone): string {
-  const brand = phone.brand.trim()
-  const model = phone.model_name.trim()
-  const alreadyIncludesBrand = model.toLowerCase().startsWith(brand.toLowerCase() + ' ')
-  return alreadyIncludesBrand ? model : `${brand} ${model}`
 }
 
 interface ResolvedPhone {
@@ -95,7 +88,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   const { phone } = resolved
   const fullDisplayName = buildFullDisplayName(phone)
-  const title = `${fullDisplayName} — Specs & Price`
+  const titleSuffix = phone.smart_score ? 'Specs, Price & Score' : 'Specs & Price'
+  const title = `${fullDisplayName} — ${titleSuffix}`
   const description = buildDescription(phone)
 
   return {
