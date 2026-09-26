@@ -3,9 +3,6 @@
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://renderphones.onrender.com'
 export const SITE_URL = 'https://specmob.vercel.app'
 
-// value_score color scale lives in lib/valueScore.ts (single source of
-// truth — see review #7/#8). Re-exported here so any existing
-// `import { valueScoreColor } from '@/lib/config'` call site keeps working.
 export { valueScoreColor } from './valueScore'
 
 /**
@@ -38,6 +35,18 @@ export function stripBrandFromDisplayName(name: string, brand: string): string {
   return stripped || name.trim()
 }
 
+/**
+ * Rebuilds "{brand} {model}" from a phone record, using
+ * stripBrandFromDisplayName so the brand is never duplicated
+ * regardless of whether model_name already includes it.
+ * Single source of truth for display name across title, OG image,
+ * JSON-LD, and breadcrumbs.
+ */
+export function buildFullDisplayName(phone: { brand: string; model_name: string }): string {
+  const modelDisplayName = stripBrandFromDisplayName(phone.model_name, phone.brand)
+  return modelDisplayName ? `${phone.brand} ${modelDisplayName}` : phone.brand
+}
+
 export const ROUTES = {
   home:     '/',
   brand:    (brand: string) => `/brand/${brand}`,
@@ -61,9 +70,6 @@ export function formatPrice(price: number | null | undefined): string {
   return `$${Math.round(price).toLocaleString('en-US')}`
 }
 
-// Used by the category quick-links strip on the homepage and the
-// category tab bar on best/[category]. Icon strings are resolved
-// to Lucide components at the call site.
 export const CATEGORY_META: Record<string, { title: string; icon: string; desc: string }> = {
   'camera-phones':  { title: 'Best Camera',   icon: 'camera',     desc: 'Top 10 ranked'  },
   'battery-life':   { title: 'Battery Kings', icon: 'battery',    desc: '5000mAh+'       },
