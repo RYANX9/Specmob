@@ -17,118 +17,30 @@ import { useToast } from '@/app/components/Toast'
 import { api } from '@/lib/api'
 import { ROUTES, brandSlug, phoneSlug, MAX_COMPARE } from '@/lib/config'
 import { getTierStyle } from '@/lib/tiers'
-import { c, f, r, z, mq } from '@/lib/tokens'
+import { c, f, r, mq } from '@/lib/tokens'
 import type { Phone, CategoryResult } from '@/lib/types'
 import { formatDisplayPrice } from '@/lib/price'
 import { analytics } from '@/lib/analytics'
+import {
+  CATEGORY_SEO,
+  categoryIntro,
+  latestReleaseYear,
+  type CategorySeo,
+  type RankedPhone,
+} from '@/lib/categorySeo'
 
 import AdSlot from '@/app/components/ads/AdSlot'
 
-const CATEGORY_CONFIG: Record<string, {
-  title: string
-  scoreLabel: string
-  minYear: number
-  desc: string
-  scoring: string
-  icon: React.ReactNode
-  weights: { label: string; pct: number }[]
-}> = {
-  'camera-phones': {
-    title: 'Best Camera Phones',
-    scoreLabel: 'Camera Score',
-    minYear: 2023,
-    desc: 'Ranked by main sensor resolution, sensor size, OIS, lens versatility, and video capabilities. Updated automatically from live spec data.',
-    scoring: 'Main sensor (30%) · Sensor size (25%) · OIS (15%) · Lens count (15%) · Telephoto (10%) · Video (5%)',
-    icon: <Camera size={22} strokeWidth={1.5} />,
-    weights: [
-      { label: 'Main Camera MP',   pct: 30 },
-      { label: 'Sensor Size',      pct: 25 },
-      { label: 'OIS Presence',     pct: 15 },
-      { label: 'Number of Lenses', pct: 15 },
-      { label: 'Telephoto Zoom',   pct: 10 },
-      { label: 'Video Resolution', pct: 5  },
-    ],
-  },
-  'battery-life': {
-    title: 'Best Battery Life',
-    scoreLabel: 'Battery Score',
-    minYear: 2023,
-    desc: 'Highest battery capacity phones from the current and previous year. Ranked purely by mAh.',
-    scoring: 'Battery capacity (100%). Simple and honest.',
-    icon: <Battery size={22} strokeWidth={1.5} />,
-    weights: [{ label: 'Battery Capacity', pct: 100 }],
-  },
-  'gaming-phones': {
-    title: 'Best Gaming Phones',
-    scoreLabel: 'Performance Score',
-    minYear: 2024,
-    desc: 'Top AnTuTu benchmark scores from the current and previous year. Raw processing power for demanding games at maximum settings.',
-    scoring: 'AnTuTu score (100%). Current and previous year devices only.',
-    icon: <Zap size={22} strokeWidth={1.5} />,
-    weights: [{ label: 'AnTuTu Score', pct: 100 }],
-  },
-  'under-300': {
-    title: 'Best Phones Under $300',
-    scoreLabel: 'Value Score',
-    minYear: 2022,
-    desc: 'Maximum specs per dollar under $300. Composite of battery, camera MP, and performance relative to price.',
-    scoring: 'Battery capacity (33%) · Main camera MP (33%) · Performance score (34%).',
-    icon: <Tag size={22} strokeWidth={1.5} />,
-    weights: [
-      { label: 'Battery Capacity',  pct: 33 },
-      { label: 'Main Camera MP',    pct: 33 },
-      { label: 'Performance Score', pct: 34 },
-    ],
-  },
-  'under-500': {
-    title: 'Best Phones Under $500',
-    scoreLabel: 'Value Score',
-    minYear: 2022,
-    desc: 'The mid-range sweet spot. Near-flagship specs at half the price. Scored by specs composite within the $0–$500 range.',
-    scoring: 'Battery capacity (33%) · Main camera MP (33%) · Performance score (34%).',
-    icon: <Tag size={22} strokeWidth={1.5} />,
-    weights: [
-      { label: 'Battery Capacity',  pct: 33 },
-      { label: 'Main Camera MP',    pct: 33 },
-      { label: 'Performance Score', pct: 34 },
-    ],
-  },
-  'lightweight': {
-    title: 'Lightest Smartphones',
-    scoreLabel: 'Lightness Score',
-    minYear: 2023,
-    desc: 'Modern smartphones (5.5"+ screen) between 100g–185g. Feature phones excluded. Sorted by weight ascending.',
-    scoring: 'Weight ascending (100%). Under 185g only, current and previous year releases.',
-    icon: <Feather size={22} strokeWidth={1.5} />,
-    weights: [{ label: 'Weight (ascending)', pct: 100 }],
-  },
-  'foldables': {
-    title: 'Best Foldable Phones',
-    scoreLabel: 'Overall Score',
-    minYear: 2015,
-    desc: 'Every foldable currently tracked, ranked by our smart overall score where available, falling back to raw AnTuTu for unscored phones.',
-    scoring: 'Overall score (100%). Foldable form factor required.',
-    icon: <Layers size={22} strokeWidth={1.5} />,
-    weights: [{ label: 'Overall Score', pct: 100 }],
-  },
-  'compact-phones': {
-    title: 'Best Compact Phones',
-    scoreLabel: 'Performance Score',
-    minYear: 2023,
-    desc: 'Smartphones with screens between 5.0"–6.3". Ranked by AnTuTu performance within the compact segment.',
-    scoring: 'Filter: screen ≤ 6.3". Ranking: AnTuTu score within that set.',
-    icon: <Smartphone size={22} strokeWidth={1.5} />,
-    weights: [{ label: 'AnTuTu Score', pct: 100 }],
-  },
-  'fast-charging': {
-    title: 'Fastest Charging Phones',
-    scoreLabel: 'Charging Score',
-    minYear: 2023,
-    desc: 'Ranked by maximum wired charging wattage. 30W minimum to qualify. 90W+ is the 2026 premium benchmark.',
-    scoring: 'Fast charging wattage (100%). Wired only. 30W minimum.',
-    icon: <Bolt size={22} strokeWidth={1.5} />,
-    weights: [{ label: 'Charging Wattage', pct: 100 }],
-  },
+const CATEGORY_HERO_ICONS: Record<string, React.ReactNode> = {
+  'camera-phones':  <Camera size={22} strokeWidth={1.5} />,
+  'battery-life':   <Battery size={22} strokeWidth={1.5} />,
+  'gaming-phones':  <Zap size={22} strokeWidth={1.5} />,
+  'under-300':      <Tag size={22} strokeWidth={1.5} />,
+  'under-500':      <Tag size={22} strokeWidth={1.5} />,
+  'lightweight':    <Feather size={22} strokeWidth={1.5} />,
+  'foldables':      <Layers size={22} strokeWidth={1.5} />,
+  'compact-phones': <Smartphone size={22} strokeWidth={1.5} />,
+  'fast-charging':  <Bolt size={22} strokeWidth={1.5} />,
 }
 
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
@@ -155,19 +67,9 @@ const CATEGORY_PALETTE: { bg: string; iconBg: string; iconColor: string }[] = [
   { bg: '#EDF2F7', iconBg: '#CADAE8', iconColor: '#2E6390' },
 ]
 
-const ALL_CATEGORIES = [
-  { slug: 'camera-phones',  label: 'Best Camera'   },
-  { slug: 'battery-life',   label: 'Battery Life'  },
-  { slug: 'gaming-phones',  label: 'Gaming'        },
-  { slug: 'under-300',      label: 'Under $300'    },
-  { slug: 'under-500',      label: 'Under $500'    },
-  { slug: 'lightweight',    label: 'Lightweight'   },
-  { slug: 'foldables',      label: 'Foldables'     },
-  { slug: 'compact-phones', label: 'Compact'       },
-  { slug: 'fast-charging',  label: 'Fast Charging' },
-]
+const CATEGORY_SLUG_ORDER = Object.keys(CATEGORY_SEO)
 
-const CATEGORY_SLUG_ORDER = Object.keys(CATEGORY_CONFIG)
+const ALL_CATEGORIES = CATEGORY_SLUG_ORDER.map(slug => ({ slug, label: CATEGORY_SEO[slug].shortLabel }))
 
 function paletteFor(slug: string) {
   const idx = CATEGORY_SLUG_ORDER.indexOf(slug)
@@ -188,7 +90,7 @@ function truncateWords(str: string, maxChars: number): string {
 
 interface WhyPoint { bold: string; rest: string }
 
-function getCategoryWhyPointsFallback(slug: string, phone: Phone & { category_score: number }): WhyPoint[] {
+function getCategoryWhyPointsFallback(slug: string, phone: RankedPhone): WhyPoint[] {
   const pts: (WhyPoint | null)[] = []
   switch (slug) {
     case 'camera-phones':
@@ -251,7 +153,7 @@ function getCategoryWhyPointsFallback(slug: string, phone: Phone & { category_sc
   return (pts.filter(Boolean) as WhyPoint[]).slice(0, 3)
 }
 
-function getCategoryTradeOffFallback(slug: string, phone: Phone & { category_score: number }): string {
+function getCategoryTradeOffFallback(slug: string, phone: RankedPhone): string {
   switch (slug) {
     case 'camera-phones':
       if (phone.weight_g && phone.weight_g > 200)
@@ -283,7 +185,7 @@ function getCategoryTradeOffFallback(slug: string, phone: Phone & { category_sco
   }
 }
 
-function getCategoryReasonFallback(slug: string, phone: Phone & { category_score: number }, rank: number): string {
+function getCategoryReasonFallback(slug: string, phone: RankedPhone, rank: number): string {
   const prefix = rank === 2 ? 'Runner-up by a narrow margin.' : 'A strong contender in this category.'
   switch (slug) {
     case 'camera-phones':
@@ -306,21 +208,21 @@ function getCategoryReasonFallback(slug: string, phone: Phone & { category_score
   }
 }
 
-function getWhyPoints(slug: string, phone: Phone & { category_score: number }): WhyPoint[] {
+function getWhyPoints(slug: string, phone: RankedPhone): WhyPoint[] {
   if (phone.smart_score?.strengths?.length) {
     return phone.smart_score.strengths.slice(0, 3).map(s => ({ bold: '', rest: s }))
   }
   return getCategoryWhyPointsFallback(slug, phone)
 }
 
-function getTradeOff(slug: string, phone: Phone & { category_score: number }): string {
+function getTradeOff(slug: string, phone: RankedPhone): string {
   if (phone.smart_score?.weaknesses?.length) {
     return phone.smart_score.weaknesses[0]
   }
   return getCategoryTradeOffFallback(slug, phone)
 }
 
-function getReason(slug: string, phone: Phone & { category_score: number }, rank: number): string {
+function getReason(slug: string, phone: RankedPhone, rank: number): string {
   if (phone.smart_score?.reasoning) {
     return truncateWords(phone.smart_score.reasoning, 160)
   }
@@ -345,14 +247,14 @@ function ScoreBadge({ score, label }: { score: number; label: string }) {
 }
 
 function RankCard({
-  phone, rank, score, scoreLabel, isBest, config, slug, onCompare, isCompared,
+  phone, rank, score, scoreLabel, isBest, categoryLabel, slug, onCompare, isCompared,
 }: {
-  phone: Phone & { category_score: number }
+  phone: RankedPhone
   rank: number
   score: number
   scoreLabel: string
   isBest: boolean
-  config: typeof CATEGORY_CONFIG[string]
+  categoryLabel: string
   slug: string
   onCompare: (p: Phone) => void
   isCompared: boolean
@@ -362,7 +264,6 @@ function RankCard({
   const whyPoints = isBest ? getWhyPoints(slug, phone) : []
   const tradeOff = isBest ? getTradeOff(slug, phone) : ''
   const reason = isBest ? '' : getReason(slug, phone, rank)
-  const categoryLabel = config.title.split(' ').slice(1, 3).join(' ')
   const aiScored = !!phone.smart_score?.reasoning
 
   return (
@@ -418,7 +319,7 @@ function RankCard({
               )}
               {aiScored && (
                 <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: r.full, color: c.text3, background: c.bg, border: `1px solid ${c.border}` }}>
-                  Reviewed
+                  AI-scored
                 </span>
               )}
             </div>
@@ -508,13 +409,12 @@ function RankCard({
   )
 }
 
-function MethodologyBox({ config, pal, open, onToggle }: {
-  config: typeof CATEGORY_CONFIG[string]
+function MethodologyBox({ seo, pal, open, onToggle }: {
+  seo: CategorySeo
   pal: { bg: string; iconBg: string; iconColor: string }
   open: boolean
   onToggle: () => void
 }) {
-  const categoryLabel = config.title.split(' ').slice(1, 3).join(' ')
   return (
     <div style={{ marginTop: 40, background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-lg)', overflow: 'hidden' }}>
       <button
@@ -524,7 +424,7 @@ function MethodologyBox({ config, pal, open, onToggle }: {
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <BarChart3 size={17} color={c.text2} />
-          <span style={{ fontFamily: f.serif, fontSize: 18, color: c.text1 }}>How we rank {categoryLabel}</span>
+          <span style={{ fontFamily: f.serif, fontSize: 18, color: c.text1 }}>How we rank {seo.shortLabel}</span>
         </div>
         <ChevronDown size={15} color={c.text3} style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 200ms ease' }} />
       </button>
@@ -532,23 +432,20 @@ function MethodologyBox({ config, pal, open, onToggle }: {
       {open && (
         <div style={{ padding: 24 }}>
           <p style={{ fontSize: 13.5, color: c.text2, lineHeight: 1.65, marginBottom: 20, maxWidth: 620 }}>
-            The <strong>{config.scoreLabel}</strong> is specific to this category — it measures {categoryLabel.toLowerCase()} fit,
-            not general phone quality, and is computed automatically from hardware specs. Scores are relative: the top phone in each run is normalised to 10.
+            {seo.basis}
           </p>
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: c.text3, marginBottom: 10 }}>Which phones qualify</div>
           <div className="methodology-weights" style={{ display: 'grid', gap: 10, marginBottom: 20 }}>
-            {config.weights.map((w, i) => (
-              <div key={i} style={{ padding: '12px 14px', background: c.bg, borderRadius: 'var(--r-md)' }}>
-                <div style={{ fontSize: 11.5, fontWeight: 600, color: c.text2, marginBottom: 5 }}>{w.label}</div>
-                <div style={{ height: 4, background: c.border, borderRadius: 2, overflow: 'hidden', marginBottom: 4 }}>
-                  <div style={{ height: '100%', borderRadius: 2, background: pal.iconColor, width: `${w.pct}%`, transition: 'width 600ms ease' }} />
-                </div>
-                <div style={{ fontSize: 10.5, color: c.text3 }}>{w.pct}% weight</div>
+            {seo.rules.map(rule => (
+              <div key={rule.label} style={{ padding: '12px 14px', background: c.bg, borderRadius: 'var(--r-md)' }}>
+                <div style={{ fontSize: 11.5, fontWeight: 600, color: c.text3, marginBottom: 4 }}>{rule.label}</div>
+                <div style={{ fontSize: 13, color: c.text1, lineHeight: 1.45 }}>{rule.value}</div>
               </div>
             ))}
           </div>
           <div style={{ padding: '11px 14px', background: pal.bg, borderRadius: 'var(--r-sm)', fontSize: 12.5, color: c.text2, lineHeight: 1.55, display: 'flex', gap: 9, alignItems: 'flex-start' }}>
             <Info size={14} style={{ flexShrink: 0, color: pal.iconColor, marginTop: 1 }} />
-            <span>Real-world performance — especially camera quality — doesn't always match spec scores. No brand sponsors these rankings.</span>
+            <span>Rankings use listed specifications, not hands-on testing, so real-world results can differ. Regional editions are excluded, and no brand sponsors these rankings.</span>
           </div>
         </div>
       )}
@@ -580,7 +477,7 @@ function OtherCategories({ currentSlug }: { currentSlug: string }) {
                 {CATEGORY_ICONS[cat.slug]}
               </div>
               <div style={{ fontFamily: f.serif, fontSize: 15, color: c.text1, marginBottom: 10 }}>
-                {CATEGORY_CONFIG[cat.slug]?.title ?? cat.label}
+                {CATEGORY_SEO[cat.slug].heading}
               </div>
               <div style={{ fontSize: 12, fontWeight: 600, color: c.text1, display: 'flex', alignItems: 'center', gap: 4 }}>
                 View ranking <ArrowRight size={11} />
@@ -636,8 +533,8 @@ function CategoryPageContent({ slug, initialData }: CategoryPageClientProps) {
   const [comparePhones, setComparePhones]   = useState<Phone[]>([])
   const [methodOpen, setMethodOpen]         = useState(false)
 
-  const config = CATEGORY_CONFIG[slug] ?? CATEGORY_CONFIG['camera-phones']
-  const pal    = paletteFor(slug)
+  const seo = CATEGORY_SEO[slug]
+  const pal = paletteFor(slug)
 
   const fetchCategory = useCallback(async () => {
     setLoading(true)
@@ -652,8 +549,6 @@ function CategoryPageContent({ slug, initialData }: CategoryPageClientProps) {
     }
   }, [slug, toast])
 
-  // SSR already provided the data for the initial slug — only fall back to
-  // a client fetch when the server pass failed or came back empty.
   const hydrated = useRef(false)
   useEffect(() => {
     if (hydrated.current) return
@@ -678,10 +573,12 @@ function CategoryPageContent({ slug, initialData }: CategoryPageClientProps) {
   }
 
   const compareIds = comparePhones.map(p => p.id)
-  const top3       = data?.phones.slice(0, 3) ?? []
+  const phones     = data?.phones ?? []
+  const top3       = phones.slice(0, 3)
 
-  const latestYear  = data?.phones.reduce((max, p) => Math.max(max, p.release_year ?? 0), 0) || new Date().getFullYear()
-  const displayTitle = `${config.title} ${latestYear}`
+  const latestYear   = latestReleaseYear(phones)
+  const displayTitle = `${seo.heading} ${latestYear}`
+  const intro        = categoryIntro(slug, phones)
 
   return (
     <div style={{ minHeight: '100vh', background: c.bg }}>
@@ -691,12 +588,12 @@ function CategoryPageContent({ slug, initialData }: CategoryPageClientProps) {
       />
 
       <div className="category-container" style={{ maxWidth: 1240, margin: '0 auto', padding: '0 var(--page-px) 72px' }}>
-        <nav style={{ padding: '16px 0 0', fontSize: 12.5, color: c.text3, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        <nav aria-label="Breadcrumb" style={{ padding: '16px 0 0', fontSize: 12.5, color: c.text3, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           <Link href="/" style={{ color: c.text2 }}>Home</Link>
           <ChevronRight size={11} color={c.text3} />
-          <Link href="/best" style={{ color: c.text2 }}>Best Of</Link>
+          <span>Best Phones</span>
           <ChevronRight size={11} color={c.text3} />
-          <span>{displayTitle}</span>
+          <span aria-current="page">{displayTitle}</span>
         </nav>
 
         <div className="category-tabs" style={{ marginTop: 20, overflowX: 'auto', scrollbarWidth: 'none', borderBottom: `1px solid ${c.border}` }}>
@@ -728,16 +625,16 @@ function CategoryPageContent({ slug, initialData }: CategoryPageClientProps) {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10 }}>
               <div className="category-hero-icon" style={{ width: 46, height: 46, flexShrink: 0, borderRadius: 'var(--r-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: pal.iconBg, color: pal.iconColor }}>
-                {config.icon}
+                {CATEGORY_HERO_ICONS[slug]}
               </div>
               <h1 className="category-hero-title" style={{ fontFamily: f.serif, fontSize: 40, color: c.text1, letterSpacing: '-1px', lineHeight: 1.1 }}>
                 {displayTitle}
               </h1>
             </div>
-            <p style={{ fontSize: 15, color: c.text2, lineHeight: 1.65, maxWidth: 560, marginBottom: 16 }}>{config.desc}</p>
+            <p style={{ fontSize: 15, color: c.text2, lineHeight: 1.65, maxWidth: 620, marginBottom: 16 }}>{intro}</p>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: c.text3 }}><Clock size={13} color={c.text3} />Updated daily</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: c.text3 }}><Smartphone size={13} color={c.text3} /><strong style={{ color: c.text2, fontWeight: 600 }}>{data?.phones.length ?? 0}</strong>&nbsp;phones ranked</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: c.text3 }}><Smartphone size={13} color={c.text3} /><strong style={{ color: c.text2, fontWeight: 600 }}>{phones.length}</strong>&nbsp;phones ranked</span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: c.text3 }}><Star size={13} color={c.text3} />{new Date().getFullYear() - 1}–{new Date().getFullYear()} releases only</span>
             </div>
           </div>
@@ -745,7 +642,7 @@ function CategoryPageContent({ slug, initialData }: CategoryPageClientProps) {
             <button
               onClick={() => {
                 if (top3.length >= 2) {
-                  router.push(ROUTES.compare(...top3.slice(0, 3).map(p => phoneSlug(p))))
+                  router.push(ROUTES.compare(...top3.map(p => phoneSlug(p))))
                 } else {
                   toast('Need at least 2 phones to compare', 'error')
                 }
@@ -765,7 +662,7 @@ function CategoryPageContent({ slug, initialData }: CategoryPageClientProps) {
             <div style={{ width: 36, height: 36, border: `3px solid ${c.border}`, borderTopColor: c.primary, borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
             <p style={{ fontSize: 13.5, color: c.text3 }}>Loading rankings...</p>
           </div>
-        ) : !data || data.phones.length === 0 ? (
+        ) : phones.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '80px 0' }}>
             <Smartphone size={52} color={c.border} strokeWidth={1.5} style={{ margin: '0 auto 16px' }} />
             <h3 style={{ fontFamily: f.serif, fontSize: 20, color: c.text1, marginBottom: 8 }}>No phones found</h3>
@@ -773,15 +670,15 @@ function CategoryPageContent({ slug, initialData }: CategoryPageClientProps) {
           </div>
         ) : (
           <>
-            {data.phones.map((phone, i) => (
+            {phones.map((phone, i) => (
               <Fragment key={phone.id}>
                 <RankCard
                   phone={phone}
                   rank={i + 1}
                   score={phone.category_score}
-                  scoreLabel={config.scoreLabel}
+                  scoreLabel={seo.scoreLabel}
                   isBest={i === 0}
-                  config={config}
+                  categoryLabel={seo.shortLabel}
                   slug={slug}
                   onCompare={handleCompare}
                   isCompared={compareIds.includes(phone.id)}
@@ -808,7 +705,7 @@ function CategoryPageContent({ slug, initialData }: CategoryPageClientProps) {
           <ChevronDown size={13} color={c.text3} style={{ transform: methodOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 200ms ease' }} />
         </button>
 
-        <MethodologyBox config={config} pal={pal} open={methodOpen} onToggle={() => setMethodOpen(v => !v)} />
+        <MethodologyBox seo={seo} pal={pal} open={methodOpen} onToggle={() => setMethodOpen(v => !v)} />
 
         <div style={{ marginTop: 40 }}>
           <AdSlot placement="inline" />
@@ -827,7 +724,7 @@ function CategoryPageContent({ slug, initialData }: CategoryPageClientProps) {
 
       <style>{`
         .other-cats-grid { grid-template-columns: repeat(4, 1fr); }
-        .methodology-weights { grid-template-columns: repeat(3, 1fr); }
+        .methodology-weights { grid-template-columns: repeat(4, 1fr); }
 
         ${mq.lg} {
           .category-hero-title { font-size: 32px !important; }
