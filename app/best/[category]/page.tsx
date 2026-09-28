@@ -4,7 +4,14 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import CategoryPageClient from '@/app/components/category/CategoryPageClient'
 import { api } from '@/lib/api'
-import { ROUTES } from '@/lib/config'
+import { ROUTES, SITE_URL, brandSlug, phoneSlug, buildFullDisplayName } from '@/lib/config'
+import {
+  CATEGORY_SEO,
+  categoryDescription,
+  categoryTitle,
+  latestReleaseYear,
+  type RankedPhone,
+} from '@/lib/categorySeo'
 import type { CategoryResult } from '@/lib/types'
 
 export const revalidate = 3600
@@ -13,17 +20,7 @@ interface PageProps {
   params: Promise<{ category: string }>
 }
 
-const CATEGORY_TITLES: Record<string, string> = {
-  'camera-phones':  'Best Camera Phones',
-  'battery-life':   'Best Battery Life Phones',
-  'gaming-phones':  'Best Gaming Phones',
-  'under-300':      'Best Phones Under $300',
-  'under-500':      'Best Phones Under $500',
-  'lightweight':    'Lightest Smartphones',
-  'foldables':      'Best Foldable Phones',
-  'compact-phones': 'Best Compact Phones',
-  'fast-charging':  'Fastest Charging Phones',
-}
+const SOCIAL_IMAGES = ['/og-image.png']
 
 async function getCategory(slug: string): Promise<CategoryResult | null> {
   try {
@@ -35,64 +32,72 @@ async function getCategory(slug: string): Promise<CategoryResult | null> {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { category: slug } = await params
-  const title = CATEGORY_TITLES[slug]
-  if (!title) return { title: 'Best Phones' }
+  if (!CATEGORY_SEO[slug]) return { title: 'Best Phones' }
 
-  const data = await getCategory(slug)
-  const year = data?.phones.reduce((max, p) => Math.max(max, p.release_year ?? 0), 0) || new Date().getFullYear()
-  const description = data?.description ?? `${title} ${year}, ranked by specs.`
+  const phones = (await getCategory(slug))?.phones ?? []
+  const year = latestReleaseYear(phones)
+  const title = categoryTitle(slug, year)
+  const description = categoryDescription(slug, year, phones)
+  const socialTitle = `${title} | Specmob`
 
   return {
-    title: `${title} ${year}`,
+    title,
     description,
-    openGraph: { title: `${title} ${year}`, description },
-    twitter: { card: 'summary', title: `${title} ${year}`, description },
+    openGraph: { title: socialTitle, description, images: SOCIAL_IMAGES },
+    twitter: { card: 'summary_large_image', title: socialTitle, description, images: SOCIAL_IMAGES },
     alternates: { canonical: ROUTES.category(slug) },
   }
 }
 
-function buildItemListJsonLd(slug: string, title: string, data: CategoryResult) {
+function buildItemListJsonLd(name: string, description: string, phones: RankedPhone[]) {
   return {
     '@context': 'https://schema.org',
     '@type': 'ItemList',
-    name: title,
-    description: data.description,
-    numberOfItems: data.phones.length,
-    itemListElement: data.phones.map((phone, i) => ({
+    name,
+    description,
+    numberOfItems: phones.length,
+    itemListElement: phones.map((phone, i) => ({
       '@type': 'ListItem',
       position: i + 1,
-      item: {
-        '@type': 'Product',
-        name: `${phone.brand} ${phone.model_name}`,
-        brand: { '@type': 'Brand', name: phone.brand },
-        ...(phone.price_usd != null && {
-          offers: {
-            '@type': 'Offer',
-            price: phone.price_usd,
-            priceCurrency: 'USD',
-            availability: 'https://schema.org/InStock',
-          },
-        }),
-      },
+      name: buildFullDisplayName(phone),
+      url: `${SITE_URL}${ROUTES.phone(brandSlug(phone.brand), phoneSlug(phone))}`,
     })),
   }
 }
 
+function buildBreadcrumbJsonLd(name: string, slug: string) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
+      { '@type': 'ListItem', position: 2, name, item: `${SITE_URL}${ROUTES.category(slug)}` },
+    ],
+  }
+}
+
+function JsonLd({ data }: { data: object }) {
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(data).replace(/</g, '\\u003c') }}
+    />
+  )
+}
+
 export default async function CategoryPage({ params }: PageProps) {
   const { category: slug } = await params
-  if (!CATEGORY_TITLES[slug]) notFound()
+  const seo = CATEGORY_SEO[slug]
+  if (!seo) notFound()
 
   const data = await getCategory(slug)
-  const jsonLd = data ? buildItemListJsonLd(slug, CATEGORY_TITLES[slug], data) : null
+  const phones = data?.phones ?? []
+  const name = `${seo.heading} ${latestReleaseYear(phones)}`
 
   return (
     <>
-      {jsonLd && (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-        />
-      )}
+      <JsonLd data={buildBreadcrumbJsonLd(name, slug)} />
+      {phones.length > 0 && <JsonLd data={buildItemListJsonLd(name, seo.basis, phones)} />}
       <CategoryPageClient slug={slug} initialData={data} />
     </>
   )
