@@ -1,17 +1,17 @@
 // app/best/[category]/page.tsx
-
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import CategoryPageClient from '@/app/components/category/CategoryPageClient'
+import JsonLd from '@/app/components/JsonLd'
 import { api } from '@/lib/api'
-import { ROUTES, SITE_URL, brandSlug, phoneSlug, buildFullDisplayName } from '@/lib/config'
+import { ROUTES, SITE_URL } from '@/lib/config'
 import {
   CATEGORY_SEO,
   categoryDescription,
   categoryTitle,
   latestReleaseYear,
-  type RankedPhone,
 } from '@/lib/categorySeo'
+import { buildBreadcrumbList, buildProductItemList } from '@/lib/structuredData'
 import type { CategoryResult } from '@/lib/types'
 
 export const revalidate = 3600
@@ -49,42 +49,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 }
 
-function buildItemListJsonLd(name: string, description: string, phones: RankedPhone[]) {
-  return {
-    '@context': 'https://schema.org',
-    '@type': 'ItemList',
-    name,
-    description,
-    numberOfItems: phones.length,
-    itemListElement: phones.map((phone, i) => ({
-      '@type': 'ListItem',
-      position: i + 1,
-      name: buildFullDisplayName(phone),
-      url: `${SITE_URL}${ROUTES.phone(brandSlug(phone.brand), phoneSlug(phone))}`,
-    })),
-  }
-}
-
-function buildBreadcrumbJsonLd(name: string, slug: string) {
-  return {
-    '@context': 'https://schema.org',
-    '@type': 'BreadcrumbList',
-    itemListElement: [
-      { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL },
-      { '@type': 'ListItem', position: 2, name, item: `${SITE_URL}${ROUTES.category(slug)}` },
-    ],
-  }
-}
-
-function JsonLd({ data }: { data: object }) {
-  return (
-    <script
-      type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(data).replace(/</g, '\\u003c') }}
-    />
-  )
-}
-
 export default async function CategoryPage({ params }: PageProps) {
   const { category: slug } = await params
   const seo = CATEGORY_SEO[slug]
@@ -96,8 +60,13 @@ export default async function CategoryPage({ params }: PageProps) {
 
   return (
     <>
-      <JsonLd data={buildBreadcrumbJsonLd(name, slug)} />
-      {phones.length > 0 && <JsonLd data={buildItemListJsonLd(name, seo.basis, phones)} />}
+      <JsonLd
+        data={buildBreadcrumbList([
+          { name: 'Home', url: SITE_URL },
+          { name, url: `${SITE_URL}${ROUTES.category(slug)}` },
+        ])}
+      />
+      <JsonLd data={phones.length > 0 ? buildProductItemList(name, phones, seo.basis) : null} />
       <CategoryPageClient slug={slug} initialData={data} />
     </>
   )
