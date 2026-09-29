@@ -1,12 +1,13 @@
 // app/brand/[brand]/page.tsx
-
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { api } from '@/lib/api'
-import { ROUTES } from '@/lib/config'
+import { ROUTES, SITE_URL } from '@/lib/config'
 import { parseFilterParams } from '@/lib/filterParams'
 import { getBrandInfo } from '@/lib/brandData'
 import BrandPageClient from '@/app/components/brand/BrandPageClient'
+import JsonLd from '@/app/components/JsonLd'
+import { buildBreadcrumbList, buildProductItemList } from '@/lib/structuredData'
 import type { SearchFilters, BrandStats } from '@/lib/types'
 
 export const revalidate = 3600
@@ -17,10 +18,10 @@ interface PageProps {
 }
 
 const SORT_OPTIONS = [
-  { value: 'release_year', order: 'desc' as const },
-  { value: 'release_year', order: 'asc' as const },
-  { value: 'price_usd',    order: 'asc' as const },
-  { value: 'price_usd',   order: 'desc' as const },
+  { value: 'release_year',     order: 'desc' as const },
+  { value: 'release_year',     order: 'asc' as const },
+  { value: 'price_usd',        order: 'asc' as const },
+  { value: 'price_usd',        order: 'desc' as const },
   { value: 'main_camera_mp',   order: 'desc' as const },
   { value: 'battery_capacity', order: 'desc' as const },
   { value: 'antutu_score',     order: 'desc' as const },
@@ -51,7 +52,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     description,
     openGraph: { title, description },
     twitter: { card: 'summary_large_image', title, description },
-    alternates: { canonical: `https://specmob.vercel.app${ROUTES.brand(brand)}` },
+    alternates: { canonical: `${SITE_URL}${ROUTES.brand(brand)}` },
   }
 }
 
@@ -82,26 +83,29 @@ export default async function BrandPage({ params, searchParams }: PageProps) {
     }),
   ])
 
-  const brandHref = `https://specmob.vercel.app${ROUTES.brand(slug)}`
-  const jsonLd = {
+  const brandHref = `${SITE_URL}${ROUTES.brand(slug)}`
+  const collectionPage = {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
     name: `${stats.brand} Phones`,
     url: brandHref,
-    breadcrumb: {
-      '@type': 'BreadcrumbList',
-      itemListElement: [
-        { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://specmob.vercel.app' },
-        { '@type': 'ListItem', position: 2, name: stats.brand, item: brandHref },
-      ],
-    },
   }
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      <JsonLd data={collectionPage} />
+      <JsonLd
+        data={buildBreadcrumbList([
+          { name: 'Home', url: SITE_URL },
+          { name: stats.brand, url: brandHref },
+        ])}
+      />
+      <JsonLd
+        data={
+          latestRes.results.length > 0
+            ? buildProductItemList(`Latest ${stats.brand} Phones`, latestRes.results)
+            : null
+        }
       />
       <BrandPageClient
         key={slug}
