@@ -1,12 +1,12 @@
 // app/brand/[brand]/[model]/page.tsx
-
 import type { Metadata } from 'next'
 import { notFound, permanentRedirect } from 'next/navigation'
-import { ROUTES, brandSlug, phoneSlug, stripBrandWord, buildFullDisplayName } from '@/lib/config'
-import { resolveDisplayPrice } from '@/lib/price'
+import { ROUTES, SITE_URL, brandSlug, phoneSlug, stripBrandWord, buildFullDisplayName } from '@/lib/config'
 import PhoneDetailClient from '@/app/components/phone-detail/PhoneDetailClient'
-import type { Phone } from '@/lib/types'
+import JsonLd from '@/app/components/JsonLd'
 import { api, getPhone } from '@/lib/api'
+import { buildBreadcrumbList, buildPhoneDescription, buildProductNode, phoneUrl } from '@/lib/structuredData'
+import type { Phone } from '@/lib/types'
 
 export const revalidate = 86400
 
@@ -33,51 +33,18 @@ async function resolvePhone(brand: string, model: string): Promise<ResolvedPhone
   return null
 }
 
-function buildDescription(phone: Phone): string {
-  const fullDisplayName = buildFullDisplayName(phone)
-  const parts = [
-    phone.main_camera_mp ? `${phone.main_camera_mp}MP main camera` : null,
-    phone.battery_capacity ? `${phone.battery_capacity.toLocaleString()}mAh battery` : null,
-    phone.chipset,
-    phone.screen_size ? `${phone.screen_size}" display` : null,
-  ].filter(Boolean)
-  const specLine = parts.length ? parts.join(', ') : `${fullDisplayName} specifications`
-  return `${fullDisplayName}: ${specLine}. Compare prices, specs, and alternatives on Specmob.`
-}
-
-function buildProductJsonLd(phone: Phone, displayPrice: number | null): object {
-  const fullDisplayName = buildFullDisplayName(phone)
+function buildProductJsonLd(phone: Phone) {
+  const gallery = (phone.images ?? [])
+    .slice()
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    .map(img => img.image_url)
 
   return {
     '@context': 'https://schema.org',
-    '@type': 'Product',
-    name: fullDisplayName,
-    brand: { '@type': 'Brand', name: phone.brand },
-    description: buildDescription(phone),
-    ...(displayPrice != null && {
-      offers: {
-        '@type': 'Offer',
-        price: displayPrice,
-        priceCurrency: 'USD',
-        availability: 'https://schema.org/InStock',
-        url: `https://specmob.vercel.app${ROUTES.phone(brandSlug(phone.brand), phoneSlug(phone))}`,
-      },
+    ...buildProductNode(phone, {
+      images: gallery,
+      availabilityStatus: phone.availability_status,
     }),
-    ...(phone.main_image_url && { image: phone.main_image_url }),
-  }
-}
-
-function buildBreadcrumbJsonLd(phone: Phone): object {
-  const brandHref = `https://specmob.vercel.app${ROUTES.brand(brandSlug(phone.brand))}`
-  const phoneHref = `https://specmob.vercel.app${ROUTES.phone(brandSlug(phone.brand), phoneSlug(phone))}`
-  return {
-    '@context': 'https://schema.org',
-    '@type': 'BreadcrumbList',
-    itemListElement: [
-      { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://specmob.vercel.app' },
-      { '@type': 'ListItem', position: 2, name: phone.brand, item: brandHref },
-      { '@type': 'ListItem', position: 3, name: buildFullDisplayName(phone), item: phoneHref },
-    ],
   }
 }
 
@@ -87,10 +54,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (!resolved) return { title: 'Phone not found' }
 
   const { phone } = resolved
-  const fullDisplayName = buildFullDisplayName(phone)
   const titleSuffix = phone.smart_score ? 'Specs, Price & Score' : 'Specs & Price'
-  const title = `${fullDisplayName} — ${titleSuffix}`
-  const description = buildDescription(phone)
+  const title = `${buildFullDisplayName(phone)} — ${titleSuffix}`
+  const description = buildPhoneDescription(phone)
 
   return {
     title,
@@ -121,17 +87,15 @@ export default async function PhoneDetailPage({ params }: PageProps) {
     api.phones.fullSpecs(phone.id).catch(() => ({ phone_id: phone.id, full_specifications: null })),
   ])
 
-  const displayPrice = resolveDisplayPrice(phone)
-
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(buildProductJsonLd(phone, displayPrice)) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(buildBreadcrumbJsonLd(phone)) }}
+      <JsonLd data={buildProductJsonLd(phone)} />
+      <JsonLd
+        data={buildBreadcrumbList([
+          { name: 'Home', url: SITE_URL },
+          { name: phone.brand, url: `${SITE_URL}${ROUTES.brand(canonicalBrand)}` },
+          { name: buildFullDisplayName(phone), url: phoneUrl(phone) },
+        ])}
       />
       <PhoneDetailClient
         key={phone.id}
