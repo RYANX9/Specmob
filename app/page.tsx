@@ -1,8 +1,10 @@
 // app/page.tsx
 import type { Metadata } from 'next'
 import HomeClient from '@/app/components/home/HomeClient'
+import JsonLd from '@/app/components/JsonLd'
 import { api } from '@/lib/api'
 import { TRENDING_LIMIT } from '@/lib/config'
+import { buildProductItemList } from '@/lib/structuredData'
 import type { Phone, FilterStats } from '@/lib/types'
 
 export const revalidate = 900
@@ -28,44 +30,12 @@ async function getStats(): Promise<FilterStats | null> {
   }
 }
 
-function buildTrendingJsonLd(trending: Phone[]) {
-  if (trending.length === 0) return null
-  return {
-    '@context': 'https://schema.org',
-    '@type': 'ItemList',
-    name: 'Trending Phones',
-    itemListElement: trending.map((phone, i) => ({
-      '@type': 'ListItem',
-      position: i + 1,
-      item: {
-        '@type': 'Product',
-        name: `${phone.brand} ${phone.model_name}`,
-        brand: { '@type': 'Brand', name: phone.brand },
-        ...(phone.price_usd != null && {
-          offers: {
-            '@type': 'Offer',
-            price: phone.price_usd,
-            priceCurrency: 'USD',
-            availability: 'https://schema.org/InStock',
-          },
-        }),
-      },
-    })),
-  }
-}
-
 export default async function Page() {
   const [trending, stats] = await Promise.all([getTrending(), getStats()])
-  const jsonLd = buildTrendingJsonLd(trending)
 
   return (
     <>
-      {jsonLd && (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-        />
-      )}
+      <JsonLd data={trending.length ? buildProductItemList('Trending Phones', trending) : null} />
       <HomeClient initialTrending={trending} initialStats={stats} />
     </>
   )
