@@ -85,7 +85,7 @@ const BRANDS: Record<string, BrandInfo> = {
   },
   vivo: {
     name: 'vivo',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Vivo_logo_2019.svg/1920px-Vivo_logo_2019.svg.png',
+    logo: 'https://thumb.wikimedia.org/wikipedia/commons/thumb/0/04/Vivo_%28China%29_logo.svg/1920px-Vivo_%28China%29_logo.svg.png',
     founded: '2009',
     hq: 'Dongguan, China',
     os: 'Android · OriginOS / FuntouchOS',
