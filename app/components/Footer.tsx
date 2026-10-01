@@ -47,7 +47,7 @@ const COLS = [
 ]
 
 const xUrl = 'https://x.com/specmobplatform'
-const instagramUrl = 'https://instagram.com/specmobplatfrom'
+const instagramUrl = 'https://instagram.com/specmobplatform'
 
 function XIcon({ size = 14 }: { size?: number }) {
   return (
