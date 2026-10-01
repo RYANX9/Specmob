@@ -157,7 +157,7 @@ const BRANDS: Record<string, BrandInfo> = {
   },
   honor: {
     name: 'Honor',
-    logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Honor_2026_logo.svg/1920px-Honor_2026_logo.svg.png',
+    logo: 'https://thumb.wikimedia.org/wikipedia/en/thumb/a/a0/Honor_2026_logo.svg/1920px-Honor_2026_logo.svg.png',
     founded: '2013',
     hq: 'Shenzhen, China',
     os: 'Android · MagicOS',
