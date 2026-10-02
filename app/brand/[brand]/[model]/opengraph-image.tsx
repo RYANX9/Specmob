@@ -17,6 +17,46 @@ export const alt = 'Phone specs and price on Specmob'
 
 const IMAGE_FETCH_TIMEOUT_MS = 8_000
 
+/* ------------------------------------------------------------------ *
+ * TUNABLES
+ * ------------------------------------------------------------------ */
+
+// Width of the white phone panel on the right (px).
+const PANEL_WIDTH = 540
+
+// Space between the text column and the panel (px).
+const PANEL_GAP = 40
+
+// Space between the panel edge and the phone image (px). Lower = bigger phone.
+const IMAGE_PADDING = 28
+
+// Biggest size of the main model line (px). It shrinks automatically for
+// long names.
+const MAIN_MAX_SIZE = 112
+
+// One quiet line under the price that says this is the full phone page.
+// Set to '' to hide it.
+const TAGLINE = 'Full specs \u00B7 Price \u00B7 Score'
+
+/* ------------------------------------------------------------------ */
+
+// The header strip (wordmark + label + hairline) is fixed. Nothing is ever
+// drawn over it: the text and the phone panel both start below the hairline.
+const PAGE_PADDING_X = 32
+const PAGE_PADDING_TOP = 40
+const HEADER_HEIGHT = 44
+const TEXT_INSET = 16 // keeps text and label aligned with the wordmark
+const PANEL_TOP_MARGIN = 28
+
+const COLORS = {
+  bg: '#F7F5F0',
+  ink: '#15151F',
+  inkSoft: '#6B6A63',
+  inkMuted: '#9A9689',
+  line: '#E2DDD2',
+  red: '#E13847',
+}
+
 /**
  * Load the Instrument Serif fonts used by the Specmob wordmark and text.
  */
@@ -58,26 +98,15 @@ async function homepageOgFallback() {
 }
 
 /**
- * Convert a Uint8Array to base64 safely.
- *
- * We do this in chunks instead of:
- *
- * String.fromCharCode(...bytes)
- *
- * because spreading a large image into a function call can
- * exceed the Edge runtime's argument/call-stack limits.
+ * Convert a Uint8Array to base64 in chunks, so large images don't exceed
+ * the Edge runtime's argument limits.
  */
 function uint8ArrayToBase64(bytes: Uint8Array): string {
   let binary = ''
-
   const CHUNK_SIZE = 0x8000
 
   for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
-    const chunk = bytes.subarray(
-      i,
-      Math.min(i + CHUNK_SIZE, bytes.length)
-    )
-
+    const chunk = bytes.subarray(i, Math.min(i + CHUNK_SIZE, bytes.length))
     binary += String.fromCharCode(...chunk)
   }
 
@@ -85,23 +114,12 @@ function uint8ArrayToBase64(bytes: Uint8Array): string {
 }
 
 /**
- * Convert a Supabase public Storage URL into a resized
- * Supabase image transformation URL.
- *
- * Example:
- *
- * /storage/v1/object/public/phone-images/phones/foo.jpg
- *
- * becomes:
- *
- * /storage/v1/render/image/public/phone-images/phones/foo.jpg
- * ?width=400&height=400&resize=contain&quality=80
- *
- * This means the OG Edge function doesn't need to download
- * the original multi-megabyte phone image.
+ * Convert a Supabase public Storage URL into a resized Supabase image
+ * transformation URL, so the Edge function never downloads the original.
  */
 function getResizedSupabaseImageUrl(
-  url: string | null | undefined
+  url: string | null | undefined,
+  px: number
 ): string | null {
   if (!url) {
     return null
@@ -115,8 +133,6 @@ function getResizedSupabaseImageUrl(
       parsed.pathname.includes('/storage/v1/object/public/')
 
     if (!isSupabaseStorage) {
-      // If this isn't a Supabase Storage URL, just use
-      // the original URL.
       return url
     }
 
@@ -125,56 +141,129 @@ function getResizedSupabaseImageUrl(
       '/storage/v1/render/image/public/'
     )
 
-    /**
-     * 400x400 gives Satori enough resolution for the
-     * ~300x380 display area while still keeping the
-     * downloaded image small.
-     */
-    parsed.searchParams.set('width', '400')
-    parsed.searchParams.set('height', '400')
+    parsed.searchParams.set('width', String(px))
+    parsed.searchParams.set('height', String(px))
     parsed.searchParams.set('resize', 'contain')
-    parsed.searchParams.set('quality', '80')
+    parsed.searchParams.set('quality', '85')
 
     return parsed.toString()
   } catch (error) {
-    console.error(
-      'OG image: failed to create resized image URL:',
-      error
-    )
-
+    console.error('OG image: failed to create resized image URL:', error)
     return url
   }
 }
 
+type FetchedImage = {
+  uri: string
+  width: number
+  height: number
+}
+
+/** Reads width/height from PNG, JPEG or WebP bytes. Returns null if unknown. */
+function getImageDimensions(
+  b: Uint8Array
+): { width: number; height: number } | null {
+  try {
+    // PNG
+    if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) {
+      const width = (b[16] << 24) | (b[17] << 16) | (b[18] << 8) | b[19]
+      const height = (b[20] << 24) | (b[21] << 16) | (b[22] << 8) | b[23]
+      return width > 0 && height > 0 ? { width, height } : null
+    }
+
+    // JPEG
+    if (b[0] === 0xff && b[1] === 0xd8) {
+      let i = 2
+
+      while (i + 9 < b.length) {
+        if (b[i] !== 0xff) {
+          i++
+          continue
+        }
+
+        const marker = b[i + 1]
+
+        // Start-of-frame markers (not DHT/JPG/DAC)
+        if (
+          marker >= 0xc0 &&
+          marker <= 0xcf &&
+          marker !== 0xc4 &&
+          marker !== 0xc8 &&
+          marker !== 0xcc
+        ) {
+          const height = (b[i + 5] << 8) | b[i + 6]
+          const width = (b[i + 7] << 8) | b[i + 8]
+          return width > 0 && height > 0 ? { width, height } : null
+        }
+
+        i += 2 + ((b[i + 2] << 8) | b[i + 3])
+      }
+
+      return null
+    }
+
+    // WebP
+    if (
+      b[0] === 0x52 &&
+      b[1] === 0x49 &&
+      b[2] === 0x46 &&
+      b[3] === 0x46 &&
+      b[8] === 0x57 &&
+      b[9] === 0x45 &&
+      b[10] === 0x42 &&
+      b[11] === 0x50
+    ) {
+      const kind = String.fromCharCode(b[12], b[13], b[14], b[15])
+
+      if (kind === 'VP8 ') {
+        return {
+          width: (b[26] | (b[27] << 8)) & 0x3fff,
+          height: (b[28] | (b[29] << 8)) & 0x3fff,
+        }
+      }
+
+      if (kind === 'VP8L') {
+        return {
+          width: 1 + (((b[22] & 0x3f) << 8) | b[21]),
+          height:
+            1 +
+            (((b[24] & 0x0f) << 10) | (b[23] << 2) | ((b[22] & 0xc0) >> 6)),
+        }
+      }
+
+      if (kind === 'VP8X') {
+        return {
+          width: 1 + (b[24] | (b[25] << 8) | (b[26] << 16)),
+          height: 1 + (b[27] | (b[28] << 8) | (b[29] << 16)),
+        }
+      }
+    }
+  } catch {
+    // fall through
+  }
+
+  return null
+}
+
 /**
- * Fetch the phone image server-side, after resizing it through
- * Supabase, then convert it into a data URI for Satori.
+ * Fetch the phone image server-side (resized through Supabase) and convert
+ * it into a data URI for Satori, along with its real dimensions.
  */
 async function fetchImageDataUri(
-  url: string | null | undefined
-): Promise<string | null> {
-  const resizedUrl = getResizedSupabaseImageUrl(url)
+  url: string | null | undefined,
+  px: number
+): Promise<FetchedImage | null> {
+  const resizedUrl = getResizedSupabaseImageUrl(url, px)
 
   if (!resizedUrl) {
-    console.warn(
-      'OG image: phone does not have a main_image_url'
-    )
-
+    console.warn('OG image: phone does not have a main_image_url')
     return null
   }
 
   const controller = new AbortController()
-
-  const timeoutId = setTimeout(() => {
-    controller.abort()
-  }, IMAGE_FETCH_TIMEOUT_MS)
+  const timeoutId = setTimeout(() => controller.abort(), IMAGE_FETCH_TIMEOUT_MS)
 
   try {
-    console.log(
-      'OG image: fetching phone image:',
-      resizedUrl
-    )
-
     const res = await fetch(resizedUrl, {
       signal: controller.signal,
       cache: 'no-store',
@@ -187,55 +276,89 @@ async function fetchImageDataUri(
         res.statusText,
         resizedUrl
       )
-
       return null
     }
 
-    const contentType =
-      res.headers.get('content-type') || 'image/jpeg'
+    const type = res.headers.get('content-type') || 'image/jpeg'
 
-    if (!contentType.startsWith('image/')) {
-      console.error(
-        'OG image: response is not an image:',
-        contentType,
-        resizedUrl
-      )
-
+    if (!type.startsWith('image/')) {
+      console.error('OG image: response is not an image:', type, resizedUrl)
       return null
     }
 
     const buffer = await res.arrayBuffer()
 
     if (buffer.byteLength === 0) {
-      console.error(
-        'OG image: image response is empty:',
-        resizedUrl
-      )
-
+      console.error('OG image: image response is empty:', resizedUrl)
       return null
     }
 
-    console.log(
-      'OG image: resized image downloaded:',
-      buffer.byteLength,
-      'bytes'
-    )
-
     const bytes = new Uint8Array(buffer)
-
     const base64 = uint8ArrayToBase64(bytes)
+    const dims = getImageDimensions(bytes)
 
-    return `data:${contentType};base64,${base64}`
+    return {
+      uri: `data:${type};base64,${base64}`,
+      // If we cannot read the size, assume square; objectFit keeps it safe.
+      width: dims?.width ?? 1,
+      height: dims?.height ?? 1,
+    }
   } catch (error) {
-    console.error(
-      'OG image: failed to fetch phone image:',
-      resizedUrl,
-      error
-    )
-
+    console.error('OG image: failed to fetch phone image:', resizedUrl, error)
     return null
   } finally {
     clearTimeout(timeoutId)
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Model name splitting  ->  main / suffix   (brand is shown separately)
+ *
+ *  "iPhone 18 Pro Max" -> IPHONE 18  / PRO MAX
+ *  "Galaxy Z Fold8"    -> GALAXY Z   / FOLD8
+ *  "Xperia 10 VIII"    -> XPERIA 10  / VIII
+ *  "Pixel 10"          -> PIXEL 10   / (none)
+ * ------------------------------------------------------------------ */
+
+const SUFFIX_WORDS = new Set([
+  'pro',
+  'max',
+  'ultra',
+  'plus',
+  'mini',
+  'lite',
+  'fe',
+  'air',
+  'se',
+  'turbo',
+  'neo',
+])
+
+function splitModelName(name: string): { main: string; suffix: string } {
+  const words = name.trim().split(/\s+/).filter(Boolean)
+
+  if (words.length === 0) {
+    return { main: '', suffix: '' }
+  }
+
+  if (words.length === 1) {
+    return { main: words[0].toUpperCase(), suffix: '' }
+  }
+
+  let i = words.length
+
+  while (i > 1 && SUFFIX_WORDS.has(words[i - 1].toLowerCase())) {
+    i--
+  }
+
+  // No suffix words: with 3+ words the last word becomes the suffix line.
+  if (i === words.length && words.length >= 3) {
+    i = words.length - 1
+  }
+
+  return {
+    main: words.slice(0, i).join(' ').toUpperCase(),
+    suffix: words.slice(i).join(' ').toUpperCase(),
   }
 }
 
@@ -252,10 +375,11 @@ function Wordmark() {
     >
       <div
         style={{
+          display: 'flex',
           fontFamily: 'Instrument Serif',
           fontStyle: 'italic',
           fontSize: 34,
-          color: '#15151F',
+          color: COLORS.ink,
         }}
       >
         Specmob
@@ -263,9 +387,10 @@ function Wordmark() {
 
       <div
         style={{
+          display: 'flex',
           fontFamily: 'Instrument Serif',
           fontSize: 34,
-          color: '#E13847',
+          color: COLORS.red,
           marginLeft: 2,
         }}
       >
@@ -289,9 +414,6 @@ export default async function Image({
   const { brand, model } = await params
 
   try {
-    /**
-     * Load the phone and fonts at the same time.
-     */
     const [phone, { italicData, regularData }] = await Promise.all([
       getPhone(`${brand}-${model}`),
       loadFonts(),
@@ -325,42 +447,85 @@ export default async function Image({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              background: '#F7F5F0',
+              background: COLORS.bg,
             }}
           >
             <Wordmark />
           </div>
         ),
-        {
-          ...size,
-          fonts,
-        }
+        { ...size, fonts }
       )
     }
 
-    /**
-     * Resolve price and fetch the resized phone image
-     * simultaneously.
-     */
-    const [price, imageUri] = await Promise.all([
-      Promise.resolve(resolveDisplayPrice(phone)),
-      fetchImageDataUri(phone.main_image_url),
-    ])
+    /* ---------------- Layout maths ---------------- */
 
-    console.log('OG image result:', {
-      phone: phone.model_name,
-      originalImageUrl: phone.main_image_url,
-      hasImage: Boolean(imageUri),
-    })
+    const rowAvail = size.width - PAGE_PADDING_X * 2
+    const bodyHeight = size.height - PAGE_PADDING_TOP - HEADER_HEIGHT
+
+    // The panel starts below the hairline and bleeds off the bottom edge.
+    const panelHeight = bodyHeight - 1 - PANEL_TOP_MARGIN
+    const panelInnerWidth = PANEL_WIDTH - 2 // 1px border each side
+    const panelInnerHeight = panelHeight - 1 // top border only
+
+    const imageBoxWidth = panelInnerWidth - IMAGE_PADDING * 2
+    const imageBoxHeight = panelInnerHeight - IMAGE_PADDING * 2
+
+    const textColWidth = rowAvail - PANEL_WIDTH - PANEL_GAP
+    const textWidth = textColWidth - TEXT_INSET
+
+    /* ---------------- Data ---------------- */
+
+    const [price, image] = await Promise.all([
+      Promise.resolve(resolveDisplayPrice(phone)),
+      fetchImageDataUri(
+        phone.main_image_url,
+        Math.min(1200, Math.round(imageBoxHeight * 1.6))
+      ),
+    ])
 
     const modelDisplayName = stripBrandFromDisplayName(
       phone.model_name,
       phone.brand
     )
 
-    /**
-     * Generate final OG image.
+    const { main, suffix } = splitModelName(modelDisplayName)
+
+    /* ---------------- Text sizing ----------------
+     * Satori does not auto-shrink text, so the main line is sized to fit the
+     * text column. Uppercase Instrument Serif is ~0.48em wide per character.
      */
+    const CHAR_WIDTH = 0.48
+
+    const mainSize = Math.max(
+      40,
+      Math.min(
+        MAIN_MAX_SIZE,
+        Math.floor((textWidth * 0.97) / (Math.max(main.length, 1) * CHAR_WIDTH))
+      )
+    )
+
+    const suffixSize = Math.round(mainSize * 0.7)
+
+    /* ---------------- Phone image placement ----------------
+     * The whole phone is always shown: scaled to fit the panel box, then
+     * centered in the panel.
+     */
+    let drawWidth = imageBoxWidth
+    let drawHeight = imageBoxHeight
+
+    if (image) {
+      const scale = Math.min(
+        imageBoxWidth / image.width,
+        imageBoxHeight / image.height
+      )
+
+      drawWidth = Math.round(image.width * scale)
+      drawHeight = Math.round(image.height * scale)
+    }
+
+    const drawLeft = Math.round((panelInnerWidth - drawWidth) / 2)
+    const drawTop = Math.round((panelInnerHeight - drawHeight) / 2)
+
     return new ImageResponse(
       (
         <div
@@ -369,95 +534,62 @@ export default async function Image({
             height: '100%',
             display: 'flex',
             flexDirection: 'column',
-            background: '#F7F5F0',
-            padding: 64,
+            background: COLORS.bg,
+            padding: `${PAGE_PADDING_TOP}px ${PAGE_PADDING_X}px 0 ${PAGE_PADDING_X}px`,
+            overflow: 'hidden',
           }}
         >
-          {/* ============================================
-              WORDMARK
-          ============================================ */}
+          {/* Header strip: wordmark + label. The hairline below it is the
+              top border of the body. Nothing is drawn over this. */}
           <div
             style={{
               display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              width: '100%',
+              height: HEADER_HEIGHT,
+              flexShrink: 0,
+              padding: `0 ${TEXT_INSET}px`,
+              boxSizing: 'border-box',
             }}
           >
             <Wordmark />
-          </div>
 
-          {/* ============================================
-              MAIN CONTENT
-          ============================================ */}
-          <div
-            style={{
-              display: 'flex',
-              flex: 1,
-              alignItems: 'center',
-              marginTop: 32,
-            }}
-          >
-            {/* ==========================================
-                PHONE IMAGE
-            ========================================== */}
             <div
               style={{
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-
-                width: 420,
-                height: 420,
-
-                background: '#FFFFFF',
-
-                border: '1px solid #E7E2D8',
-                borderRadius: 32,
-
-                marginRight: 56,
-
-                overflow: 'hidden',
+                fontFamily: 'Instrument Serif',
+                fontSize: 22,
+                color: COLORS.inkMuted,
+                letterSpacing: 3,
               }}
             >
-              {imageUri ? (
-                <img
-                  src={imageUri}
-                  alt=""
-                  width={300}
-                  height={380}
-                  style={{
-                    objectFit: 'contain',
-                    width: 300,
-                    height: 380,
-                  }}
-                />
-              ) : (
-                /**
-                 * If the phone image cannot be loaded,
-                 * don't leave an unexplained empty box.
-                 */
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontFamily: 'Instrument Serif',
-                    fontStyle: 'italic',
-                    fontSize: 28,
-                    color: '#9A9689',
-                  }}
-                >
-                  Specmob.
-                </div>
-              )}
+              PHONE
             </div>
+          </div>
 
-            {/* ==========================================
-                PHONE INFORMATION
-            ========================================== */}
+          {/* Body: everything happens under the line */}
+          <div
+            style={{
+              display: 'flex',
+              width: rowAvail,
+              height: bodyHeight,
+              borderTop: `1px solid ${COLORS.line}`,
+              boxSizing: 'border-box',
+              overflow: 'hidden',
+            }}
+          >
+            {/* Text column */}
             <div
               style={{
                 display: 'flex',
                 flexDirection: 'column',
-                flex: 1,
+                justifyContent: 'center',
+                width: textColWidth,
+                height: '100%',
+                paddingLeft: TEXT_INSET,
+                paddingBottom: 24,
+                boxSizing: 'border-box',
               }}
             >
               {/* Brand */}
@@ -465,30 +597,43 @@ export default async function Image({
                 style={{
                   display: 'flex',
                   fontFamily: 'Instrument Serif',
-                  fontSize: 23,
-                  fontWeight: 700,
-                  letterSpacing: 2,
-                  color: '#9A9689',
+                  fontSize: 30,
+                  letterSpacing: 4,
+                  color: COLORS.inkMuted,
                   textTransform: 'uppercase',
+                  marginBottom: 6,
                 }}
               >
                 {phone.brand}
               </div>
 
-              {/* Model */}
+              {/* Model: main line */}
               <div
                 style={{
                   display: 'flex',
                   fontFamily: 'Instrument Serif',
-                  fontSize: 55,
-                  fontWeight: 700,
-                  color: '#15151F',
-                  marginTop: 8,
-                  lineHeight: 1.1,
+                  fontSize: mainSize,
+                  lineHeight: 1.02,
+                  color: COLORS.ink,
                 }}
               >
-                {modelDisplayName}
+                {main}
               </div>
+
+              {/* Model: suffix line */}
+              {suffix ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    fontFamily: 'Instrument Serif',
+                    fontSize: suffixSize,
+                    lineHeight: 1.02,
+                    color: COLORS.inkSoft,
+                  }}
+                >
+                  {suffix}
+                </div>
+              ) : null}
 
               {/* Price */}
               {price != null && (
@@ -496,42 +641,92 @@ export default async function Image({
                   style={{
                     display: 'flex',
                     fontFamily: 'Instrument Serif',
-                    fontSize: 41,
-                    fontWeight: 700,
-                    color: '#E13847',
-                    marginTop: 28,
+                    fontSize: 72,
+                    lineHeight: 1,
+                    color: COLORS.red,
+                    marginTop: 32,
                   }}
                 >
                   ${Math.round(price).toLocaleString()}
                 </div>
               )}
 
-              {/* Description */}
-              <div
-                style={{
-                  display: 'flex',
-                  fontFamily: 'Instrument Serif',
-                  fontSize: 21,
-                  color: '#59564D',
-                  marginTop: 24,
-                }}
-              >
-                Full specs &amp; price comparison
-              </div>
+              {/* Tagline */}
+              {TAGLINE ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    fontFamily: 'Instrument Serif',
+                    fontSize: 26,
+                    letterSpacing: 3,
+                    textTransform: 'uppercase',
+                    color: COLORS.inkMuted,
+                    marginTop: 30,
+                  }}
+                >
+                  {TAGLINE}
+                </div>
+              ) : null}
+            </div>
+
+            {/* Phone panel: white so the image background blends in. Starts
+                below the line and bleeds off the bottom of the canvas. */}
+            <div
+              style={{
+                display: 'flex',
+                position: 'relative',
+                width: PANEL_WIDTH,
+                height: panelHeight,
+                marginLeft: PANEL_GAP,
+                marginTop: PANEL_TOP_MARGIN,
+                background: '#FFFFFF',
+                border: `1px solid ${COLORS.line}`,
+                borderBottom: 'none',
+                borderRadius: '28px 28px 0 0',
+                overflow: 'hidden',
+                boxSizing: 'border-box',
+              }}
+            >
+              {image ? (
+                <img
+                  src={image.uri}
+                  alt=""
+                  width={drawWidth}
+                  height={drawHeight}
+                  style={{
+                    position: 'absolute',
+                    left: drawLeft,
+                    top: drawTop,
+                    width: drawWidth,
+                    height: drawHeight,
+                    objectFit: 'contain',
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: panelInnerWidth,
+                    height: panelInnerHeight,
+                    fontFamily: 'Instrument Serif',
+                    fontStyle: 'italic',
+                    fontSize: 32,
+                    color: COLORS.inkMuted,
+                  }}
+                >
+                  Specmob.
+                </div>
+              )}
             </div>
           </div>
         </div>
       ),
-      {
-        ...size,
-        fonts,
-      }
+      { ...size, fonts }
     )
   } catch (err) {
-    console.error(
-      'OG image failed for model route:',
-      err
-    )
+    console.error('OG image failed for model route:', err)
 
     return homepageOgFallback()
   }
