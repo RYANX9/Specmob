@@ -49,6 +49,7 @@ export function buildFullDisplayName(phone: { brand: string; model_name: string 
 
 export const ROUTES = {
   home:     '/',
+  brands:   '/brands',
   brand:    (brand: string) => `/brand/${brand}`,
   phone:    (brand: string, model: string) => `/brand/${brand}/${stripBrandWord(model, brand)}`,
   compare:  (...slugs: string[]) => `/compare/${slugs.join('-vs-')}`,
