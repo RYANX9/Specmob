@@ -816,7 +816,7 @@ export default function Navbar() {
                     }}
                   >
                     <Link
-                      href="/brand"
+                      href={ROUTES.brands}
                       role="menuitem"
                       onClick={() =>
                         setBrandsOpen(false)
@@ -1177,7 +1177,7 @@ export default function Navbar() {
                     ))}
 
                     <Link
-                      href="/brand"
+                      href={ROUTES.brands}
                       onClick={() =>
                         setMobileOpen(false)
                       }
