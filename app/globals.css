@@ -1,0 +1,238 @@
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --bg: #F7F5F0;
+  --surface: #FFFFFF;
+  --surface-2: #FBFAF7;
+  --border: #E7E2D8;
+  --border-hover: #D2CBBC;
+  --primary: #15151F;
+  --primary-hover: #2A2A3C;
+  --accent: #E13847;
+  --accent-light: #FCEAEA;
+  --accent-border: #F3C6C9;
+  --text-1: #15151F;
+  --text-2: #59564D;
+  --text-3: #9A9689;
+  --green: #1F7A56;
+  --green-light: #E7F3ED;
+  --green-border: #C9E3D2;
+  --orange: #B0562E;
+  --blue: #3457C7;
+  --blue-light: #EAEDFA;
+  --skeleton: #E9E4D8;
+
+  /* five-tier palette — ultra flagship, flagship, upper mid, mid, budget */
+  --tier-ultra: #A97A2F;
+  --tier-ultra-bg: #F6EEE0;
+  --tier-flagship: #3457C7;
+  --tier-flagship-bg: #EAEDFA;
+  --tier-upper: #1F7A56;
+  --tier-upper-bg: #E7F3ED;
+  --tier-mid: #6D6A61;
+  --tier-mid-bg: #EFEDE7;
+  --tier-budget: #948F82;
+  --tier-budget-bg: #F1EFE9;
+
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+  --r-full: 999px;
+
+  --shadow-sm: 0 1px 2px rgba(21, 21, 31, 0.05);
+  --shadow-md: 0 6px 20px rgba(21, 21, 31, 0.07);
+  --shadow-lg: 0 16px 40px rgba(21, 21, 31, 0.12);
+  --shadow-xl: 0 24px 56px rgba(21, 21, 31, 0.16);
+
+  /* Fallback font stacks — next/font overrides these on <body> at runtime */
+  --font-serif: 'Instrument Serif', Georgia, serif;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+
+  --nav-h: 64px;
+  --sidebar-w: 268px;
+  --max-w: 1440px;
+  --page-px: 32px;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 16px;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text-1);
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+  border: none;
+  outline: none;
+  background: none;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+::selection {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* ─── Focus ──────────────────────────────────────────────────────────────────
+   Keyboard-only focus ring. Mouse/touch clicks intentionally get no ring.
+   Form elements suppress this because each component manages its own
+   focus treatment (border-color + box-shadow via inline onFocus/onBlur).
+*/
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────────────────────────*/
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}
+
+/* ─── Utilities ──────────────────────────────────────────────────────────────*/
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* ─── Animations ─────────────────────────────────────────────────────────────*/
+@keyframes shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position:  600px 0; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes pageFade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--skeleton) 25%,
+    #F3EFE4 50%,
+    var(--skeleton) 75%
+  );
+  background-size: 600px 100%;
+  animation: shimmer 1.6s infinite linear;
+  border-radius: var(--r-sm);
+}
+
+.fade-in {
+  animation: fadeIn 0.2s ease forwards;
+}
+
+.page-enter {
+  animation: pageFade 0.15s ease forwards;
+}
+
+/* ─── Reduced motion ─────────────────────────────────────────────────────────
+   Collapse all durations to near-zero. Animations still "run" so JS that
+   listens to animationend still fires — it just fires immediately.
+*/
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* ─── Responsive page padding ────────────────────────────────────────────────*/
+@media (max-width: 1024px) {
+  :root { --page-px: 20px; }
+}
+@media (max-width: 640px) {
+  :root { --page-px: 16px; }
+}
