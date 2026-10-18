@@ -1,4 +1,4 @@
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://renderphones.onrender.com'
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://specmob.vercel.app').replace(/\/+$/, '')
 export const SITE_NAME = 'Specmob'
 export const CONTACT_EMAIL = process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'ahmed.messaad.ml@gmail.com'
