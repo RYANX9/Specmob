@@ -7,7 +7,7 @@ export { valueScoreColor } from './valueScore'
 
 export const MAX_COMPARE = 4
 export const PAGE_SIZE = 24
-export const BRAND_PAGE_SIZE = 48
+export const BRAND_PHONES_LIMIT = 12
 export const TRENDING_LIMIT = 10
 
 export const PAIR_SEPARATOR = '-vs-'
