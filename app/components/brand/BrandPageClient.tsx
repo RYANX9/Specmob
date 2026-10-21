@@ -1,10 +1,9 @@
 // app/components/brand/BrandPageClient.tsx
 'use client'
 
-import { useState, Suspense } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { ChevronRight, ChevronLeft, Smartphone, ArrowRight } from 'lucide-react'
+import { ChevronRight, Smartphone, ArrowRight } from 'lucide-react'
 import Navbar from '@/app/components/Navbar'
 import Footer from '@/app/components/Footer'
 import CompareBar from '@/app/components/CompareBar'
@@ -19,76 +18,11 @@ import { tierStyle } from '@/lib/tiers'
 import { c, f, mq } from '@/lib/tokens'
 import { getBrandInfo, getBrandInitial } from '@/lib/brandData'
 import { trackNextStep, trackPageView } from '@/lib/events'
-import { useEffect } from 'react'
 import type { BrandDetail, Phone } from '@/lib/types'
-import { BRAND_SORTS, BRAND_TIERS } from '@/lib/brandSorts'
 
 interface Props {
   stats: BrandDetail
   phones: Phone[]
-  total: number
-  page: number
-  totalPages: number
-  sortKey: string
-  tier: string | null
-  basePath: string
-}
-
-function hrefFor(base: string, page: number, sortKey: string, tier: string | null): string {
-  const p = new URLSearchParams()
-  if (tier) p.set('tier', tier)
-  if (sortKey !== 'newest') p.set('sort', sortKey)
-  if (page > 1) p.set('page', String(page))
-  const s = p.toString()
-  return s ? `${base}?${s}` : base
-}
-
-function pageWindow(page: number, totalPages: number): (number | '…')[] {
-  const pages = new Set<number>([1, totalPages, page, page - 1, page + 1, page - 2, page + 2])
-  const sorted = [...pages].filter(n => n >= 1 && n <= totalPages).sort((a, b) => a - b)
-  const out: (number | '…')[] = []
-  sorted.forEach((n, i) => {
-    if (i > 0 && n - sorted[i - 1] > 1) out.push('…')
-    out.push(n)
-  })
-  return out
-}
-
-function Pagination({ base, page, totalPages, sortKey, tier }: { base: string; page: number; totalPages: number; sortKey: string; tier: string | null }) {
-  if (totalPages <= 1) return null
-  const item: React.CSSProperties = {
-    minWidth: 38, height: 38, padding: '0 12px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    borderRadius: 'var(--r-md)', border: `1px solid ${c.border}`, background: c.surface, color: c.text2,
-    fontSize: 13, fontWeight: 600, textDecoration: 'none',
-  }
-  return (
-    <nav aria-label="Pagination" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 32, flexWrap: 'wrap' }}>
-      {page > 1 && (
-        <Link href={hrefFor(base, page - 1, sortKey, tier)} rel="prev" style={item} aria-label="Previous page">
-          <ChevronLeft size={15} />
-        </Link>
-      )}
-      {pageWindow(page, totalPages).map((n, i) =>
-        n === '…' ? (
-          <span key={`gap-${i}`} style={{ color: c.text3, padding: '0 4px' }}>…</span>
-        ) : (
-          <Link
-            key={n}
-            href={hrefFor(base, n, sortKey, tier)}
-            aria-current={n === page ? 'page' : undefined}
-            style={n === page ? { ...item, background: c.primary, color: '#fff', borderColor: c.primary } : item}
-          >
-            {n}
-          </Link>
-        ),
-      )}
-      {page < totalPages && (
-        <Link href={hrefFor(base, page + 1, sortKey, tier)} rel="next" style={item} aria-label="Next page">
-          <ChevronRight size={15} />
-        </Link>
-      )}
-    </nav>
-  )
 }
 
 function BrandLogo({ logo, name }: { logo?: string; name: string }) {
@@ -116,13 +50,13 @@ function StatCard({ label, value, sub, href }: { label: string; value: string; s
     </>
   )
   const style: React.CSSProperties = { background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-md)', padding: '18px 20px', display: 'block', textDecoration: 'none' }
-  return href ? <Link href={href} style={style}>{body}</Link> : <div style={style}>{body}</div>
+  return href ? <Link href={href} prefetch={false} style={style}>{body}</Link> : <div style={style}>{body}</div>
 }
 
 function TopCard({ phone, rank }: { phone: Phone; rank: number }) {
   const tier = tierStyle(phone.tier)
   return (
-    <Link href={phone.path} className="brand-top-card" style={{ display: 'flex', gap: 14, alignItems: 'center', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-lg)', padding: 16, textDecoration: 'none' }}>
+    <Link href={phone.path} prefetch={false} className="brand-top-card" style={{ display: 'flex', gap: 14, alignItems: 'center', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-lg)', padding: 16, textDecoration: 'none' }}>
       <div style={{ width: 76, height: 76, flexShrink: 0, background: c.bg, borderRadius: 'var(--r-md)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {phone.main_image_url
           ? <img src={phone.main_image_url} alt={phone.display_name} loading="lazy" decoding="async" style={{ width: '80%', height: '80%', objectFit: 'contain' }} />
@@ -141,8 +75,7 @@ function TopCard({ phone, rank }: { phone: Phone; rank: number }) {
   )
 }
 
-function BrandContent({ stats, phones, total, page, totalPages, sortKey, tier, basePath }: Props) {
-  const router = useRouter()
+function BrandContent({ stats, phones }: Props) {
   const { toast } = useToast()
   const { phones: comparePhones, add, remove } = useCompare()
   const info = getBrandInfo(stats.brand_slug) ?? getBrandInfo(stats.brand)
@@ -166,13 +99,6 @@ function BrandContent({ stats, phones, total, page, totalPages, sortKey, tier, b
     add(phone)
     toast('Added to compare', 'success')
   }
-
-  const go = (nextSort: string, nextTier: string | null) => router.push(hrefFor(basePath, 1, nextSort, nextTier), { scroll: false })
-
-  const chip = (active: boolean): React.CSSProperties => ({
-    padding: '7px 14px', borderRadius: 'var(--r-full)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
-    border: `1px solid ${active ? c.primary : c.border}`, background: active ? c.primary : c.surface, color: active ? '#fff' : c.text2,
-  })
 
   return (
     <div style={{ minHeight: '100vh', background: c.bg }}>
@@ -212,13 +138,13 @@ function BrandContent({ stats, phones, total, page, totalPages, sortKey, tier, b
           </div>
         </header>
 
-        {page === 1 && !tier && (stats.upcoming?.length ?? 0) > 0 && (
+        {(stats.upcoming?.length ?? 0) > 0 && (
           <section aria-labelledby="brand-upcoming" style={{ marginBottom: 40 }}>
             <h2 id="brand-upcoming" style={{ fontFamily: f.serif, fontSize: 24, color: c.text1, fontWeight: 400, marginBottom: 16 }}>
               Upcoming {stats.brand} phones
             </h2>
             <div className="scrollbar-none" style={{ display: 'flex', gap: 12, overflowX: 'auto', scrollSnapType: 'x mandatory', paddingBottom: 4 }}>
-              {stats.upcoming.map(p => <UpcomingCard key={p.id} phone={p} showStage />)}
+              {stats.upcoming.map(p => <UpcomingCard key={p.id} phone={p} showStage prefetch={false} />)}
             </div>
           </section>
         )}
@@ -253,44 +179,33 @@ function BrandContent({ stats, phones, total, page, totalPages, sortKey, tier, b
           </section>
         )}
 
-        <section id="all-phones" aria-labelledby="all-heading">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
-            <h2 id="all-heading" style={{ fontFamily: f.serif, fontSize: 24, color: c.text1, fontWeight: 400 }}>
-              All {stats.brand} phones <span style={{ fontSize: 14, color: c.text3, fontFamily: f.sans }}>({total})</span>
-            </h2>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: c.text3 }}>
-              Sort
-              <select
-                value={sortKey}
-                onChange={e => go(e.target.value, tier)}
-                style={{ padding: '8px 12px', border: `1px solid ${c.border}`, borderRadius: 'var(--r-md)', background: c.surface, color: c.text1, fontSize: 13 }}
-              >
-                {BRAND_SORTS.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-              </select>
-            </label>
-          </div>
-
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-            <button onClick={() => go(sortKey, null)} style={chip(!tier)}>All tiers</button>
-            {BRAND_TIERS.map(t => (
-              <button key={t.id} onClick={() => go(sortKey, tier === t.id ? null : t.id)} style={chip(tier === t.id)}>{t.label}</button>
-            ))}
-          </div>
+        <section id="latest-phones" aria-labelledby="latest-heading">
+          <h2 id="latest-heading" style={{ fontFamily: f.serif, fontSize: 24, color: c.text1, fontWeight: 400, marginBottom: 16 }}>
+            Latest {stats.brand} phones
+          </h2>
 
           {phones.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '60px 0', color: c.text3 }}>
               <Smartphone size={44} color={c.border} strokeWidth={1.2} style={{ margin: '0 auto 12px' }} />
-              <p style={{ fontSize: 14 }}>No {stats.brand} phones match this filter.</p>
+              <p style={{ fontSize: 14 }}>No {stats.brand} phones to show right now.</p>
             </div>
           ) : (
             <div className="brand-phone-grid">
               {phones.map(p => (
-                <PhoneCard key={p.id} phone={p} compareIds={comparePhones.map(x => x.id)} onCompareToggle={handleCompare} />
+                <PhoneCard
+                  key={p.id}
+                  phone={p}
+                  prefetch={false}
+                  compareIds={comparePhones.map(x => x.id)}
+                  onCompareToggle={handleCompare}
+                />
               ))}
             </div>
           )}
 
-          <Pagination base={basePath} page={page} totalPages={totalPages} sortKey={sortKey} tier={tier} />
+          <p style={{ fontSize: 13.5, color: c.text3, marginTop: 20 }}>
+            Looking for another {stats.brand} model? Search for it by name in the search bar.
+          </p>
         </section>
 
         <div style={{ marginTop: 40 }}><AdSlot placement="inline" /></div>
