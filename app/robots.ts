@@ -5,7 +5,7 @@ export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
       {
-        userAgent: ['Bytespider', 'GPTBot', 'CCBot', 'ClaudeBot', 'PetalBot', 'meta-externalagent', 'Amazonbot'],
+        userAgent: ['Bytespider', 'GPTBot', 'CCBot', 'ClaudeBot', 'PetalBot', 'KeenableBot', 'meta-externalagent', 'Amazonbot'],
         disallow: '/',
       },
       { userAgent: '*', allow: '/' },
