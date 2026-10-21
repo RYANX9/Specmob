@@ -2,17 +2,33 @@
 
 import { useState, useEffect } from 'react'
 
+const STORAGE_KEY = 'data-notice-dismissed'
+
+function isDismissed(): boolean {
+  try {
+    return localStorage.getItem(STORAGE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function persistDismissal(): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, '1')
+  } catch {}
+}
+
 export default function DataNoticeBanner() {
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
-    if (!sessionStorage.getItem('data-notice-dismissed')) setVisible(true)
+    if (!isDismissed()) setVisible(true)
   }, [])
 
   if (!visible) return null
 
   const dismiss = () => {
-    sessionStorage.setItem('data-notice-dismissed', '1')
+    persistDismissal()
     setVisible(false)
   }
 
