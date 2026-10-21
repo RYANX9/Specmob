@@ -3,7 +3,13 @@ import { SITE_URL } from '@/lib/config'
 
 export default function robots(): MetadataRoute.Robots {
   return {
-    rules: { userAgent: '*', allow: '/' },
+    rules: [
+      {
+        userAgent: ['Bytespider', 'GPTBot', 'CCBot', 'ClaudeBot', 'PetalBot', 'meta-externalagent', 'Amazonbot'],
+        disallow: '/',
+      },
+      { userAgent: '*', allow: '/' },
+    ],
     sitemap: `${SITE_URL}/sitemap.xml`,
     host: SITE_URL,
   }
