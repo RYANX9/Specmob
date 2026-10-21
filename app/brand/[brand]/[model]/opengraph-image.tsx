@@ -67,24 +67,33 @@ const COLORS = {
 }
 
 /**
- * Instrument Serif (italic wordmark) + DM Serif Display (regular). Both .ttf files must sit next to this file.
+ * Same roles as the site:
+ *  - Instrument Serif Italic: Specmob wordmark only
+ *  - DM Serif Display: headlines + big numbers
+ *  - Google Sans: labels, chips, UI text
+ * All .ttf files must sit next to this file. Satori can't read woff2 or
+ * variable fonts, so Google Sans needs two STATIC ttf files (400 and 700).
  */
-async function loadFonts() {
-  const [italicRes, regularRes] = await Promise.all([
-    fetch(new URL('./InstrumentSerif-Italic.ttf', import.meta.url)),
-    fetch(new URL('./DMSerifDisplay-Regular.ttf', import.meta.url)),
-  ])
+async function loadFile(path: URL) {
+  const res = await fetch(path)
 
-  if (!italicRes.ok || !regularRes.ok) {
-    throw new Error('Failed to load wordmark fonts')
+  if (!res.ok) {
+    throw new Error(`Failed to load font: ${path.pathname}`)
   }
 
-  const [italicData, regularData] = await Promise.all([
-    italicRes.arrayBuffer(),
-    regularRes.arrayBuffer(),
-  ])
+  return res.arrayBuffer()
+}
 
-  return { italicData, regularData }
+async function loadFonts() {
+  const [italicData, regularData, sansRegularData, sansBoldData] =
+    await Promise.all([
+      loadFile(new URL('./InstrumentSerif-Italic.ttf', import.meta.url)),
+      loadFile(new URL('./DMSerifDisplay-Regular.ttf', import.meta.url)),
+      loadFile(new URL('./GoogleSans-Regular.ttf', import.meta.url)),
+      loadFile(new URL('./GoogleSans-Bold.ttf', import.meta.url)),
+    ])
+
+  return { italicData, regularData, sansRegularData, sansBoldData }
 }
 
 /** Fields this card reads. Numerics can arrive as numbers or "799.00" strings. */
@@ -433,7 +442,7 @@ export default async function Image({
   const { brand, model } = await params
 
   try {
-    const [phone, { italicData, regularData }] = await Promise.all([
+    const [phone, { italicData, regularData, sansRegularData, sansBoldData }] = await Promise.all([
       loadPhone(brand, model),
       loadFonts(),
     ])
@@ -450,6 +459,18 @@ export default async function Image({
         data: regularData,
         style: 'normal' as const,
         weight: 400 as const,
+      },
+      {
+        name: 'Google Sans',
+        data: sansRegularData,
+        style: 'normal' as const,
+        weight: 400 as const,
+      },
+      {
+        name: 'Google Sans',
+        data: sansBoldData,
+        style: 'normal' as const,
+        weight: 700 as const,
       },
     ]
 
@@ -580,8 +601,9 @@ export default async function Image({
             <div
               style={{
                 display: 'flex',
-                fontFamily: 'DM Serif Display',
-                fontSize: 22,
+                fontFamily: 'Google Sans',
+                fontWeight: 700,
+                fontSize: 20,
                 color: COLORS.inkMuted,
                 letterSpacing: 3,
               }}
@@ -617,8 +639,9 @@ export default async function Image({
               <div
                 style={{
                   display: 'flex',
-                  fontFamily: 'DM Serif Display',
-                  fontSize: 30,
+                  fontFamily: 'Google Sans',
+                  fontWeight: 700,
+                  fontSize: 26,
                   letterSpacing: 4,
                   color: COLORS.inkMuted,
                   textTransform: 'uppercase',
@@ -665,8 +688,9 @@ export default async function Image({
                   <div
                     style={{
                       display: 'flex',
-                      fontFamily: 'DM Serif Display',
-                      fontSize: 24,
+                      fontFamily: 'Google Sans',
+                      fontWeight: 700,
+                      fontSize: 22,
                       letterSpacing: 3,
                       textTransform: 'uppercase',
                       color: COLORS.inkMuted,
@@ -724,8 +748,9 @@ export default async function Image({
                     <div
                       style={{
                         display: 'flex',
-                        fontFamily: 'DM Serif Display',
-                        fontSize: 20,
+                        fontFamily: 'Google Sans',
+                        fontWeight: 700,
+                        fontSize: 18,
                         letterSpacing: 2,
                         textTransform: 'uppercase',
                         color: '#B9B6AB',
@@ -741,8 +766,9 @@ export default async function Image({
                     <div
                       style={{
                         display: 'flex',
-                        fontFamily: 'DM Serif Display',
-                        fontSize: 22,
+                        fontFamily: 'Google Sans',
+                        fontWeight: 700,
+                        fontSize: 20,
                         letterSpacing: 2,
                         textTransform: 'uppercase',
                         color: COLORS.inkSoft,
@@ -759,8 +785,9 @@ export default async function Image({
                 <div
                   style={{
                     display: 'flex',
-                    fontFamily: 'DM Serif Display',
-                    fontSize: 26,
+                    fontFamily: 'Google Sans',
+                    fontWeight: 700,
+                    fontSize: 22,
                     letterSpacing: 3,
                     textTransform: 'uppercase',
                     color: COLORS.inkMuted,
