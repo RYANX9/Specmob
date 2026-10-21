@@ -55,13 +55,17 @@ export default function BudgetDial({ value, onChange, big = false, disabled = fa
         {!uncapped && <span style={{ fontSize: 15, color: c.text3, fontWeight: 500 }}>Up to</span>}
         <span style={{ fontFamily: f.serif, fontSize: big ? 'clamp(54px,9vw,96px)' : 'clamp(44px,7vw,64px)', lineHeight: 1, letterSpacing: '-2px', color: c.text1 }}>
           <span style={{ fontSize: '0.42em', fontFamily: 'var(--font-sans)', fontWeight: 300, color: c.text3, marginRight: 3 }}>$</span>
-          {uncapped ? '2,000+' : shownValue.toLocaleString('en-US')}
+          {uncapped ? '2,000' : shownValue.toLocaleString('en-US')}
+          {uncapped && (
+            <span aria-hidden="true" style={{ WebkitTextStroke: '0.045em currentColor', paintOrder: 'stroke fill' }}>+</span>
+          )}
         </span>
       </div>
 
       <div
         ref={track}
         className="bd-slider"
+        style={big ? { maxWidth: 'none' } : undefined}
         role="slider"
         tabIndex={disabled ? -1 : 0}
         aria-label="Budget"
