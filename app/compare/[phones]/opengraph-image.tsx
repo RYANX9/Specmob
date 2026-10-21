@@ -66,13 +66,24 @@ async function loadFile(path: URL) {
   return res.arrayBuffer()
 }
 
+/**
+ * Same roles as the site:
+ *  - Instrument Serif Italic: Specmob wordmark only
+ *  - DM Serif Display: headlines (phone names)
+ *  - Google Sans: labels, badges, UI text
+ * Satori can't read woff2 or variable fonts, so Google Sans needs two STATIC
+ * ttf files (400 and 700) next to this file.
+ */
 async function loadFonts() {
-  const [italicData, regularData] = await Promise.all([
-    loadFile(new URL('./InstrumentSerif-Italic.ttf', import.meta.url)),
-    loadFile(new URL('./DMSerifDisplay-Regular.ttf', import.meta.url)),
-  ])
+  const [italicData, regularData, sansRegularData, sansBoldData] =
+    await Promise.all([
+      loadFile(new URL('./InstrumentSerif-Italic.ttf', import.meta.url)),
+      loadFile(new URL('./DMSerifDisplay-Regular.ttf', import.meta.url)),
+      loadFile(new URL('./GoogleSans-Regular.ttf', import.meta.url)),
+      loadFile(new URL('./GoogleSans-Bold.ttf', import.meta.url)),
+    ])
 
-  return { italicData, regularData }
+  return { italicData, regularData, sansRegularData, sansBoldData }
 }
 
 async function homepageOgFallback() {
@@ -423,7 +434,8 @@ async function loadPair(slug: string) {
 async function buildResponse(
   phonesSlug: string | undefined
 ): Promise<Response> {
-  const { italicData, regularData } = await loadFonts()
+  const { italicData, regularData, sansRegularData, sansBoldData } =
+    await loadFonts()
 
   const fonts = [
     {
@@ -437,6 +449,18 @@ async function buildResponse(
       data: regularData,
       style: 'normal' as const,
       weight: 400 as const,
+    },
+    {
+      name: 'Google Sans',
+      data: sansRegularData,
+      style: 'normal' as const,
+      weight: 400 as const,
+    },
+    {
+      name: 'Google Sans',
+      data: sansBoldData,
+      style: 'normal' as const,
+      weight: 700 as const,
     },
   ]
 
@@ -486,6 +510,7 @@ async function buildResponse(
    * by all phones, chosen so the longest name still fits its column.
    */
   const CHAR_WIDTH = 0.5
+  const BRAND_CHAR_WIDTH = 0.68 // Google Sans bold caps
   const BRAND_TRACKING = 3
   const minSize = 18
 
@@ -493,7 +518,12 @@ async function buildResponse(
     splitModelName(phone.name, phone.brand ?? '')
   )
 
-  const fit = (chars: number, max: number, extraPerChar = 0) =>
+  const fit = (
+    chars: number,
+    max: number,
+    extraPerChar = 0,
+    charWidth = CHAR_WIDTH
+  ) =>
     chars === 0
       ? max
       : Math.max(
@@ -501,7 +531,7 @@ async function buildResponse(
           Math.min(
             max,
             Math.floor(
-              (colWidth * 0.92 - chars * extraPerChar) / (chars * CHAR_WIDTH)
+              (colWidth * 0.92 - chars * extraPerChar) / (chars * charWidth)
             )
           )
         )
@@ -513,7 +543,9 @@ async function buildResponse(
   const brandMax = Math.max(20, Math.round(mainSize * 0.4))
   const brandSize = Math.min(
     brandMax,
-    ...parts.map((p) => fit(p.brand.length, brandMax, BRAND_TRACKING))
+    ...parts.map((p) =>
+      fit(p.brand.length, brandMax, BRAND_TRACKING, BRAND_CHAR_WIDTH)
+    )
   )
 
   const suffixMax = Math.round(mainSize * 0.72)
@@ -580,7 +612,7 @@ async function buildResponse(
 
   /* ---------------- VS badge ---------------- */
   const badge = count === 4 ? 48 : count === 3 ? 56 : 66
-  const badgeFont = count === 4 ? 24 : count === 3 ? 28 : 34
+  const badgeFont = count === 4 ? 18 : count === 3 ? 20 : 24
 
   // Center of the gap between column i and i + 1, relative to the row.
   const seamX = (i: number) =>
@@ -592,6 +624,8 @@ async function buildResponse(
   const nameLines = (p: NameParts) => [
     {
       key: 'brand',
+      fontFamily: 'Google Sans',
+      fontWeight: 700,
       text: p.brand,
       fontSize: brandSize,
       height: brandLineH,
@@ -600,6 +634,8 @@ async function buildResponse(
     },
     {
       key: 'main',
+      fontFamily: 'DM Serif Display',
+      fontWeight: 400,
       text: p.main,
       fontSize: mainSize,
       height: mainLineH,
@@ -608,6 +644,8 @@ async function buildResponse(
     },
     {
       key: 'suffix',
+      fontFamily: 'DM Serif Display',
+      fontWeight: 400,
       text: p.suffix,
       fontSize: suffixSize,
       height: suffixLineH,
@@ -647,8 +685,9 @@ async function buildResponse(
           <div
             style={{
               display: 'flex',
-              fontFamily: 'DM Serif Display',
-              fontSize: 22,
+              fontFamily: 'Google Sans',
+              fontWeight: 700,
+              fontSize: 20,
               color: COLORS.inkMuted,
               letterSpacing: 3,
             }}
@@ -712,7 +751,8 @@ async function buildResponse(
                         width: colWidth,
                         height: line.height,
                         flexShrink: 0,
-                        fontFamily: 'DM Serif Display',
+                        fontFamily: line.fontFamily,
+                        fontWeight: line.fontWeight,
                         fontSize: line.fontSize,
                         lineHeight: 1,
                         letterSpacing: line.letterSpacing,
@@ -797,14 +837,14 @@ async function buildResponse(
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontFamily: 'Instrument Serif',
-                fontStyle: 'italic',
+                fontFamily: 'Google Sans',
+                fontWeight: 700,
                 fontSize: badgeFont,
                 paddingBottom: 2,
                 boxSizing: 'border-box',
               }}
             >
-              vs
+              VS
             </div>
           ))}
         </div>
