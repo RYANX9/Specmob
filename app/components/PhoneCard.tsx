@@ -15,6 +15,7 @@ interface PhoneCardProps {
   compareIds: number[]
   onCompareToggle: (phone: Phone) => void
   compact?: boolean
+  prefetch?: boolean
 }
 
 
@@ -24,7 +25,7 @@ function isNewRelease(phone: Phone): boolean {
   return age >= 0 && age <= 60 * 24 * 60 * 60 * 1000
 }
 
-export default function PhoneCard({ phone, compareIds, onCompareToggle, compact }: PhoneCardProps) {
+export default function PhoneCard({ phone, compareIds, onCompareToggle, compact, prefetch }: PhoneCardProps) {
   const [imgErr, setImgErr] = useState(false)
   const [hovered, setHovered] = useState(false)
   const inCompare = compareIds.includes(phone.id)
@@ -86,7 +87,7 @@ export default function PhoneCard({ phone, compareIds, onCompareToggle, compact 
         {inCompare && <Check size={11} color="#fff" strokeWidth={2.5} />}
       </button>
 
-      <Link href={href} style={{ display: 'block', textDecoration: 'none' }}>
+      <Link href={href} prefetch={prefetch} style={{ display: 'block', textDecoration: 'none' }}>
         <div style={{
           width: '100%',
           aspectRatio: compact ? '4/3' : '1',
