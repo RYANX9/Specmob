@@ -5,7 +5,7 @@ import { UPCOMING_STAGES, releaseLabel } from '@/lib/upcoming'
 import { c, f, r } from '@/lib/tokens'
 import type { Phone } from '@/lib/types'
 
-export default function UpcomingCard({ phone, showStage = false }: { phone: Phone; showStage?: boolean }) {
+export default function UpcomingCard({ phone, showStage = false, prefetch }: { phone: Phone; showStage?: boolean; prefetch?: boolean }) {
   const stage = UPCOMING_STAGES.find(s => s.id === phone.stage)
   const hot = phone.stage === 'launching_soon'
   const showPrice = phone.stage !== 'rumored' && phone.price_usd != null
@@ -13,6 +13,7 @@ export default function UpcomingCard({ phone, showStage = false }: { phone: Phon
   return (
     <Link
       href={phone.path}
+      prefetch={prefetch}
       className="home-card"
       style={{ flexShrink: 0, width: 168, scrollSnapAlign: 'start', display: 'block', padding: '14px 12px', textAlign: 'center', background: c.surface, border: `1px solid ${c.border}`, borderRadius: r.md }}
     >
