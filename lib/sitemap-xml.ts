@@ -36,7 +36,8 @@ export async function collect(section: SitemapSection['section']): Promise<Sitem
   return out
 }
 
-export const today = () => new Date().toISOString().slice(0, 10)
+// Bump only when templates/content really change.
+export const today = () => '2026-10-28'
 
 // Same selection logic for main and rest, so they never overlap.
 // Newest by lastmod is only a proxy. If your API exposes release date, sort by that.
