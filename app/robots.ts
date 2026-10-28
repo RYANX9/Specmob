@@ -5,12 +5,11 @@ export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
       {
-        userAgent: ['Bytespider', 'GPTBot', 'CCBot', 'ClaudeBot', 'PetalBot', 'KeenableBot', 'meta-externalagent', 'Amazonbot'],
+        userAgent: ['Bytespider', 'GPTBot', 'CCBot', 'ClaudeBot', 'PetalBot', 'KeenableBot', 'meta-externalagent', ],
         disallow: '/',
       },
       { userAgent: '*', allow: '/' },
     ],
-    sitemap: `${SITE_URL}/sitemap.xml`,
-    host: SITE_URL,
+    sitemap: `${SITE_URL}/sitemap-main.xml`,
   }
 }
