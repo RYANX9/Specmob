@@ -481,7 +481,7 @@ export default function Navbar() {
 
           <div
             className="nav-links"
-            style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 'auto' }}
           >
             <div ref={bestRef} style={{ position: 'relative' }}>
               <button
@@ -518,7 +518,7 @@ export default function Navbar() {
                     position: 'absolute',
                     top: 'calc(100% + 8px)',
                     left: '50%',
-                    transform: 'translateX(-50%)',
+                    marginLeft: -150,
                     width: 300,
                     background: c.surface,
                     border: `1px solid ${c.border}`,
@@ -585,7 +585,7 @@ export default function Navbar() {
                     position: 'absolute',
                     top: 'calc(100% + 8px)',
                     left: '50%',
-                    transform: 'translateX(-50%)',
+                    marginLeft: -180,
                     width: 360,
                     background: c.surface,
                     border: `1px solid ${c.border}`,
@@ -881,8 +881,8 @@ export default function Navbar() {
 
       <style>{`
         @keyframes slideIn {
-          from { transform: translateX(-100%); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
+          from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+          to   { opacity: 1; transform: translateX(-50%) translateY(0); }
         }
 
         @media (max-width: 768px) {
