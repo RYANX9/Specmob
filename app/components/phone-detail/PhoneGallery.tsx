@@ -5,8 +5,6 @@ import { ChevronLeft, ChevronRight, Smartphone } from 'lucide-react'
 import { c } from '@/lib/tokens'
 import type { PhoneDetail } from '@/lib/types'
 
-// ─── gallery URL resolution ─────────────────────────────────────────────────
-
 export function buildGalleryUrls(phone: Pick<PhoneDetail, 'images' | 'main_image_url'>): string[] {
   const extra = (phone.images ?? [])
     .slice()
@@ -18,15 +16,10 @@ export function buildGalleryUrls(phone: Pick<PhoneDetail, 'images' | 'main_image
   return urls.filter(Boolean)
 }
 
-// ─── image content normalization ────────────────────────────────────────────
-// Different sources ship product PNGs with wildly different amounts of
-// baked-in whitespace around the phone. object-fit: contain scales the
-// whole canvas, not the visible subject, so mismatched padding still reads
-// as "one phone is smaller than the other". This scans each image for the
-// actual non-transparent/non-white bounding box and returns a scale factor
-// that normalizes the subject to a consistent fraction of the frame.
-
-const TARGET_FILL = 0.86 // how much of the frame the phone should visually occupy
+// Source PNGs carry different amounts of baked-in whitespace. This measures
+// the visible bounding box and returns a scale that normalizes the subject
+// to a consistent fraction of the frame.
+const TARGET_FILL = 0.86
 const scaleCache: Record<string, number> = {}
 
 function measureContentScale(url: string): Promise<number> {
@@ -53,7 +46,7 @@ function measureContentScale(url: string): Promise<number> {
 
         let minX = w, minY = h, maxX = 0, maxY = 0
         let found = false
-        const step = 2 // sample every 2px, full scan is unnecessary and slow
+        const step = 2
 
         for (let y = 0; y < h; y += step) {
           for (let x = 0; x < w; x += step) {
@@ -75,13 +68,13 @@ function measureContentScale(url: string): Promise<number> {
 
         const contentFrac = Math.max((maxX - minX) / w, (maxY - minY) / h)
         const scale = contentFrac > 0
-          ? Math.min(Math.max(TARGET_FILL / contentFrac, 0.6), 1.8) // clamp so a bad read never wildly over/under-scales
+          ? Math.min(Math.max(TARGET_FILL / contentFrac, 0.6), 1.8)
           : 1
 
         scaleCache[url] = scale
         resolve(scale)
       } catch {
-        // canvas throws on CORS-tainted images (no Access-Control-Allow-Origin) — bail to no-op scale
+        // canvas throws on CORS-tainted images
         scaleCache[url] = 1
         resolve(1)
       }
@@ -111,20 +104,15 @@ function useContentScales(urls: string[]): Record<string, number> {
   return scales
 }
 
-// ─── gallery component ───────────────────────────────────────────────────────
-// Main image sits in a FIXED pixel box (width/height, not maxWidth/maxHeight
-// percentages). object-fit: contain then guarantees every source image —
-// regardless of its own native resolution — is placed into an identical
-// container size. The per-image scale factor from measureContentScale is
-// then applied on top of that fixed box to compensate for baked-in
-// whitespace differences between source assets. Fixed box first, content
-// scale second — percentages of a variable box were compounding with the
-// content-scale correction unpredictably, which is why different gallery
-// images (e.g. front vs back shot) were rendering at different apparent
-// sizes even after the scale factor was applied.
+const GALLERY_MAIN_SIZE = 340
+const GALLERY_THUMB_SIZE = 56
+const GALLERY_GAP = 16
 
-const GALLERY_MAIN_SIZE = 340   // px, main image box (both width and height)
-const GALLERY_THUMB_SIZE = 56   // px, thumbnail box
+// Desktop stage height with a thumbnail row, measured so the card ends level
+// with the affiliate disclosure line. Without thumbnails the stage absorbs
+// the missing row so the card height stays identical.
+const STAGE_HEIGHT_WITH_THUMBS = 395
+const STAGE_HEIGHT_NO_THUMBS = STAGE_HEIGHT_WITH_THUMBS + GALLERY_THUMB_SIZE + GALLERY_GAP
 
 export default function PhoneGallery({ phone }: { phone: Pick<PhoneDetail, 'images' | 'main_image_url' | 'display_name'> }) {
   const gallery = buildGalleryUrls(phone)
@@ -140,9 +128,12 @@ export default function PhoneGallery({ phone }: { phone: Pick<PhoneDetail, 'imag
     <div style={{
       background: c.surface, border: `1px solid ${c.border}`,
       borderRadius: 'var(--r-xl)', padding: 20,
-      display: 'flex', flexDirection: 'column', gap: 16,
+      display: 'flex', flexDirection: 'column', gap: GALLERY_GAP,
     }}>
-      <div style={{ position: 'relative', aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div
+        className={hasMultiple ? 'pg-stage' : 'pg-stage pg-stage-solo'}
+        style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      >
         {current && !failed[index]
           ? <img
               src={current}
@@ -215,6 +206,14 @@ export default function PhoneGallery({ phone }: { phone: Pick<PhoneDetail, 'imag
           ))}
         </div>
       )}
+
+      <style>{`
+        .pg-stage { aspect-ratio: 1; }
+        @media (min-width: 1024px) {
+          .pg-stage { aspect-ratio: auto; height: ${STAGE_HEIGHT_WITH_THUMBS}px; }
+          .pg-stage-solo { height: ${STAGE_HEIGHT_NO_THUMBS}px; }
+        }
+      `}</style>
     </div>
   )
 }
