@@ -89,3 +89,5 @@ export function resolveSearchIntent(raw: string): SearchIntent | null {
 
   return null
 }
+
+export default function MobileNav({ top, autoFocusSearch, pathname, compareCount, compareHref, onClose }: Props) {
