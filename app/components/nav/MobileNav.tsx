@@ -1,93 +1,186 @@
+'use client'
+
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import Link from 'next/link'
+import { ChevronDown, CircleHelp } from 'lucide-react'
+
 import { ROUTES } from '@/lib/config'
+import { c, z } from '@/lib/tokens'
+import NavSearch from './NavSearch'
+import { BrandsGrid, CompareBadge, NavItem } from './NavMenus'
+import { BEST_ALL, BEST_GROUPS, TRADE_IN, compareLabel, isActivePath } from './navConfig'
 
-export interface SearchIntent {
-  label: string
-  href: string
+type Section = 'best' | 'brands' | null
+
+interface Props {
+  /** Distance from the top of the viewport to the bottom of the navbar, measured when the sheet opened. */
+  top: number
+  autoFocusSearch: boolean
+  pathname: string | null
+  compareCount: number
+  compareHref: string
+  onClose: () => void
 }
 
-interface Topic {
-  /** Ranking slug under ROUTES.category() */
-  slug: string
-  /** Value passed to /pick as the priority */
-  pick: string
-  /** Wording used in the suggestion label */
-  name: string
-  re: RegExp
-}
-
-const TOPICS: Topic[] = [
-  { slug: 'camera-phones', pick: 'camera', name: 'camera', re: /\b(cameras?|photos?|photography)\b/ },
-  { slug: 'battery-life', pick: 'battery', name: 'battery life', re: /\b(batter(y|ies)|battery life)\b/ },
-  { slug: 'gaming-phones', pick: 'gaming', name: 'gaming', re: /\b(gaming|gamers?)\b/ },
-  { slug: 'fast-charging', pick: 'charging', name: 'fast charging', re: /\b(fast charg(e|ing)|charging)\b/ },
-  { slug: 'lightweight', pick: 'lightweight', name: 'lightweight', re: /\b(lightweight|lightest|light)\b/ },
-  { slug: 'foldables', pick: 'foldable', name: 'foldable', re: /\b(foldables?|folding|flip|fold)\b/ },
-  { slug: 'compact-phones', pick: 'compact', name: 'compact', re: /\b(compact|smallest|small|mini)\b/ },
-]
-
-/** Budgets that already have a dedicated ranking page. */
-const BUDGET_PAGES = new Set([300, 500, 700])
-
-/** Words that signal "I want a recommendation", so plain model searches are never hijacked. */
-const RANKING_WORDS = /\b(best|top|good|great|cheap|cheapest|budget|under|below|less than|up to|max)\b/
-
-const BUDGET_RE = /(?:under|below|less than|up to|max|budget(?: of)?|<)\s*\$?\s*(\d{2,4})\b|\$\s*(\d{2,4})\b/
-
-function parseBudget(q: string): number | null {
-  const m = q.match(BUDGET_RE)
-  const n = m ? Number(m[1] ?? m[2]) : NaN
-  return Number.isFinite(n) && n >= 50 ? n : null
-}
-
-function withParams(path: string, params: Record<string, string | number>): string {
-  const qs = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString()
-  return `${path}${path.includes('?') ? '&' : '?'}${qs}`
-}
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled])'
 
 /**
- * Turns phrases like "best camera under 500" into a destination.
- * Returns null for anything that looks like a normal phone-name search.
- *
- * NOTE: the /pick query parameter names (budget, priority) are defined here and
- * nowhere else. Adjust them if the Help Me Choose page reads different ones.
- */
-export function resolveSearchIntent(raw: string): SearchIntent | null {
-  const q = raw.trim().toLowerCase()
-  if (q.length < 4) return null
+ * Full-height sheet: search first, then the primary action, then accordions.
+ * `top` is measured from the real navbar position, so it stays correct when a
+ * banner (e.g. the data notice) pushes the navbar down the page.
+*/
 
-  if (/^compare\b/.test(q) && !RANKING_WORDS.test(q)) {
-    return { label: 'Compare phones', href: '/compare' }
-  }
+ 
+export default function MobileNav({ top, autoFocusSearch, pathname, compareCount, compareHref, onClose }: Props) {
+  const [section, setSection] = useState<Section>('best')
+  const [searchOpen, setSearchOpen] = useState(false)
+  const sheetRef = useRef<HTMLDivElement>(null)
 
-  const budget = parseBudget(q)
-  const topic = TOPICS.find(t => t.re.test(q))
-  const wantsRanking = RANKING_WORDS.test(q)
+  // Lock page scroll behind the sheet and close on Escape.
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
 
-  if (!wantsRanking && budget === null) return null
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
 
-  if (topic && budget !== null) {
-    return {
-      label: `Best ${topic.name} phones under $${budget}`,
-      href: withParams(ROUTES.pick, { budget, priority: topic.pick }),
+    return () => {
+      document.body.style.overflow = prev
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [onClose])
+
+  // Keep Tab inside the sheet.
+  const trapTab = (e: ReactKeyboardEvent) => {
+    if (e.key !== 'Tab') return
+    const nodes = Array.from(sheetRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []).filter(
+      el => el.offsetParent !== null,
+    )
+    if (!nodes.length) return
+    const first = nodes[0]
+    const last = nodes[nodes.length - 1]
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault()
+      first.focus()
     }
   }
 
-  if (budget !== null) {
-    if (BUDGET_PAGES.has(budget)) {
-      return { label: `Phones under $${budget}`, href: ROUTES.category(`under-${budget}`) }
-    }
-    return { label: `Best phones under $${budget}`, href: withParams(ROUTES.pick, { budget }) }
-  }
+  const toggle = (s: Exclude<Section, null>) => setSection(cur => (cur === s ? null : s))
 
-  if (topic) {
-    return { label: `Best ${topic.name} phones`, href: ROUTES.category(topic.slug) }
-  }
+  const accordion = (id: Exclude<Section, null>, label: string) => (
+    <button
+      type="button"
+      id={`nb-acc-${id}-btn`}
+      className="nb-acc-btn"
+      aria-expanded={section === id}
+      aria-controls={`nb-acc-${id}`}
+      onClick={() => toggle(id)}
+    >
+      {label}
+      <ChevronDown size={16} className="nb-chev" aria-hidden="true" />
+    </button>
+  )
 
-  if (/^(best|top)\b/.test(q)) {
-    return { label: 'Best phones, all rankings', href: ROUTES.best }
-  }
+  return (
+    <div
+      ref={sheetRef}
+      id="nb-mobile"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Site menu"
+      className="nb-sheet"
+      onKeyDown={trapTab}
+      style={{
+        position: 'fixed',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        top,
+        zIndex: z.drawer,
+        overflowY: 'auto',
+        overscrollBehavior: 'contain',
+        background: c.surface,
+      }}
+    >
+      <div
+        style={{
+          padding: '16px var(--page-px) calc(32px + env(safe-area-inset-bottom, 0px))',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 16,
+        }}
+      >
+        <NavSearch variant="sheet" autoFocus={autoFocusSearch} onNavigate={onClose} onOpenChange={setSearchOpen} />
 
-  return null
+        {!searchOpen && (
+          <>
+            <Link href={ROUTES.pick} className="nb-cta nb-cta--block" onClick={onClose}>
+              <CircleHelp size={16} strokeWidth={2} aria-hidden="true" />
+              Help Me Choose
+            </Link>
+
+            <div>
+              {accordion('best', 'Best')}
+              {section === 'best' && (
+                <div id="nb-acc-best" role="region" aria-labelledby="nb-acc-best-btn" style={{ paddingBottom: 12 }}>
+                  {BEST_GROUPS.map(group => (
+                    <div key={group.title} style={{ marginBottom: 10 }}>
+                      <h3 className="nb-group-title" style={{ marginLeft: 8 }}>
+                        {group.title}
+                      </h3>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 2 }}>
+                        {group.items.map(item => (
+                          <NavItem key={item.href} item={item} pathname={pathname} onNavigate={onClose} />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  <NavItem item={BEST_ALL} pathname={pathname} onNavigate={onClose} />
+                </div>
+              )}
+
+              {accordion('brands', 'Brands')}
+              {section === 'brands' && (
+                <div id="nb-acc-brands" role="region" aria-labelledby="nb-acc-brands-btn" style={{ paddingBottom: 12 }}>
+                  <BrandsGrid pathname={pathname} onNavigate={onClose} cols={2} />
+                  <Link href={ROUTES.brands} className="nb-foot-link nb-foot-link--strong" style={{ marginTop: 8 }} onClick={onClose}>
+                    View all brands
+                  </Link>
+                </div>
+              )}
+
+              <Link
+                href={compareHref}
+                className="nb-acc-btn"
+                aria-label={compareLabel(compareCount)}
+                aria-current={isActivePath(pathname, '/compare') ? 'page' : undefined}
+                onClick={onClose}
+              >
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  Compare
+                  {compareCount > 0 && <CompareBadge count={compareCount} />}
+                </span>
+              </Link>
+
+              <Link
+                href={TRADE_IN.href}
+                className="nb-acc-btn"
+                aria-current={isActivePath(pathname, TRADE_IN.href) ? 'page' : undefined}
+                onClick={onClose}
+                style={{ borderBottom: `1px solid ${c.border}` }}
+              >
+                {TRADE_IN.label}
+              </Link>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
 }
 
-export default function MobileNav({ top, autoFocusSearch, pathname, compareCount, compareHref, onClose }: Props) {
