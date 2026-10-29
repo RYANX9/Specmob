@@ -1,36 +1,24 @@
+// app/components/DataNoticeBanner.tsx
 'use client'
 
 import { useState, useEffect } from 'react'
 
 const STORAGE_KEY = 'data-notice-dismissed'
 
-function isDismissed(): boolean {
-  try {
-    return localStorage.getItem(STORAGE_KEY) === '1'
-  } catch {
-    return false
-  }
-}
-
-function persistDismissal(): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, '1')
-  } catch {}
-}
-
 export default function DataNoticeBanner() {
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
-    if (!isDismissed()) setVisible(true)
+    try {
+      if (localStorage.getItem(STORAGE_KEY) === '1') return
+      localStorage.setItem(STORAGE_KEY, '1')
+    } catch {
+      return
+    }
+    setVisible(true)
   }, [])
 
   if (!visible) return null
-
-  const dismiss = () => {
-    persistDismissal()
-    setVisible(false)
-  }
 
   return (
     <div style={{
@@ -48,7 +36,7 @@ export default function DataNoticeBanner() {
         Prices are estimates and vary by region and retailer.
       </p>
       <button
-        onClick={dismiss}
+        onClick={() => setVisible(false)}
         style={{
           fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.5)',
           background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0, padding: '4px 0',
