@@ -49,13 +49,13 @@ function VariantPicker({
   const cheapest = priced.length ? Math.min(...priced.map(v => v.price_usd as number)) : null
 
   return (
-    <div style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-lg)', padding: '18px 20px', marginBottom: 20 }}>
+    <div className="variant-card" style={{ background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-lg)', padding: '18px 20px', marginBottom: 20, minWidth: 0 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 13, fontWeight: 700, color: c.text1 }}>Choose a configuration</span>
         <span style={{ fontSize: 11, color: c.text3 }}>{variants.length} option{variants.length > 1 ? 's' : ''}</span>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 8 }}>
+      <div className="variant-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))', gap: 8 }}>
         {variants.map(v => {
           const isSelected = selected?.id === v.id
           const isCheapest = cheapest != null && v.price_usd === cheapest
@@ -65,7 +65,7 @@ function VariantPicker({
               key={v.id}
               onClick={() => onSelect(v)}
               style={{
-                position: 'relative', display: 'flex', flexDirection: 'column', gap: 3,
+                position: 'relative', display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0,
                 padding: '10px 12px', textAlign: 'left', borderRadius: 'var(--r-md)', cursor: 'pointer',
                 border: `1.5px solid ${isSelected ? c.accent : c.border}`,
                 background: isSelected ? `${c.accent}12` : c.bg, transition: 'all 0.15s',
@@ -312,10 +312,12 @@ function PhoneDetailInner({ phone, similar, compareWith, nextSteps, fullSpecs }:
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: c.bg }}>
+    // overflowX: 'clip' (not 'hidden') contains any stray horizontal overflow
+    // without creating a scroll container, so the sticky section nav keeps working.
+    <div style={{ minHeight: '100vh', background: c.bg, overflowX: 'clip', maxWidth: '100%' }}>
       <Navbar />
 
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 var(--page-px)' }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 var(--page-px)', minWidth: 0 }}>
 
         <nav aria-label="Breadcrumb" style={{ padding: '14px 0', fontSize: 13, color: c.text3, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           <Link href={ROUTES.home} style={{ color: c.text2 }}>Home</Link>
@@ -328,7 +330,7 @@ function PhoneDetailInner({ phone, similar, compareWith, nextSteps, fullSpecs }:
         <div className="phone-hero-grid">
           <PhoneGallery phone={phone} />
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 6 }}>
               <button
                 onClick={handleShare}
@@ -347,7 +349,7 @@ function PhoneDetailInner({ phone, similar, compareWith, nextSteps, fullSpecs }:
               </button>
             </div>
 
-            <h1 style={{ fontFamily: f.serif, fontSize: 'clamp(24px,3vw,34px)', color: c.text1, letterSpacing: '-0.4px', lineHeight: 1.15, marginBottom: 14, fontWeight: 400 }}>
+            <h1 style={{ fontFamily: f.serif, fontSize: 'clamp(24px,3vw,34px)', color: c.text1, letterSpacing: '-0.4px', lineHeight: 1.15, marginBottom: 14, fontWeight: 400, overflowWrap: 'anywhere' }}>
               {phone.display_name}
             </h1>
 
@@ -377,18 +379,18 @@ function PhoneDetailInner({ phone, similar, compareWith, nextSteps, fullSpecs }:
             </div>
 
             {overall != null && (
-              <div style={{ padding: '14px 18px', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-md)', marginBottom: 20 }}>
+              <div className="score-card" style={{ padding: '14px 18px', background: c.surface, border: `1px solid ${c.border}`, borderRadius: 'var(--r-md)', marginBottom: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                   <div style={{ fontSize: 30, fontWeight: 700, lineHeight: 1, color: valueScoreColor(overall), fontVariantNumeric: 'tabular-nums' }}>
                     {overall.toFixed(1)}
                   </div>
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: c.text2, marginBottom: 6 }}>Overall Score</div>
                     <div style={{ height: 5, background: c.bg, borderRadius: 3, overflow: 'hidden' }}>
                       <div style={{ height: '100%', width: `${overall * 10}%`, background: valueScoreColor(overall), borderRadius: 3 }} />
                     </div>
                   </div>
-                  {tier && <div style={{ fontSize: 10.5, color: c.text3, whiteSpace: 'nowrap' }}>within {tier.label}</div>}
+                  {tier && <div className="score-tier-note" style={{ fontSize: 10.5, color: c.text3, whiteSpace: 'nowrap' }}>within {tier.label}</div>}
                 </div>
                 <p style={{ fontSize: 11, color: c.text3, marginTop: 10, lineHeight: 1.5 }}>
                   Average of camera, performance, battery, display, build and value. Scores are rated within the phone&apos;s tier.
@@ -470,6 +472,7 @@ function PhoneDetailInner({ phone, similar, compareWith, nextSteps, fullSpecs }:
         </div>
 
         <nav
+          className="section-nav"
           aria-label="Page sections"
           style={{
             position: 'sticky', top: 'var(--nav-h)', zIndex: z.sticky,
@@ -483,7 +486,7 @@ function PhoneDetailInner({ phone, similar, compareWith, nextSteps, fullSpecs }:
               href={`#${a.id}`}
               aria-current={active === a.id ? 'true' : undefined}
               style={{
-                padding: '14px 20px', fontSize: 14, fontWeight: 500, textDecoration: 'none', whiteSpace: 'nowrap',
+                fontSize: 14, fontWeight: 500, textDecoration: 'none', whiteSpace: 'nowrap',
                 color: active === a.id ? c.text1 : c.text3,
                 borderStyle: 'solid', borderWidth: '0 0 2px 0',
                 borderColor: `transparent transparent ${active === a.id ? c.accent : 'transparent'} transparent`,
@@ -494,12 +497,12 @@ function PhoneDetailInner({ phone, similar, compareWith, nextSteps, fullSpecs }:
           ))}
         </nav>
 
-        <section id="review" style={{ scrollMarginTop: SECTION_OFFSET, marginBottom: 14 }}>
+        <section id="review" style={{ scrollMarginTop: SECTION_OFFSET, marginBottom: 14, minWidth: 0 }}>
           <ReviewSection phone={phone} analysis={phone.analysis ?? null} fallbackSections={overviewSections} />
         </section>
 
         {hasSpecs && (
-          <section id="specs" style={{ scrollMarginTop: SECTION_OFFSET, margin: '40px 0 48px' }}>
+          <section id="specs" style={{ scrollMarginTop: SECTION_OFFSET, margin: '40px 0 48px', minWidth: 0 }}>
             <h2 style={{ fontFamily: f.serif, fontSize: 24, color: c.text1, fontWeight: 400, marginBottom: 16 }}>
               {phone.display_name} full specifications
             </h2>
@@ -508,7 +511,7 @@ function PhoneDetailInner({ phone, similar, compareWith, nextSteps, fullSpecs }:
         )}
 
         {hasCompareSection && (
-          <section id="compare" style={{ scrollMarginTop: SECTION_OFFSET, maxWidth: 680, marginBottom: 40 }}>
+          <section id="compare" style={{ scrollMarginTop: SECTION_OFFSET, maxWidth: 680, marginBottom: 40, minWidth: 0 }}>
             <h2 style={{ fontFamily: f.serif, fontSize: 24, color: c.text1, fontWeight: 400, marginBottom: 6 }}>
               Compare the {phone.name} with
             </h2>
@@ -521,15 +524,15 @@ function PhoneDetailInner({ phone, similar, compareWith, nextSteps, fullSpecs }:
           </section>
         )}
 
-        <div style={{ marginBottom: 40 }}>
+        <div style={{ marginBottom: 40, minWidth: 0 }}>
           <PriceHistoryChart points={history} loading={historyLoading} />
         </div>
 
         <AdSlot placement="rectangle" />
 
         {similarList.length > 0 && (
-          <section style={{ marginTop: 8, marginBottom: 40 }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 20 }}>
+          <section style={{ marginTop: 8, marginBottom: 40, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 20, gap: 8, flexWrap: 'wrap' }}>
               <h2 style={{ fontFamily: f.serif, fontSize: 24, color: c.text1, fontWeight: 400 }}>Similar phones</h2>
               <span style={{ fontSize: 13, color: c.text3 }}>Price, size and performance</span>
             </div>
@@ -575,20 +578,31 @@ function PhoneDetailInner({ phone, similar, compareWith, nextSteps, fullSpecs }:
       <style>{`
         html { scroll-behavior: smooth; }
         @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
-        .phone-hero-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; padding-bottom: 40px; align-items: start; }
-        .quick-specs-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
-        .specs-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 4px; }
+
+        /* minmax(0, 1fr) everywhere: a bare 1fr has min-width:auto and grows to
+           its widest child (the thumbnail strip), which pushed the page wider
+           than the phone screen. */
+        .phone-hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; padding-bottom: 40px; align-items: start; }
+        .phone-hero-grid > * { min-width: 0; }
+        .quick-specs-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+        .specs-2col { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-bottom: 4px; }
         .hero-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+        .section-nav a { padding: 14px 20px; }
+
         @media (max-width: 1023px) {
-          .phone-hero-grid { grid-template-columns: 1fr; gap: 28px; }
+          .phone-hero-grid { grid-template-columns: minmax(0, 1fr); gap: 20px; padding-bottom: 28px; }
           .phone-hero-grid > div:first-child { max-width: 420px; margin: 0 auto; width: 100%; }
-          .quick-specs-grid { grid-template-columns: repeat(3, 1fr); }
+          .quick-specs-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
         }
         @media (max-width: 640px) {
-          .quick-specs-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-          .specs-2col { grid-template-columns: 1fr; }
+          .quick-specs-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 28px !important; }
+          .specs-2col { grid-template-columns: minmax(0, 1fr); }
           .hero-actions { flex-direction: column; }
-          .hero-actions a, .hero-actions button { justify-content: center; }
+          .hero-actions > a, .hero-actions > button { width: 100%; flex: none !important; justify-content: center; }
+          .variant-card { padding: 14px 14px !important; }
+          .variant-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+          .score-card { padding: 12px 14px !important; }
+          .section-nav a { padding: 12px 14px; font-size: 13.5px; }
         }
       `}</style>
     </div>
