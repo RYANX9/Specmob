@@ -1,3 +1,4 @@
+
 'use client'
 
 import Link from 'next/link'
@@ -30,14 +31,14 @@ const COLS = [
       { label: 'Gaming',        href: ROUTES.category('gaming-phones') },
       { label: 'Fast Charging', href: ROUTES.category('fast-charging') },
       { label: 'Lightweight',   href: ROUTES.category('lightweight') },
-      { label: 'Foldables',      href: ROUTES.category('foldables') },
+      { label: 'Foldables',     href: ROUTES.category('foldables') },
       { label: 'Compact',       href: ROUTES.category('compact-phones') },
     ],
   },
   {
     title: 'Company',
     links: [
-      { label: 'About Specmob', href: ROUTES.about },
+      { label: 'About Specmob',  href: ROUTES.about },
       { label: 'How We Score',   href: ROUTES.methodology },
       { label: 'Data Sources',   href: `${ROUTES.about}#data` },
       { label: 'Contact',        href: ROUTES.contact },
@@ -62,33 +63,93 @@ function XIcon({ size = 14 }: { size?: number }) {
 export default function Footer() {
   return (
     <footer style={{ background: c.primary, color: 'rgba(255,255,255,0.55)', padding: '0 0 0' }}>
-      <div style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '64px var(--page-px) 48px' }} className="footer-inner-grid">
+      <div
+        style={{ maxWidth: 'var(--max-w)', margin: '0 auto', padding: '64px var(--page-px) 48px' }}
+        className="footer-inner-grid"
+      >
         <div className="footer-brand-col">
-          <div style={{ fontFamily: f.wordmark, fontStyle: 'italic', fontSize: 23, color: '#fff', marginBottom: 14, letterSpacing: '-0.3px' }}>
+          <div style={{
+            fontFamily: f.wordmark,
+            fontStyle: 'italic',
+            fontSize: 23,
+            color: '#fff',
+            marginBottom: 14,
+            letterSpacing: '-0.3px',
+          }}>
             Specmob<span style={{ color: c.accent, fontStyle: 'normal' }}>.</span>
           </div>
-          <p style={{ fontSize: 13.5, lineHeight: 1.7, maxWidth: 260, color: 'rgba(255,255,255,0.45)', marginBottom: 20 }}>
+
+          <p style={{
+            fontSize: 13.5,
+            lineHeight: 1.7,
+            maxWidth: 260,
+            color: 'rgba(255,255,255,0.45)',
+            marginBottom: 20,
+          }}>
             Find and compare phones that are actually available to buy.
             No clutter, no bias, no discontinued models.
           </p>
+
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)' }}>Got a bug or an idea?</span>
+            <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)' }}>
+              Got a bug or an idea?
+            </span>
             <FeedbackTrigger variant="footer" />
           </div>
+
           <div style={{ display: 'flex', gap: 8 }} className="footer-social">
             <a
-              href={xUrl} target="_blank" rel="noopener noreferrer" aria-label="X"
-              style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.6)', transition: 'all 0.15s' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.4)'; (e.currentTarget as HTMLElement).style.color = '#fff' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.15)'; (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.6)' }}
+              href={xUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="X"
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: '50%',
+                border: '1px solid rgba(255,255,255,0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'rgba(255,255,255,0.6)',
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.4)'
+                ;(e.currentTarget as HTMLElement).style.color = '#fff'
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.15)'
+                ;(e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.6)'
+              }}
             >
               <XIcon size={14} />
             </a>
+
             <a
-              href={instagramUrl} target="_blank" rel="noopener noreferrer" aria-label="Instagram"
-              style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.6)', transition: 'all 0.15s' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.4)'; (e.currentTarget as HTMLElement).style.color = '#fff' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.15)'; (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.6)' }}
+              href={instagramUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Instagram"
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: '50%',
+                border: '1px solid rgba(255,255,255,0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'rgba(255,255,255,0.6)',
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.4)'
+                ;(e.currentTarget as HTMLElement).style.color = '#fff'
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.15)'
+                ;(e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.6)'
+              }}
             >
               <Instagram size={14} />
             </a>
@@ -97,17 +158,34 @@ export default function Footer() {
 
         {COLS.map(col => (
           <div key={col.title}>
-            <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 16, color: 'rgba(255,255,255,0.35)' }}>
+            <div style={{
+              fontSize: 10.5,
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '1px',
+              marginBottom: 16,
+              color: 'rgba(255,255,255,0.35)',
+            }}>
               {col.title}
             </div>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
               {col.links.map(l => (
                 <Link
                   key={l.label}
                   href={l.href}
-                  style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.65)', transition: 'color 0.15s' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#fff' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.65)' }}
+                  prefetch={l.href !== ROUTES.tradein}
+                  style={{
+                    fontSize: 13.5,
+                    color: 'rgba(255,255,255,0.65)',
+                    transition: 'color 0.15s',
+                  }}
+                  onMouseEnter={e => {
+                    (e.currentTarget as HTMLElement).style.color = '#fff'
+                  }}
+                  onMouseLeave={e => {
+                    (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.65)'
+                  }}
                 >
                   {l.label}
                 </Link>
@@ -119,18 +197,38 @@ export default function Footer() {
 
       <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
         <div style={{
-          maxWidth: 'var(--max-w)', margin: '0 auto', padding: '22px var(--page-px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12,
+          maxWidth: 'var(--max-w)',
+          margin: '0 auto',
+          padding: '22px var(--page-px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 12,
         }}>
           <span style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.35)' }}>
             © {new Date().getFullYear()} Specmob. Spec data sourced from public manufacturer listings.
           </span>
+
           <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.35)' }}>
               Some purchase links are affiliate links. We may earn a commission at no cost to you.
             </span>
-            <span style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.35)', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ width: 6, height: 6, background: c.green, borderRadius: '50%', display: 'block' }} />
+
+            <span style={{
+              fontSize: 11.5,
+              color: 'rgba(255,255,255,0.35)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}>
+              <span style={{
+                width: 6,
+                height: 6,
+                background: c.green,
+                borderRadius: '50%',
+                display: 'block',
+              }} />
               Specs updated daily
             </span>
           </div>
@@ -143,21 +241,48 @@ export default function Footer() {
           grid-template-columns: 1.3fr repeat(3, 1fr);
           gap: 40px;
         }
+
         ${mq.lg} {
-          .footer-inner-grid { grid-template-columns: repeat(2, 1fr); gap: 32px; }
-          .footer-brand-col { grid-column: 1 / -1; }
+          .footer-inner-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 32px;
+          }
+
+          .footer-brand-col {
+            grid-column: 1 / -1;
+          }
         }
+
         ${mq.sm} {
-          .footer-inner-grid { grid-template-columns: 1fr 1fr; gap: 24px 16px; }
-          .footer-brand-col { text-align: center; }
-          .footer-brand-col p { max-width: 100% !important; margin-left: auto; margin-right: auto; }
-          .footer-social { justify-content: center; }
+          .footer-inner-grid {
+            grid-template-columns: 1fr 1fr;
+            gap: 24px 16px;
+          }
+
+          .footer-brand-col {
+            text-align: center;
+          }
+
+          .footer-brand-col p {
+            max-width: 100% !important;
+            margin-left: auto;
+            margin-right: auto;
+          }
+
+          .footer-social {
+            justify-content: center;
+          }
         }
+
         @media (max-width: 400px) {
-          .footer-inner-grid { grid-template-columns: 1fr; }
+          .footer-inner-grid {
+            grid-template-columns: 1fr;
+          }
         }
       `}</style>
+
       <FeedbackModal />
     </footer>
   )
+     
 }
