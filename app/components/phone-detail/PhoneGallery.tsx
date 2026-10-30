@@ -5,6 +5,8 @@ import { ChevronLeft, ChevronRight, Smartphone } from 'lucide-react'
 import { c } from '@/lib/tokens'
 import type { PhoneDetail } from '@/lib/types'
 
+// ─── gallery URL resolution ─────────────────────────────────────────────────
+
 export function buildGalleryUrls(phone: Pick<PhoneDetail, 'images' | 'main_image_url'>): string[] {
   const extra = (phone.images ?? [])
     .slice()
@@ -16,9 +18,12 @@ export function buildGalleryUrls(phone: Pick<PhoneDetail, 'images' | 'main_image
   return urls.filter(Boolean)
 }
 
-// Source PNGs carry different amounts of baked-in whitespace. This measures
-// the visible bounding box and returns a scale that normalizes the subject
-// to a consistent fraction of the frame.
+// ─── image content normalization ────────────────────────────────────────────
+// Different sources ship product PNGs with wildly different amounts of
+// baked-in whitespace around the phone. This scans each image for the actual
+// non-transparent/non-white bounding box and returns a scale factor that
+// normalizes the subject to a consistent fraction of the frame.
+
 const TARGET_FILL = 0.86
 const scaleCache: Record<string, number> = {}
 
@@ -74,7 +79,7 @@ function measureContentScale(url: string): Promise<number> {
         scaleCache[url] = scale
         resolve(scale)
       } catch {
-        // canvas throws on CORS-tainted images
+        // canvas throws on CORS-tainted images — bail to no-op scale
         scaleCache[url] = 1
         resolve(1)
       }
@@ -104,15 +109,14 @@ function useContentScales(urls: string[]): Record<string, number> {
   return scales
 }
 
-const GALLERY_MAIN_SIZE = 340
-const GALLERY_THUMB_SIZE = 56
-const GALLERY_GAP = 16
+// ─── gallery component ───────────────────────────────────────────────────────
+// Mobile fix: the card is `minWidth: 0; width: 100%` so it can shrink inside
+// the grid track, the main image is capped by the box (never a fixed pixel
+// width), and the thumbnail strip scrolls inside itself instead of widening
+// the page.
 
-// Desktop stage height with a thumbnail row, measured so the card ends level
-// with the affiliate disclosure line. Without thumbnails the stage absorbs
-// the missing row so the card height stays identical.
-const STAGE_HEIGHT_WITH_THUMBS = 395
-const STAGE_HEIGHT_NO_THUMBS = STAGE_HEIGHT_WITH_THUMBS + GALLERY_THUMB_SIZE + GALLERY_GAP
+const GALLERY_MAIN_SIZE = 340   // px, max size of the main image
+const GALLERY_THUMB_SIZE = 56   // px, thumbnail box
 
 export default function PhoneGallery({ phone }: { phone: Pick<PhoneDetail, 'images' | 'main_image_url' | 'display_name'> }) {
   const gallery = buildGalleryUrls(phone)
@@ -125,14 +129,32 @@ export default function PhoneGallery({ phone }: { phone: Pick<PhoneDetail, 'imag
   const goTo = (i: number) => setIndex((i + gallery.length) % gallery.length)
 
   return (
-    <div style={{
-      background: c.surface, border: `1px solid ${c.border}`,
-      borderRadius: 'var(--r-xl)', padding: 20,
-      display: 'flex', flexDirection: 'column', gap: GALLERY_GAP,
-    }}>
+    <div
+      className="gallery-card"
+      style={{
+        background: c.surface,
+        border: `1px solid ${c.border}`,
+        borderRadius: 'var(--r-xl)',
+        padding: 20,
+        minWidth: 0,
+        width: '100%',
+        boxSizing: 'border-box',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 16,
+      }}
+    >
       <div
-        className={hasMultiple ? 'pg-stage' : 'pg-stage pg-stage-solo'}
-        style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        style={{
+          position: 'relative',
+          width: '100%',
+          minWidth: 0,
+          aspectRatio: '1',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
       >
         {current && !failed[index]
           ? <img
@@ -142,10 +164,10 @@ export default function PhoneGallery({ phone }: { phone: Pick<PhoneDetail, 'imag
               loading="eager"
               onError={() => setFailed(prev => ({ ...prev, [index]: true }))}
               style={{
-                width: GALLERY_MAIN_SIZE,
-                height: GALLERY_MAIN_SIZE,
-                maxWidth: '92%',
-                maxHeight: '92%',
+                width: '100%',
+                height: '100%',
+                maxWidth: GALLERY_MAIN_SIZE,
+                maxHeight: GALLERY_MAIN_SIZE,
                 objectFit: 'contain',
                 transform: `scale(${scales[current] ?? 1})`,
                 transition: 'transform 0.15s ease',
@@ -174,7 +196,10 @@ export default function PhoneGallery({ phone }: { phone: Pick<PhoneDetail, 'imag
       </div>
 
       {hasMultiple && (
-        <div className="scrollbar-none" style={{ display: 'flex', gap: 8, overflowX: 'auto' }}>
+        <div
+          className="scrollbar-none"
+          style={{ display: 'flex', gap: 8, overflowX: 'auto', minWidth: 0, width: '100%', paddingBottom: 2 }}
+        >
           {gallery.map((url, i) => (
             <button
               key={`${url}-${i}`}
@@ -208,12 +233,11 @@ export default function PhoneGallery({ phone }: { phone: Pick<PhoneDetail, 'imag
       )}
 
       <style>{`
-        .pg-stage { aspect-ratio: 1; }
-        @media (min-width: 1024px) {
-          .pg-stage { aspect-ratio: auto; height: ${STAGE_HEIGHT_WITH_THUMBS}px; }
-          .pg-stage-solo { height: ${STAGE_HEIGHT_NO_THUMBS}px; }
+        @media (max-width: 640px) {
+          .gallery-card { padding: 12px !important; gap: 12px !important; }
         }
       `}</style>
     </div>
   )
+      
 }
