@@ -7,6 +7,7 @@ import { api, getCategory } from '@/lib/api'
 import { ROUTES } from '@/lib/config'
 import { SITE_URL } from "@/lib/config"
 import { buildMetadata, noindexMetadata } from '@/lib/seo'
+import { categoryDescription, categoryLede, categoryTitle } from '@/lib/categoryCopy'
 import { buildBreadcrumbList, buildItemList, phoneEntries } from '@/lib/structuredData'
 import type { CategoryDetail } from '@/lib/types'
 
@@ -14,6 +15,10 @@ export const revalidate = 3600
 
 interface PageProps {
   params: Promise<{ category: string }>
+}
+
+function monthLabel(): string {
+  return new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' })
 }
 
 function latestYear(data: CategoryDetail): number {
@@ -27,9 +32,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (!data) return { title: 'Best Phones', robots: { index: false, follow: true } }
 
   const year = latestYear(data)
-  const top = data.phones[0]
-  const title = `${data.title} ${year}`
-  const description = `${data.description}${top ? ` Currently #1: ${top.display_name}.` : ''}`
+  const title = categoryTitle(data, year)
+  const description = categoryDescription(data)
 
   if (!data.indexable) return noindexMetadata(data.path, title)
   return buildMetadata({
@@ -53,7 +57,7 @@ export default async function CategoryPage({ params }: PageProps) {
   const buy: Record<number, BuyOffer | undefined> = data.buy ?? {}
   const tradeOff = data.top_weakness ?? null
   const year = latestYear(data)
-  const updatedLabel = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' })
+  const updatedLabel = monthLabel()
   const name = `${data.title} ${year}`
 
   return (
@@ -65,12 +69,13 @@ export default async function CategoryPage({ params }: PageProps) {
           { name, path: data.path },
         ])}
       />
-      <JsonLd data={data.phones.length ? buildItemList(name, phoneEntries(data.phones), data.description) : null} />
+      <JsonLd data={data.phones.length ? buildItemList(name, phoneEntries(data.phones), categoryDescription(data)) : null} />
       <CategoryPageClient
         data={data}
         categories={list?.categories ?? []}
         year={year}
         updatedLabel={updatedLabel}
+        lede={categoryLede(data)}
         tradeOff={tradeOff}
         buy={buy}
       />
