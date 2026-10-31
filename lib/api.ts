@@ -37,23 +37,23 @@ function anySignal(signals: AbortSignal[]): AbortSignal {
 const CACHE = {
   noStore:     { cache: 'no-store' } as RequestInit,
   stable:      { next: { revalidate: 3_600  } } as RequestInit,
-  phoneDetail: { next: { revalidate: 3_600  } } as RequestInit,
+  phoneDetail: { next: { revalidate: 21_600 } } as RequestInit,
   trending:    { next: { revalidate: 900    } } as RequestInit,
   short:       { next: { revalidate: 300    } } as RequestInit,
-  compare:     { next: { revalidate: 300    } } as RequestInit,
+  compare:     { next: { revalidate: 21_600 } } as RequestInit,
   offers:      { next: { revalidate: 600    } } as RequestInit,
   slugs:       { next: { revalidate: 86_400 } } as RequestInit,
 } as const
 
 
 const DEFAULT_TIMEOUT_MS = 45_000
-const COLD_START_RETRY_DELAY_MS = 3_000
 
-// lib/api.ts
-function isRetryableNetworkError(err: unknown): boolean {
-  if (err instanceof DOMException && err.name === 'TimeoutError') return true
-  if (err instanceof TypeError && /fetch failed/i.test(err.message)) return true
-  return false
+function isRetryableNetworkError(err: unknown, attempt: number): boolean {
+  const e = err as { name?: string; message?: string; cause?: { code?: string } } | null
+  if (!e) return false
+  if (e.name === 'TimeoutError') return attempt === 0
+  if (/fetch failed/i.test(e.message ?? '')) return true
+  return ['UND_ERR_SOCKET', 'ECONNRESET', 'UND_ERR_CONNECT_TIMEOUT'].includes(e.cause?.code ?? '')
 }
 
 type ReqInit = Omit<RequestInit, 'signal'> & { signal?: AbortSignal | null; timeoutMs?: number }
@@ -90,15 +90,12 @@ async function req<T>(
     }
   }
 
-  let res: Response
-  try {
-    res = await attempt()
-  } catch (err) {
-    if (retryable && isRetryableNetworkError(err) && !externalSignal?.aborted) {
-      await new Promise(r => setTimeout(r, COLD_START_RETRY_DELAY_MS))
-      res = await attempt()
-    } else {
-      throw err
+  let res!: Response
+  for (let i = 0; ; i++) {
+    try { res = await attempt(); break }
+    catch (err) {
+      if (!retryable || i >= 2 || externalSignal?.aborted || !isRetryableNetworkError(err, i)) throw err
+      await new Promise(r => setTimeout(r, i === 0 ? 300 : 1500))
     }
   }
 
