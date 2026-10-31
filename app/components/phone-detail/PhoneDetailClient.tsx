@@ -18,6 +18,7 @@ import { c, f, z } from '@/lib/tokens'
 import { valueScoreColor } from '@/lib/valueScore'
 import { analytics } from '@/lib/analytics'
 import { trackNextStep, trackPageView } from '@/lib/events'
+import { isLikelyBot } from '@/lib/bot'
 import { useRegion } from '@/lib/regionStore'
 import type { ComparePair, NextStep, Phone, PhoneDetail, PhoneOffer, PhoneVariant } from '@/lib/types'
 import Navbar from '@/app/components/Navbar'
@@ -125,7 +126,7 @@ function PhoneDetailInner({ phone, similar, compareWith, nextSteps, fullSpecs }:
   const [selectedVariant, setSelectedVariant] = useState<PhoneVariant | null>(defaultVariant)
 
   useEffect(() => {
-    if (phone.price_history_points < 2) return
+    if (phone.price_history_points < 2 || isLikelyBot()) return
     const controller = new AbortController()
     api.phones.priceHistory(phone.id, controller.signal)
       .then(res => { if (!controller.signal.aborted) setHistory(res.lowest ?? []) })
@@ -135,6 +136,7 @@ function PhoneDetailInner({ phone, similar, compareWith, nextSteps, fullSpecs }:
   }, [phone.id, phone.price_history_points])
 
   useEffect(() => {
+    if (isLikelyBot()) return
     let cancelled = false
     api.phones.offers(phone.id, region)
       .then(res => { if (!cancelled) setOffers(res.offers) })
