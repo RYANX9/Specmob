@@ -1,7 +1,7 @@
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://renderphones-1.onrender.com'
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://www.specmob.com').replace(/\/+$/, '')
 export const SITE_NAME = 'Specmob'
-export const CONTACT_EMAIL = process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'ahmed.messaad.ml@gmail.com'
+export const CONTACT_EMAIL = process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'contact@specmob.com'
 
 export { valueScoreColor } from './valueScore'
 
