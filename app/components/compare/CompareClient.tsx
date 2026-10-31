@@ -18,6 +18,7 @@ import Footer from '../Footer'
 import { useToast } from '../Toast'
 import type { Phone as SearchPhone, PhoneDetail as Phone, PhoneMini, CompareVerdict, NextStep } from '@/lib/types'
 import { trackCompareVisit, trackNextStep } from '@/lib/events'
+import { isLikelyBot } from '@/lib/bot'
 import { formatUsd } from '@/lib/price'
 import { specComposite, resolveValueScore } from '@/lib/valueScore'
 import { analytics } from '@/lib/analytics'
@@ -907,7 +908,7 @@ function CompareContent({
 
   const hasVerdict = verdict !== null
   useEffect(() => {
-    if (phones.length < 2 || hasVerdict) { setVerdictLoading(false); return }
+    if (phones.length < 2 || hasVerdict || isLikelyBot()) { setVerdictLoading(false); return }
 
     const reqKey = setKeyOf(phones)
     let cancelled = false
