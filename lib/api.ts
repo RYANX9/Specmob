@@ -37,10 +37,10 @@ function anySignal(signals: AbortSignal[]): AbortSignal {
 const CACHE = {
   noStore:     { cache: 'no-store' } as RequestInit,
   stable:      { next: { revalidate: 3_600  } } as RequestInit,
-  phoneDetail: { next: { revalidate: 21_600 } } as RequestInit,
+  phoneDetail: { next: { revalidate: 86_400 } } as RequestInit,
   trending:    { next: { revalidate: 900    } } as RequestInit,
   short:       { next: { revalidate: 300    } } as RequestInit,
-  compare:     { next: { revalidate: 21_600 } } as RequestInit,
+  compare:     { next: { revalidate: 86_400 } } as RequestInit,
   offers:      { next: { revalidate: 600    } } as RequestInit,
   slugs:       { next: { revalidate: 86_400 } } as RequestInit,
 } as const
