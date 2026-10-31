@@ -10,7 +10,7 @@ import { tierLabel } from '@/lib/tiers'
 import { ROUTES, SITE_URL } from '@/lib/config'
 import type { PhoneDetail, RelatedResponse } from '@/lib/types'
 
-export const revalidate = 3600
+export const revalidate = 86400
 
 interface PageProps {
   params: Promise<{ brand: string; model: string }>
