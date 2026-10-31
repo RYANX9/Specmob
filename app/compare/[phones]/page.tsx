@@ -47,7 +47,7 @@ function compareTitle(phones: { brand: string; name: string; display_name: strin
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { phones: slug } = await params
-  const res = await getComparePair(slug).catch(() => null)
+  const res = await getComparePair(slug)
   if (!res || 'redirect' in res) return noindexMetadata(`/compare/${slug}`, 'Compare phones')
 
   const names = res.phones.map(p => p.display_name).join(' vs ')
