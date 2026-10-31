@@ -10,6 +10,7 @@ import { COST_ITEMS, MONTHLY_GOAL_USD, MONTHLY_RAISED_USD, SUPPORT_LINKS, CRYPTO
 import CryptoCard from '@/app/components/support/CryptoCard'
 
 export const metadata: Metadata = {
+  alternates: { canonical: '/support' },
   title: 'Support Specmob',
   description: 'What it costs to run Specmob and how to help keep it free, ad-light, and unbiased.',
   openGraph: {
