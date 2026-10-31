@@ -35,6 +35,7 @@ interface Props {
   categories: CategoryListItem[]
   year: number
   updatedLabel: string
+  lede: string
   tradeOff: string | null
   buy: Record<number, BuyOffer | undefined>
 }
@@ -183,7 +184,7 @@ function RankCard({
   )
 }
 
-function CategoryPageContent({ data, categories, year, updatedLabel, tradeOff, buy }: Props) {
+function CategoryPageContent({ data, categories, year, updatedLabel, lede, tradeOff, buy }: Props) {
   const { toast } = useToast()
   const [comparePhones, setComparePhones] = useState<Phone[]>([])
 
@@ -268,7 +269,10 @@ function CategoryPageContent({ data, categories, year, updatedLabel, tradeOff, b
                 {data.slug.startsWith('under-') ? `${data.title} (${year})` : `${data.title} ${year}`}
               </h1>
             </div>
-            <p style={{ fontSize: 15, color: c.text2, lineHeight: 1.65, maxWidth: 620, marginBottom: 16 }}>{data.description}</p>
+            <p style={{ fontSize: 15, color: c.text2, lineHeight: 1.65, maxWidth: 620, marginBottom: 16 }}>
+              {lede || data.description}{' '}
+              <a href="#methodology" style={{ color: c.primary, fontWeight: 600, whiteSpace: 'nowrap' }}>How we rank</a>
+            </p>
             {budgetLinks.length > 0 && (
               <p style={{ fontSize: 14, color: c.text2, lineHeight: 1.6, maxWidth: 620, marginBottom: 16 }}>
                 {budgetLinks.map((l, i) => (
