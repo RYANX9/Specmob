@@ -16,6 +16,15 @@ interface PageProps {
   params: Promise<{ brand: string; model: string }>
 }
 
+async function orFallbackOn404<T>(promise: Promise<T>, fallback: T): Promise<T> {
+  try {
+    return await promise
+  } catch (err) {
+    if (err instanceof APIError && err.isNotFound) return fallback
+    throw err
+  }
+}
+
 async function resolveLegacyPath(brand: string, model: string): Promise<string | null> {
   for (const candidate of [model, `${brand}-${model}`]) {
     try {
@@ -87,8 +96,8 @@ export default async function PhoneDetailPage({ params }: PageProps) {
 
   const empty: RelatedResponse = { similar: [], compare_with: [], next_steps: [] }
   const [related, specsRes] = await Promise.all([
-    api.phones.related(phone.id, 14).catch(() => empty),
-    api.phones.fullSpecs(phone.id).catch(() => ({ phone_id: phone.id, full_specifications: null })),
+    orFallbackOn404(api.phones.related(phone.id, 14), empty),
+    orFallbackOn404(api.phones.fullSpecs(phone.id), { phone_id: phone.id, full_specifications: null }),
   ])
 
   return (
