@@ -8,7 +8,7 @@ import { ROUTES, SITE_URL } from '@/lib/config'
 import { buildMetadata, noindexMetadata } from '@/lib/seo'
 import { buildBreadcrumbList } from '@/lib/structuredData'
 
-export const revalidate = 3600
+export const revalidate = 86400
 
 interface PageProps {
   params: Promise<{ phones: string }>
