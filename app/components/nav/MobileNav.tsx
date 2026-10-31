@@ -119,7 +119,7 @@ export default function MobileNav({ top, autoFocusSearch, pathname, compareCount
 
         {!searchOpen && (
           <>
-            <Link href={ROUTES.pick} className="nb-cta nb-cta--block" onClick={onClose}>
+            <Link prefetch={false} href={ROUTES.pick} className="nb-cta nb-cta--block" onClick={onClose}>
               <CircleHelp size={16} strokeWidth={2} aria-hidden="true" />
               Help Me Choose
             </Link>
@@ -148,13 +148,13 @@ export default function MobileNav({ top, autoFocusSearch, pathname, compareCount
               {section === 'brands' && (
                 <div id="nb-acc-brands" role="region" aria-labelledby="nb-acc-brands-btn" style={{ paddingBottom: 12 }}>
                   <BrandsGrid pathname={pathname} onNavigate={onClose} cols={2} />
-                  <Link href={ROUTES.brands} className="nb-foot-link nb-foot-link--strong" style={{ marginTop: 8 }} onClick={onClose}>
+                  <Link prefetch={false} href={ROUTES.brands} className="nb-foot-link nb-foot-link--strong" style={{ marginTop: 8 }} onClick={onClose}>
                     View all brands
                   </Link>
                 </div>
               )}
 
-              <Link
+              <Link prefetch={false}
                 href={compareHref}
                 className="nb-acc-btn"
                 aria-label={compareLabel(compareCount)}
@@ -167,7 +167,7 @@ export default function MobileNav({ top, autoFocusSearch, pathname, compareCount
                 </span>
               </Link>
 
-              <Link
+              <Link prefetch={false}
                 href={TRADE_IN.href}
                 className="nb-acc-btn"
                 aria-current={isActivePath(pathname, TRADE_IN.href) ? 'page' : undefined}
@@ -183,4 +183,3 @@ export default function MobileNav({ top, autoFocusSearch, pathname, compareCount
     </div>
   )
 }
-
