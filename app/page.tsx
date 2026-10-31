@@ -31,7 +31,7 @@ function block<T>(home: HomeResponse | null, id: HomeBlock['id']): T[] {
 
 export default async function HomePage() {
   const [home, stats, pick] = await Promise.all([
-    api.discover.home().catch(() => null),
+    api.discover.home(),
     api.filters.stats().catch((): FilterStats | null => null),
     api.phones.recommend({ budget: DEFAULT_DIAL_VALUE, limit: 1 }).then(r => r.phones[0] ?? null).catch(() => null),
   ])
