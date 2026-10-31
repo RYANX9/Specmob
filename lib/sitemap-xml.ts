@@ -24,31 +24,10 @@ export const respond = (body: string) =>
 
 export async function collect(section: SitemapSection['section']): Promise<SitemapEntry[]> {
   const out: SitemapEntry[] = []
-  try {
-    const first = await api.seo.sitemap(section, 1, 5000)
-    out.push(...first.entries)
-    for (let p = 2; p <= first.pages; p++) {
-      out.push(...(await api.seo.sitemap(section, p, 5000)).entries)
-    }
-  } catch {
-    /* return whatever we got */
+  const first = await api.seo.sitemap(section, 1, 5000)
+  out.push(...first.entries)
+  for (let p = 2; p <= first.pages; p++) {
+    out.push(...(await api.seo.sitemap(section, p, 5000)).entries)
   }
   return out
-}
-
-// Bump only when templates/content really change.
-export const today = () => '2026-10-28'
-
-// Same selection logic for main and rest, so they never overlap.
-// Newest by lastmod is only a proxy. If your API exposes release date, sort by that.
-const NEWEST = 100
-const PROVEN = ['/brand/xiaomi/redmi-turbo-3', '/brand/xiaomi/redmi-15c']
-
-export function splitPhones(phones: SitemapEntry[]) {
-  const sorted = [...phones].sort((a, b) => +new Date(b.lastmod ?? 0) - +new Date(a.lastmod ?? 0))
-  const main = new Map<string, SitemapEntry>()
-  for (const p of sorted.slice(0, NEWEST)) main.set(p.path, p)
-  for (const p of phones) if (PROVEN.includes(p.path)) main.set(p.path, p)
-  const rest = phones.filter(p => !main.has(p.path))
-  return { main: [...main.values()], rest }
 }
