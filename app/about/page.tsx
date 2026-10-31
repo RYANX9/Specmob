@@ -9,6 +9,7 @@ import { c, f, r, sh, mq } from '@/lib/tokens'
 import { ROUTES, SITE_URL, CONTACT_EMAIL } from '@/lib/config'
 
 export const metadata: Metadata = {
+  alternates: { canonical: '/about' },
   title: 'About Specmob',
   description:
     'How Specmob scores phones, where the data comes from, and how to reach us. No sponsored picks — every ranking is driven by specs.',
