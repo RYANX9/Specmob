@@ -37,7 +37,7 @@ export function NavItem({
 }) {
   const Icon = item.icon
   return (
-    <Link
+    <Link prefetch={false}
       href={item.href}
       className="nb-item"
       data-nav-item
@@ -90,7 +90,7 @@ export function BrandsGrid({
   return (
     <div style={grid}>
       {brands.map(b => (
-        <Link
+        <Link prefetch={false}
           key={b.brand}
           href={b.path}
           className="nb-item nb-item--brand"
@@ -132,11 +132,11 @@ function BestPanel({ pathname, onNavigate }: PanelProps) {
       </div>
 
       <div className="nb-panel-foot">
-        <Link href={BEST_ALL.href} className="nb-foot-link nb-foot-link--strong" data-nav-item onClick={onNavigate}>
+        <Link prefetch={false} href={BEST_ALL.href} className="nb-foot-link nb-foot-link--strong" data-nav-item onClick={onNavigate}>
           {BEST_ALL.label}
           <ArrowRight size={14} aria-hidden="true" />
         </Link>
-        <Link href={TRADE_IN.href} className="nb-foot-link" data-nav-item onClick={onNavigate}>
+        <Link prefetch={false} href={TRADE_IN.href} className="nb-foot-link" data-nav-item onClick={onNavigate}>
           {TRADE_IN.label}
         </Link>
       </div>
@@ -149,7 +149,7 @@ function BrandsPanel({ pathname, onNavigate }: PanelProps) {
     <>
       <BrandsGrid pathname={pathname} onNavigate={onNavigate} cols={4} />
       <div className="nb-panel-foot">
-        <Link href={ROUTES.brands} className="nb-foot-link nb-foot-link--strong" data-nav-item onClick={onNavigate}>
+        <Link prefetch={false} href={ROUTES.brands} className="nb-foot-link nb-foot-link--strong" data-nav-item onClick={onNavigate}>
           View all brands
           <ArrowRight size={14} aria-hidden="true" />
         </Link>
@@ -370,7 +370,7 @@ export default function NavMenus({ pathname, compareCount, compareHref }: Props)
         </div>
       )}
 
-      <Link
+      <Link prefetch={false}
         href={compareHref}
         className="nb-trigger"
         aria-label={compareLabel(compareCount)}
