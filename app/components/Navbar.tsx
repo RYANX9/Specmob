@@ -112,7 +112,7 @@ export default function Navbar() {
         }}
       >
         <div className="nb-row">
-          <Link
+          <Link prefetch={false}
             href={ROUTES.home}
             style={{
               fontFamily: f.wordmark,
@@ -136,7 +136,7 @@ export default function Navbar() {
 
           <div className="nb-right">
             <NavMenus pathname={pathname} compareCount={compareCount} compareHref={compareHref} />
-            <Link href={ROUTES.pick} className="nb-cta">
+            <Link prefetch={false} href={ROUTES.pick} className="nb-cta">
               <CircleHelp size={14} strokeWidth={2} aria-hidden="true" />
               Help Me Choose
             </Link>
