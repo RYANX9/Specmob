@@ -8,6 +8,7 @@ import Footer from '@/app/components/Footer'
 import { c, f, r, mq } from '@/lib/tokens'
 
 export const metadata: Metadata = {
+  alternates: { canonical: '/terms' },
   title: 'Terms of Use',
   description: 'The terms that govern your use of Specmob, including our affiliate disclosure.',
   robots: { index: true, follow: true },
