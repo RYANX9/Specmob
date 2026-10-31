@@ -9,6 +9,7 @@ import { c, f, r, sh } from '@/lib/tokens'
 import { TEAM, CONTACT_EMAIL } from '@/lib/team'
 
 export const metadata: Metadata = {
+  alternates: { canonical: '/contact' },
   title: 'Contact',
   description: 'Report data issues, send feedback, propose a sponsorship, or reach the team behind Specmob.',
   openGraph: {
