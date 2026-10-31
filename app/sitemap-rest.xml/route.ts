@@ -1,23 +1,24 @@
 import { SITE_URL } from '@/lib/config'
 import { isDuplicateBrandPath } from '@/lib/dupes'
-import { collect, respond, splitPhones, today, xml } from '@/lib/sitemap-xml'
+import { mainPaths } from '@/lib/sitemap-main'
+import { collect, respond, xml } from '@/lib/sitemap-xml'
 
 export const revalidate = 3600
 
 export async function GET() {
-  const d = today()
-  const [phones, brands, compares] = await Promise.all([
+  const [main, phones, brands, compares] = await Promise.all([
+    mainPaths(),
     collect('phones'),
     collect('brands'),
     collect('compares'),
   ])
-  const { rest } = splitPhones(phones.filter(p => !isDuplicateBrandPath(p.path)))
 
-  return respond(
-    xml([
-      ...rest.map(e => ({ loc: `${SITE_URL}${e.path}`, lastmod: d })),
-      ...brands.map(e => ({ loc: `${SITE_URL}${e.path}`, lastmod: d })),
-      ...compares.map(e => ({ loc: `${SITE_URL}${e.path}`, lastmod: d })),
-    ]),
-  )
+  const inMain = new Set(main)
+  const paths = new Set<string>()
+  for (const e of [...phones, ...brands, ...compares]) {
+    if (!inMain.has(e.path) && !isDuplicateBrandPath(e.path)) paths.add(e.path)
+  }
+
+  const base = SITE_URL.replace(/\/$/, '')
+  return respond(xml([...paths].map(path => ({ loc: `${base}${path}` }))))
 }
