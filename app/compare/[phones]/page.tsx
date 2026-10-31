@@ -56,9 +56,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     res.summary.text ??
     `Side-by-side comparison of ${names}. Camera, battery, performance and value scores with a clear verdict.`
 
-  // Non-indexable pairs must still get the full title, description and social
-  // tags (only robots changes). Returning noindexMetadata() here dropped
-  // og:title/og:description, so social previews fell back to the homepage text.
   return buildMetadata({
     title,
     description: clip(description),
@@ -67,7 +64,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     // phone's raw photo.
     image: `${SITE_URL.replace(/\/$/, '')}${res.canonical.path}/opengraph-image`,
     imageAlt: `${names} compared on Specmob`,
-    noindex: !res.indexable,
   })
 }
 
