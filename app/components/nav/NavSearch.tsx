@@ -169,7 +169,6 @@ export default function NavSearch({ variant = 'bar', autoFocus = false, inputRef
   useEffect(() => {
     if (activeIdx < 0) return
     document.getElementById(optId(activeIdx))?.scrollIntoView({ block: 'nearest' })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeIdx])
 
   /* ---------- actions ---------- */
