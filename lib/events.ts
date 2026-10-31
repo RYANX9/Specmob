@@ -1,5 +1,6 @@
 import { API_BASE } from './config'
 import type { AppEvent } from './types'
+import { isLikelyBot } from './bot'
 
 const CLIENT_KEY = 'specmob-cid'
 
@@ -22,7 +23,7 @@ function clientId(): string | undefined {
 }
 
 function post(path: string, body: Record<string, unknown>): void {
-  if (typeof window === 'undefined') return
+  if (typeof window === 'undefined' || isLikelyBot()) return
   try {
     void fetch(`${API_BASE}${path}`, {
       method: 'POST',
@@ -44,7 +45,13 @@ export function trackEvent(events: AppEvent[], region?: string | null): void {
   })
 }
 
+const seenViews = new Set<string>()
+
 export function trackPageView(pageType: PageType, path: string, phoneId?: number, region?: string | null): void {
+  if (typeof window === 'undefined') return
+  const key = `${pageType}:${path}`
+  if (seenViews.has(key)) return
+  seenViews.add(key)
   trackEvent([{ type: 'page_view', page_type: pageType, path, phone_id: phoneId }], region)
 }
 
