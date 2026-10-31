@@ -8,6 +8,7 @@ import Footer from '@/app/components/Footer'
 import { c, f, r, mq } from '@/lib/tokens'
 
 export const metadata: Metadata = {
+  alternates: { canonical: '/privacy' },
   title: 'Privacy Policy',
   description: 'What data Specmob collects, why, and what choices you have.',
   robots: { index: true, follow: true },
