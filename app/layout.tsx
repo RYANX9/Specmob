@@ -7,6 +7,7 @@ import { SpeedInsights } from '@vercel/speed-insights/next'
 import { GoogleAnalytics } from '@next/third-parties/google'
 import { ToastProvider } from '@/app/components/Toast'
 import { CompareProvider } from '@/lib/compareStore'
+import PageViewTracker from '@/app/components/PageViewTracker'
 import DataNoticeBanner from '@/app/components/DataNoticeBanner'
 import './globals.css'
 import { SITE_URL } from '@/lib/config'
@@ -106,7 +107,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </CompareProvider>
           </ToastProvider>
         </RegionProvider>
-        <Analytics />
+        <PageViewTracker />
+        <Analytics endpoint="/va/view" scriptSrc="/va/script.js" />
         <SpeedInsights />
         <GoogleAnalytics gaId={GA_MEASUREMENT_ID} />
       </body>
